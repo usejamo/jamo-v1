@@ -372,15 +372,13 @@ export default function ProposalDetail() {
 
         </div>{/* end left pane */}
 
-        {/* ── Right: AI chat panel ── */}
-        <div className="w-[350px] shrink-0">
-          <AIChatPanel
+        {/* ── Right: AI chat panel (self-sizing) ── */}
+        <AIChatPanel
             draftGenerated={generated}
             onCommand={setPendingSuggestion}
             onSuggestionResolved={handleResolutionConsumed}
             lastResolution={lastResolution}
           />
-        </div>
 
       </div>{/* end two-pane */}
     </div>

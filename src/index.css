@@ -28,3 +28,22 @@ body {
 #root {
   min-height: 100vh;
 }
+
+/* ── Aurora / jamo AI heartbeat ── */
+@keyframes jamo-aurora {
+  0%   { background-position: 0%   50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0%   50%; }
+}
+
+.jamo-aurora {
+  background: linear-gradient(270deg, #000000, #10b981, #8b5cf6, #3b82f6, #ff7f50);
+  background-size: 400% 400%;
+  animation: jamo-aurora 12s ease infinite;
+}
+
+.jamo-aurora-fast {
+  background: linear-gradient(270deg, #000000, #10b981, #8b5cf6, #3b82f6, #ff7f50);
+  background-size: 400% 400%;
+  animation: jamo-aurora 3s ease infinite;
+}
