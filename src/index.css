@@ -48,6 +48,39 @@ body {
   animation: jamo-aurora 3s ease infinite;
 }
 
+/* ── Universal button tactile feedback ──────────────────────────────────────
+   Hover: fades in a tint overlay derived from the button's current text color
+   (which is in the same palette as the border on every button in this app).
+   Active: physical scale-down with a 50ms snap.
+   The ::before approach keeps this independent of Tailwind's transition classes
+   and doesn't require touching individual button elements.
+   Disabled buttons are excluded from both effects.
+*/
+
+button {
+  position: relative;
+}
+
+button::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: color-mix(in srgb, currentColor 8%, transparent);
+  opacity: 0;
+  transition: opacity 150ms ease;
+  pointer-events: none;
+}
+
+button:not([disabled]):hover::before {
+  opacity: 1;
+}
+
+button:not([disabled]):active {
+  transform: scale(0.97);
+  transition: transform 50ms ease;
+}
+
 /* ── ROYGBIV spectrum pulse ── */
 @keyframes roygbiv-hue {
   from { filter: hue-rotate(0deg); }

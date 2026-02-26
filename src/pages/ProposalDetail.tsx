@@ -112,8 +112,7 @@ function ExportDropdown() {
         <button
           onClick={() => !exporting && setOpen(prev => !prev)}
           disabled={exporting}
-          className="text-sm font-medium text-gray-600 hover:text-gray-800 bg-white hover:bg-slate-100 border border-gray-200 hover:border-gray-300 hover:shadow-sm px-3 py-1.5 rounded-lg active:scale-[0.97] disabled:opacity-60"
-          style={{ transition: 'background-color 150ms, border-color 150ms, box-shadow 150ms, color 150ms, transform 50ms' }}
+          className="text-sm font-medium text-gray-600 hover:text-gray-800 bg-white border border-gray-200 hover:border-gray-300 hover:shadow-sm px-3 py-1.5 rounded-lg transition-colors disabled:opacity-60"
         >
           {exporting ? 'Exporting...' : 'Export'}
         </button>
