@@ -1,0 +1,112 @@
+[
+  {
+    "id": "prop-001",
+    "title": "Phase II Oncology Dose Escalation Study",
+    "client": "AstraZeneca",
+    "studyType": "Phase II Clinical Trial",
+    "therapeuticArea": "Oncology",
+    "status": "won",
+    "dueDate": "2026-01-15",
+    "value": 450000,
+    "createdAt": "2025-12-20"
+  },
+  {
+    "id": "prop-002",
+    "title": "PK/PD Biomarker Analysis Program",
+    "client": "Pfizer",
+    "studyType": "Biomarker Study",
+    "therapeuticArea": "Immunology",
+    "status": "submitted",
+    "dueDate": "2026-03-01",
+    "value": 180000,
+    "createdAt": "2026-01-10"
+  },
+  {
+    "id": "prop-003",
+    "title": "Phase I SAD/MAD First-in-Human Study",
+    "client": "Novartis",
+    "studyType": "Phase I Clinical Trial",
+    "therapeuticArea": "CNS",
+    "status": "in_review",
+    "dueDate": "2026-03-10",
+    "value": 320000,
+    "createdAt": "2026-01-22"
+  },
+  {
+    "id": "prop-004",
+    "title": "Phase III Global Efficacy & Safety Trial",
+    "client": "Roche",
+    "studyType": "Phase III Clinical Trial",
+    "therapeuticArea": "Oncology",
+    "status": "draft",
+    "dueDate": "2026-04-05",
+    "value": 1200000,
+    "createdAt": "2026-02-01"
+  },
+  {
+    "id": "prop-005",
+    "title": "Bioequivalence Study — Generic Formulation",
+    "client": "Teva",
+    "studyType": "Bioequivalence",
+    "therapeuticArea": "Generics",
+    "status": "won",
+    "dueDate": "2026-01-28",
+    "value": 95000,
+    "createdAt": "2025-12-05"
+  },
+  {
+    "id": "prop-006",
+    "title": "CNS Phase II Proof-of-Concept Trial",
+    "client": "Bristol-Myers Squibb",
+    "studyType": "Phase II Clinical Trial",
+    "therapeuticArea": "CNS",
+    "status": "submitted",
+    "dueDate": "2026-03-20",
+    "value": 580000,
+    "createdAt": "2026-01-30"
+  },
+  {
+    "id": "prop-007",
+    "title": "Oncology Companion Diagnostic Biomarker Study",
+    "client": "Merck",
+    "studyType": "Biomarker Study",
+    "therapeuticArea": "Oncology",
+    "status": "draft",
+    "dueDate": "2026-04-15",
+    "value": 240000,
+    "createdAt": "2026-02-10"
+  },
+  {
+    "id": "prop-008",
+    "title": "Metabolic Disorder Long-Term Safety Study",
+    "client": "Sanofi",
+    "studyType": "Phase III Clinical Trial",
+    "therapeuticArea": "Metabolic",
+    "status": "lost",
+    "dueDate": "2026-02-01",
+    "value": 370000,
+    "createdAt": "2025-11-15"
+  },
+  {
+    "id": "prop-009",
+    "title": "Immunology Phase II Dose-Finding Study",
+    "client": "AbbVie",
+    "studyType": "Phase II Clinical Trial",
+    "therapeuticArea": "Immunology",
+    "status": "in_review",
+    "dueDate": "2026-03-28",
+    "value": 490000,
+    "createdAt": "2026-02-05"
+  },
+  {
+    "id": "prop-010",
+    "title": "Rare Disease Natural History Study",
+    "client": "Biogen",
+    "studyType": "Observational Study",
+    "therapeuticArea": "Rare Disease",
+    "status": "submitted",
+    "dueDate": "2026-03-15",
+    "value": 620000,
+    "createdAt": "2026-02-12"
+  }
+]
