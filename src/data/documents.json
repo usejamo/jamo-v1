@@ -1,0 +1,52 @@
+{
+  "prop-001": [
+    { "id": "d1", "type": "rfp", "name": "AZ_Oncology_Phase2_RFP.pdf", "size": "2.4 MB", "uploadedAt": "2025-12-20" },
+    { "id": "d2", "type": "kickoff", "name": "Kickoff_Call_Transcript_Dec22.txt", "size": "18 KB", "uploadedAt": "2025-12-22" },
+    { "id": "d3", "type": "template", "name": "CRO_Proposal_Template_v3.docx", "size": "1.1 MB", "uploadedAt": "2025-12-20" }
+  ],
+  "prop-002": [
+    { "id": "d4", "type": "rfp", "name": "Pfizer_PKPD_Biomarker_RFP.pdf", "size": "3.1 MB", "uploadedAt": "2026-01-10" },
+    { "id": "d5", "type": "template", "name": "CRO_Proposal_Template_v3.docx", "size": "1.1 MB", "uploadedAt": "2026-01-10" }
+  ],
+  "prop-003": [
+    { "id": "d6", "type": "rfp", "name": "Novartis_Phase1_SAD_MAD_RFP.pdf", "size": "1.8 MB", "uploadedAt": "2026-01-22" },
+    { "id": "d7", "type": "kickoff", "name": "Kickoff_Call_Transcript_Jan24.txt", "size": "22 KB", "uploadedAt": "2026-01-24" },
+    { "id": "d8", "type": "other", "name": "Novartis_Protocol_Draft_v1.pdf", "size": "4.7 MB", "uploadedAt": "2026-01-25" },
+    { "id": "d9", "type": "template", "name": "CRO_Proposal_Template_v3.docx", "size": "1.1 MB", "uploadedAt": "2026-01-22" }
+  ],
+  "prop-004": [
+    { "id": "d10", "type": "rfp", "name": "Roche_Phase3_Global_RFP.pdf", "size": "5.2 MB", "uploadedAt": "2026-02-01" },
+    { "id": "d11", "type": "template", "name": "CRO_Proposal_Template_v3.docx", "size": "1.1 MB", "uploadedAt": "2026-02-01" }
+  ],
+  "prop-005": [
+    { "id": "d12", "type": "rfp", "name": "Teva_BE_Study_RFP.pdf", "size": "1.2 MB", "uploadedAt": "2025-12-05" },
+    { "id": "d13", "type": "kickoff", "name": "Kickoff_Call_Transcript_Dec08.txt", "size": "14 KB", "uploadedAt": "2025-12-08" },
+    { "id": "d14", "type": "template", "name": "CRO_Proposal_Template_v3.docx", "size": "1.1 MB", "uploadedAt": "2025-12-05" }
+  ],
+  "prop-006": [
+    { "id": "d15", "type": "rfp", "name": "BMS_CNS_Phase2_RFP.pdf", "size": "2.9 MB", "uploadedAt": "2026-01-30" },
+    { "id": "d16", "type": "other", "name": "BMS_Scientific_Background.pdf", "size": "3.4 MB", "uploadedAt": "2026-01-31" },
+    { "id": "d17", "type": "template", "name": "CRO_Proposal_Template_v3.docx", "size": "1.1 MB", "uploadedAt": "2026-01-30" }
+  ],
+  "prop-007": [
+    { "id": "d18", "type": "rfp", "name": "Merck_Oncology_Biomarker_RFP.pdf", "size": "2.1 MB", "uploadedAt": "2026-02-10" },
+    { "id": "d19", "type": "template", "name": "CRO_Proposal_Template_v3.docx", "size": "1.1 MB", "uploadedAt": "2026-02-10" }
+  ],
+  "prop-008": [
+    { "id": "d20", "type": "rfp", "name": "Sanofi_Metabolic_LongTerm_RFP.pdf", "size": "3.8 MB", "uploadedAt": "2025-11-15" },
+    { "id": "d21", "type": "kickoff", "name": "Kickoff_Call_Transcript_Nov18.txt", "size": "31 KB", "uploadedAt": "2025-11-18" },
+    { "id": "d22", "type": "template", "name": "CRO_Proposal_Template_v3.docx", "size": "1.1 MB", "uploadedAt": "2025-11-15" }
+  ],
+  "prop-009": [
+    { "id": "d23", "type": "rfp", "name": "AbbVie_Immunology_Phase2_RFP.pdf", "size": "2.6 MB", "uploadedAt": "2026-02-05" },
+    { "id": "d24", "type": "kickoff", "name": "Kickoff_Call_Transcript_Feb07.txt", "size": "19 KB", "uploadedAt": "2026-02-07" },
+    { "id": "d25", "type": "other", "name": "AbbVie_Compound_Summary.pdf", "size": "1.5 MB", "uploadedAt": "2026-02-06" },
+    { "id": "d26", "type": "template", "name": "CRO_Proposal_Template_v3.docx", "size": "1.1 MB", "uploadedAt": "2026-02-05" }
+  ],
+  "prop-010": [
+    { "id": "d27", "type": "rfp", "name": "Biogen_RareDisease_NatHistory_RFP.pdf", "size": "4.0 MB", "uploadedAt": "2026-02-12" },
+    { "id": "d28", "type": "kickoff", "name": "Kickoff_Call_Transcript_Feb14.txt", "size": "27 KB", "uploadedAt": "2026-02-14" },
+    { "id": "d29", "type": "other", "name": "Patient_Registry_Data_Summary.xlsx", "size": "890 KB", "uploadedAt": "2026-02-13" },
+    { "id": "d30", "type": "template", "name": "CRO_Proposal_Template_v3.docx", "size": "1.1 MB", "uploadedAt": "2026-02-12" }
+  ]
+}
