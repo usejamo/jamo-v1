@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
 import type { DraftSection, Segment, ContentBlock, Annotation, AnnotationSourceType } from '../types/draft'
 
-const SOURCE_STYLES: Record<AnnotationSourceType, { bg: string; text: string; border: string; label: string }> = {
-  rfp:      { bg: 'bg-amber-50',  text: 'text-amber-900', border: 'border-amber-200', label: 'RFP' },
-  kickoff:  { bg: 'bg-blue-50',   text: 'text-blue-900',  border: 'border-blue-200',  label: 'Kick-off Call' },
-  template: { bg: 'bg-purple-50', text: 'text-purple-900',border: 'border-purple-200',label: 'Template' },
-  other:    { bg: 'bg-green-50',  text: 'text-green-900', border: 'border-green-200', label: 'Document' },
+const SOURCE_META: Record<AnnotationSourceType, { dot: string; badge: string; badgeText: string; quoteBorder: string; label: string }> = {
+  rfp:      { dot: 'bg-amber-400',  badge: 'bg-amber-50 text-amber-700',  badgeText: 'text-amber-700',  quoteBorder: 'border-amber-300',  label: 'RFP' },
+  kickoff:  { dot: 'bg-blue-400',   badge: 'bg-blue-50 text-blue-700',    badgeText: 'text-blue-700',   quoteBorder: 'border-blue-300',   label: 'Kick-off Call' },
+  template: { dot: 'bg-purple-400', badge: 'bg-purple-50 text-purple-700',badgeText: 'text-purple-700', quoteBorder: 'border-purple-300', label: 'Template' },
+  other:    { dot: 'bg-green-400',  badge: 'bg-green-50 text-green-700',  badgeText: 'text-green-700',  quoteBorder: 'border-green-300',  label: 'Document' },
 }
 
 const HIGHLIGHT: Record<AnnotationSourceType, string> = {
@@ -17,50 +17,71 @@ const HIGHLIGHT: Record<AnnotationSourceType, string> = {
 
 interface PopoverState {
   annotation: Annotation
-  top: number
-  left: number
+  anchorRect: DOMRect
 }
 
 function AnnotationPopover({ state, onClose }: { state: PopoverState; onClose: () => void }) {
-  const style = SOURCE_STYLES[state.annotation.sourceType]
+  const meta = SOURCE_META[state.annotation.sourceType]
   const ref = useRef<HTMLDivElement>(null)
+  const POPOVER_WIDTH = 320
+  const GAP = 8
 
-  // Adjust left so popover doesn't overflow viewport
-  const [adjustedLeft, setAdjustedLeft] = useState(state.left)
+  // Place just below the anchor; clamp to viewport edges
+  const rawTop = state.anchorRect.bottom + GAP
+  const rawLeft = state.anchorRect.left
+  const clampedLeft = Math.min(rawLeft, window.innerWidth - POPOVER_WIDTH - 16)
+
+  // Flip above if too close to bottom
+  const [top, setTop] = useState(rawTop)
   useEffect(() => {
     if (ref.current) {
-      const rect = ref.current.getBoundingClientRect()
-      const overflow = rect.right - window.innerWidth + 16
-      if (overflow > 0) setAdjustedLeft(l => l - overflow)
+      const popRect = ref.current.getBoundingClientRect()
+      if (popRect.bottom > window.innerHeight - 16) {
+        setTop(state.anchorRect.top - popRect.height - GAP)
+      }
     }
-  }, [])
+  }, [state.anchorRect.top, state.anchorRect.bottom])
 
   return (
     <div
       ref={ref}
-      className={`fixed z-50 w-80 rounded-xl border shadow-xl ${style.bg} ${style.border} p-4`}
-      style={{ top: state.top, left: adjustedLeft, transform: 'translateY(-100%) translateY(-8px)' }}
+      className="fixed z-50 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden"
+      style={{ width: POPOVER_WIDTH, top, left: clampedLeft }}
       onClick={e => e.stopPropagation()}
     >
-      <div className="flex items-center justify-between mb-2">
-        <span className={`text-xs font-semibold uppercase tracking-wide ${style.text}`}>
-          Source: {style.label}
-        </span>
-        <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+        <div className="flex items-center gap-2">
+          <span className={`w-2 h-2 rounded-full shrink-0 ${meta.dot}`} />
+          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${meta.badge}`}>
+            {meta.label}
+          </span>
+        </div>
+        <button
+          onClick={onClose}
+          className="text-gray-300 hover:text-gray-500 transition-colors"
+        >
           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
           </svg>
         </button>
       </div>
-      <p className={`text-xs font-medium mb-2 truncate ${style.text}`}>{state.annotation.sourceDoc}</p>
-      <blockquote className={`text-xs leading-relaxed border-l-2 pl-3 italic ${style.text} ${style.border} opacity-80`}>
-        "{state.annotation.quote}"
-      </blockquote>
+
+      {/* Body */}
+      <div className="px-4 py-3">
+        <div className="flex items-center gap-1.5 mb-3">
+          <svg className="w-3.5 h-3.5 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+          </svg>
+          <p className="text-xs font-medium text-gray-600 truncate">{state.annotation.sourceDoc}</p>
+        </div>
+        <blockquote className={`text-xs text-gray-600 leading-relaxed border-l-2 pl-3 italic ${meta.quoteBorder}`}>
+          "{state.annotation.quote}"
+        </blockquote>
+      </div>
     </div>
   )
 }
-
-let annotationCounter = 0
 
 function RenderSegment({
   seg,
@@ -150,7 +171,6 @@ interface Props {
 }
 
 export default function ProposalDraftRenderer({ sections }: Props) {
-  annotationCounter = 0
   const [popover, setPopover] = useState<PopoverState | null>(null)
 
   useEffect(() => {
@@ -161,8 +181,8 @@ export default function ProposalDraftRenderer({ sections }: Props) {
 
   function handleAnnotationClick(e: React.MouseEvent<HTMLSpanElement>, annotation: Annotation) {
     e.stopPropagation()
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-    setPopover({ annotation, top: rect.top + window.scrollY, left: rect.left })
+    const anchorRect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    setPopover({ annotation, anchorRect })
   }
 
   return (
