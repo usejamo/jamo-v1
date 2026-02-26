@@ -3,6 +3,8 @@ import { useState, useRef } from 'react'
 import proposals from '../data/proposals.json'
 import allDocuments from '../data/documents.json'
 import type { Proposal, ProposalStatus } from '../types/proposal'
+import { generateProposalDraft } from '../data/proposalDraftData'
+import ProposalDraftRenderer from '../components/ProposalDraftRenderer'
 
 const allProposals = proposals as Proposal[]
 const docsByProposal = allDocuments as Record<string, MockDoc[]>
@@ -73,35 +75,6 @@ function DocIcon({ type }: { type: MockDoc['type'] }) {
   )
 }
 
-const MOCK_DRAFT = `1. Executive Summary
-
-This proposal outlines our approach to conducting the study on behalf of [Client]. Our team brings extensive experience in [Therapeutic Area] trials, with dedicated project management, biostatistics, and regulatory affairs support.
-
-2. Study Objectives
-
-Primary Objective: To evaluate the safety, tolerability, and pharmacokinetics of [Compound] in the target population.
-
-Secondary Objectives:
-- Assess preliminary efficacy signals across defined endpoints
-- Characterize the PK/PD relationship
-- Evaluate biomarker responses throughout the study period
-
-3. Scope of Work
-
-Our full-service offering includes:
-- Protocol development and regulatory submission support
-- Site identification, qualification, and management
-- Patient recruitment and retention strategies
-- Data management, biostatistics, and clinical reporting
-- Medical monitoring and safety reporting
-
-4. Timeline
-
-Estimated study duration: 18–24 months from contract execution to final study report.
-
-5. Budget Overview
-
-The total proposed budget is detailed in the accompanying cost breakdown. All costs are inclusive of pass-through expenses and site management fees.`
 
 export default function ProposalDetail() {
   const { id } = useParams<{ id: string }>()
@@ -114,6 +87,11 @@ export default function ProposalDetail() {
 
   const proposal = allProposals.find(p => p.id === id)
   const existingDocs: MockDoc[] = id ? (docsByProposal[id] ?? []) : []
+
+  const rfpDoc = existingDocs.find(d => d.type === 'rfp')?.name ?? 'RFP Document'
+  const kickoffDoc = existingDocs.find(d => d.type === 'kickoff')?.name ?? null
+  const otherDoc = existingDocs.find(d => d.type === 'other')?.name ?? null
+  const draftSections = proposal ? generateProposalDraft(proposal, rfpDoc, kickoffDoc, otherDoc) : []
 
   if (!proposal) {
     return (
@@ -357,8 +335,8 @@ export default function ProposalDetail() {
         )}
 
         {generated && (
-          <div className="border border-gray-100 rounded-lg p-6 bg-gray-50 font-mono text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
-            {MOCK_DRAFT}
+          <div className="border border-gray-100 rounded-lg p-6 bg-white">
+            <ProposalDraftRenderer sections={draftSections} />
           </div>
         )}
       </div>
