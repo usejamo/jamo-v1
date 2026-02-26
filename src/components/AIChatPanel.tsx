@@ -95,18 +95,16 @@ function AuroraBorder({ children, fast, className = '' }: {
 
 function Rail({ onExpand, processing }: { onExpand: () => void; processing: boolean }) {
   return (
-    <div className="flex flex-col items-center h-full py-3 gap-3">
-      <button
-        onClick={onExpand}
-        title="Open jamo AI (⌘J)"
-        className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-700 hover:bg-white/60 transition-colors"
-      >
-        <PanelOpenIcon />
-      </button>
-
+    // Entire rail is the clickable hot-zone; parent has overflow-hidden so
+    // the hover tint is clipped cleanly to the panel's rounded corners.
+    <div
+      onClick={onExpand}
+      title="Open jamo AI (⌘J)"
+      className="flex flex-col items-center h-full pt-4 pb-3 gap-3 cursor-pointer hover:bg-black/[0.03] transition-colors"
+    >
       <SpectrumSparkle onToggle={onExpand} />
 
-      {/* Pulsing dot shows AI is active */}
+      {/* Pulsing dot + label */}
       <div className="mt-auto mb-2 flex flex-col items-center gap-1.5">
         <motion.div
           className={`w-2 h-2 rounded-full ${processing ? 'bg-emerald-400' : 'bg-emerald-400/60'}`}

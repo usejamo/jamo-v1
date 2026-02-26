@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from 'react-router-dom'
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import proposals from '../data/proposals.json'
 import allDocuments from '../data/documents.json'
 import type { Proposal, ProposalStatus } from '../types/proposal'
@@ -77,6 +77,77 @@ function DocIcon({ type }: { type: MockDoc['type'] }) {
   )
 }
 
+
+// ── Export dropdown ────────────────────────────────────────────────────────────
+// Clean, professional — no aurora or glassmorphism.
+
+function ExportDropdown() {
+  const [open, setOpen] = useState(false)
+  const [exporting, setExporting] = useState(false)
+  const [toastVisible, setToastVisible] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  function handleExport() {
+    setOpen(false)
+    setExporting(true)
+    setTimeout(() => {
+      setExporting(false)
+      setToastVisible(true)
+      setTimeout(() => setToastVisible(false), 3000)
+    }, 1200)
+  }
+
+  return (
+    <>
+      <div className="relative" ref={ref}>
+        <button
+          onClick={() => !exporting && setOpen(prev => !prev)}
+          disabled={exporting}
+          className="flex items-center gap-1.5 text-sm font-medium text-gray-600 hover:text-gray-800 bg-white border border-gray-200 hover:border-gray-300 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-60"
+        >
+          {exporting ? 'Exporting...' : 'Export'}
+          {!exporting && (
+            <svg className="w-3.5 h-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+            </svg>
+          )}
+        </button>
+
+        {open && (
+          <div className="absolute right-0 top-full mt-1.5 w-52 bg-white border border-gray-200 rounded-lg shadow-md z-10 overflow-hidden py-1">
+            <button
+              onClick={handleExport}
+              className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              Export to Word
+            </button>
+            <button
+              onClick={handleExport}
+              className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              Export to PowerPoint
+            </button>
+          </div>
+        )}
+      </div>
+
+      {toastVisible && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-sm px-5 py-2.5 rounded-lg shadow-xl z-50 pointer-events-none whitespace-nowrap">
+          Proposal exported successfully.
+        </div>
+      )}
+    </>
+  )
+}
 
 export default function ProposalDetail() {
   const { id } = useParams<{ id: string }>()
@@ -332,9 +403,7 @@ export default function ProposalDetail() {
                 </svg>
                 Generated
               </span>
-              <button className="text-sm text-jamo-500 hover:text-jamo-600 font-medium border border-jamo-200 px-3 py-1.5 rounded-lg transition-colors">
-                Export to Word
-              </button>
+              <ExportDropdown />
             </div>
           )}
         </div>
