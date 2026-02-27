@@ -223,7 +223,7 @@ export default function ProposalsList() {
                           <button
                             key={action}
                             onClick={e => e.stopPropagation()}
-                            className="text-xs text-gray-400 hover:text-gray-700 transition-colors"
+                            className="text-xs text-gray-400 hover:text-gray-700 px-2 py-1 rounded-md transition-colors"
                           >
                             {action}
                           </button>

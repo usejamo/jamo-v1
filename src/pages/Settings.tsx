@@ -6,6 +6,7 @@ type IntegrationStatus = 'connected' | 'disconnected'
 
 interface Integration {
   name: string
+  logoUrl: string
   description: string
   status: IntegrationStatus
   detail: string
@@ -14,18 +15,21 @@ interface Integration {
 const INTEGRATIONS: Integration[] = [
   {
     name: 'Salesforce',
+    logoUrl: 'https://www.vectorlogo.zone/logos/salesforce/salesforce-icon.svg',
     description: 'CRM pipeline and opportunity management',
     status: 'connected',
     detail: 'Production Environment · Last sync 2 min ago',
   },
   {
     name: 'HubSpot',
+    logoUrl: 'https://www.vectorlogo.zone/logos/hubspot/hubspot-icon.svg',
     description: 'Marketing automation and contact tracking',
     status: 'disconnected',
     detail: 'Not configured',
   },
   {
     name: 'Workday',
+    logoUrl: 'https://www.vectorlogo.zone/logos/workday/workday-icon.svg',
     description: 'Financial planning and revenue recognition',
     status: 'connected',
     detail: 'Production · Financial module enabled',
@@ -37,14 +41,43 @@ const INTEGRATIONS: Integration[] = [
 const SUB_TABS = ['Integrations', 'General', 'Notifications'] as const
 type SubTab = (typeof SUB_TABS)[number]
 
+// ── Logo with letter-mark fallback ───────────────────────────────────────────
+// Uses vectorlogo.zone SVGs. Falls back to initials if the image fails to load.
+
+function IntegrationLogo({ name, logoUrl }: { name: string; logoUrl: string }) {
+  const [errored, setErrored] = useState(false)
+
+  if (errored) {
+    return (
+      <div className="flex items-center justify-center shrink-0" style={{ width: 24, height: 24 }}>
+        <span className="text-xs font-bold text-gray-400 select-none">
+          {name.slice(0, 2).toUpperCase()}
+        </span>
+      </div>
+    )
+  }
+
+  return (
+    <img
+      src={logoUrl}
+      alt={name}
+      className="object-contain shrink-0"
+      style={{ maxHeight: 24, width: 'auto' }}
+      onError={() => setErrored(true)}
+    />
+  )
+}
+
 // ── Integration card ──────────────────────────────────────────────────────────
 
 function IntegrationCard({ integration }: { integration: Integration }) {
   const connected = integration.status === 'connected'
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col gap-4">
-      <div className="flex items-start justify-between gap-3">
+    <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col gap-4 transition-all hover:shadow-sm hover:border-gray-300 active:scale-[0.97]">
+      {/* Logo + name row */}
+      <div className="flex items-center gap-3">
+        <IntegrationLogo name={integration.name} logoUrl={integration.logoUrl} />
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <p className="text-sm font-semibold text-gray-900">{integration.name}</p>
@@ -59,6 +92,7 @@ function IntegrationCard({ integration }: { integration: Integration }) {
         </div>
       </div>
 
+      {/* Footer row */}
       <div className="flex items-center justify-between pt-3 border-t border-gray-100">
         <p className="text-[11px] text-gray-400">{integration.detail}</p>
         {connected ? (
