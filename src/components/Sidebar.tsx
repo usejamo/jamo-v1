@@ -14,15 +14,15 @@ const navItems: NavItem[] = [
 
 export default function Sidebar() {
   return (
-    <aside className="w-64 bg-white border-r border-gray-200 flex flex-col min-h-screen">
-      <div className="p-6 border-b border-gray-200">
+    <aside className="w-64 shrink-0 bg-white border-r border-gray-200 flex flex-col h-screen z-30">
+      <div className="p-6 border-b border-gray-200 shrink-0">
         <div className="flex items-center gap-3">
           <img src={jamoLogo} alt="jamo" className="h-10 w-10" />
           <span className="text-xl font-bold text-gray-900">jamo</span>
         </div>
       </div>
 
-      <nav className="flex-1 p-4">
+      <nav className="flex-1 overflow-y-auto p-4 min-h-0">
         <ul className="space-y-1">
           {navItems.map((item) => (
             <li key={item.to}>
@@ -46,7 +46,7 @@ export default function Sidebar() {
       </nav>
 
       {/* Settings — separated from main nav */}
-      <div className="p-4 border-t border-gray-200">
+      <div className="p-4 border-t border-gray-200 shrink-0">
         <NavLink
           to="/settings"
           className={({ isActive }) =>
@@ -61,6 +61,15 @@ export default function Sidebar() {
           Settings
         </NavLink>
         <p className="text-xs text-gray-400 mt-3 px-3">jamo Demo v0.1.0</p>
+        <button
+          onClick={() => { sessionStorage.clear(); window.location.reload() }}
+          className="inline-flex items-center gap-1.5 mt-1.5 px-3 text-xs text-gray-300 hover:text-gray-500 transition-colors"
+        >
+          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+          </svg>
+          Reset Demo
+        </button>
       </div>
     </aside>
   )

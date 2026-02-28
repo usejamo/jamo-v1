@@ -1,8 +1,9 @@
 import { useNavigate } from 'react-router-dom'
-import proposals from '../data/proposals.json'
 import type { Proposal, ProposalStatus } from '../types/proposal'
-
-const allProposals = proposals as Proposal[]
+import { useArchived } from '../context/ArchivedContext'
+import { useProposals } from '../context/ProposalsContext'
+import { useDeleted } from '../context/DeletedContext'
+import { useProposalModal } from '../context/ProposalModalContext'
 
 const DEMO_NOW = new Date('2026-02-26T12:00:00')
 const WIN_RATE  = 0.67
@@ -84,12 +85,12 @@ function isUrgent(p: Proposal): boolean {
   return activityAgeHours(LAST_ACTIVITY[p.id] ?? '') >= 48
 }
 
-function getStats() {
-  const active   = allProposals.filter(p => p.status !== 'lost').length
-  const decided  = allProposals.filter(p => p.status === 'won' || p.status === 'lost').length
-  const won      = allProposals.filter(p => p.status === 'won').length
+function getStats(proposals: Proposal[]) {
+  const active   = proposals.filter(p => p.status !== 'lost').length
+  const decided  = proposals.filter(p => p.status === 'won' || p.status === 'lost').length
+  const won      = proposals.filter(p => p.status === 'won').length
   const winRate  = decided > 0 ? Math.round((won / decided) * 100) : 0
-  const pipeline = allProposals.filter(p => p.status !== 'lost').reduce((s, p) => s + p.value, 0)
+  const pipeline = proposals.filter(p => p.status !== 'lost').reduce((s, p) => s + p.value, 0)
   const weighted = Math.round(pipeline * WIN_RATE)
   return { active, winRate, pipeline, weighted }
 }
@@ -126,14 +127,20 @@ function StatCard({ label, value, sub, accent, weighted, source, weightedBadge }
 
 export default function Dashboard() {
   const navigate = useNavigate()
-  const stats    = getStats()
+  const { archivedIds, archive } = useArchived()
+  const { proposals } = useProposals()
+  const { deletedIds } = useDeleted()
+  const { openModal } = useProposalModal()
+
+  const visibleProposals = proposals.filter(p => !archivedIds.has(p.id) && !deletedIds.has(p.id))
+  const stats = getStats(visibleProposals)
 
   const today = new Date().toLocaleDateString('en-US', {
     weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
   })
 
   // Priority Focus: urgent proposals sorted by due date, capped at 4
-  const priorityItems = allProposals
+  const priorityItems = visibleProposals
     .filter(isUrgent)
     .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
     .slice(0, 4)
@@ -147,7 +154,10 @@ export default function Dashboard() {
           <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
           <p className="text-sm text-gray-500 mt-1">{today}</p>
         </div>
-        <button className="flex items-center gap-2 bg-jamo-500 hover:bg-jamo-600 text-white text-sm font-medium px-4 py-2 rounded-xl transition-colors">
+        <button
+          onClick={() => openModal()}
+          className="flex items-center gap-2 bg-jamo-500 hover:bg-jamo-600 text-white text-sm font-medium px-4 py-2 rounded-xl transition-colors"
+        >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
           </svg>
@@ -160,7 +170,7 @@ export default function Dashboard() {
         <span className="text-[10px] font-bold text-purple-400 uppercase tracking-widest">jamo Pulse</span>
         <p className="text-sm text-gray-700 mt-1">
           <span className="font-semibold text-gray-800">jamo Insight:</span>{' '}
-          4 proposals require immediate attention — 1 is due within 72 hours and 3 have shown no activity in over 48 hours.
+          {`${priorityItems.length} proposal${priorityItems.length !== 1 ? 's' : ''} require${priorityItems.length === 1 ? 's' : ''} immediate attention — review the Priority Focus list below.`}
         </p>
       </div>
 
@@ -208,11 +218,13 @@ export default function Dashboard() {
           </div>
 
           {/* Column headers */}
-          <div className="px-6 pt-2.5 pb-1 grid grid-cols-[1fr_5.5rem_4rem_9rem] gap-3 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">
+          <div className="px-6 pt-2.5 pb-1 grid grid-cols-[1fr_auto] gap-3 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">
             <span>Proposal</span>
-            <span className="text-right">Last Activity</span>
-            <span className="text-right">Value</span>
-            <span className="text-right">Status</span>
+            <div className="flex items-center">
+              <span className="text-right w-[5.5rem] mr-3">Last Activity</span>
+              <span className="text-right w-16 mr-3">Value</span>
+              <span className="text-right w-36">Status</span>
+            </div>
           </div>
 
           <div className="divide-y divide-gray-50">
@@ -227,32 +239,40 @@ export default function Dashboard() {
                   onClick={() => navigate(`/proposals/${p.id}`)}
                   className="group px-6 py-3.5 hover:bg-gray-50 transition-colors cursor-pointer"
                 >
-                  <div className="grid grid-cols-[1fr_5.5rem_4rem_9rem] gap-3 items-center">
+                  <div className="grid grid-cols-[1fr_auto] gap-3 items-center">
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-gray-900 truncate">{p.title}</p>
                       <p className="text-xs text-gray-500 mt-0.5">{p.client} · {p.therapeuticArea}</p>
                     </div>
-                    <span className="text-right text-xs text-gray-400">
-                      {LAST_ACTIVITY[p.id] ?? '—'}
-                    </span>
-                    <span className="text-right text-sm font-medium text-gray-700">
-                      {formatCurrency(p.value)}
-                    </span>
-                    {/* Status ↔ hover actions */}
-                    <div className="relative flex justify-end">
-                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full transition-opacity group-hover:opacity-0 ${STATUS_COLORS[p.status]}`}>
-                        {STATUS_LABELS[p.status]}
+                    <div className="flex items-center">
+                      {/* Last Activity — collapses on hover to free space */}
+                      <span className="text-right text-xs text-gray-400 whitespace-nowrap overflow-hidden transition-all duration-200 w-[5.5rem] mr-3 group-hover:w-0 group-hover:mr-0 group-hover:opacity-0">
+                        {LAST_ACTIVITY[p.id] ?? '—'}
                       </span>
-                      <div className="absolute inset-y-0 right-0 flex items-center gap-2.5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none group-hover:pointer-events-auto">
-                        {['Edit', 'Duplicate', 'Archive'].map(action => (
-                          <button
-                            key={action}
-                            onClick={e => e.stopPropagation()}
-                            className="text-xs text-gray-400 hover:text-gray-700 px-2 py-1 rounded-md transition-colors"
-                          >
-                            {action}
-                          </button>
-                        ))}
+                      {/* Value — collapses on hover */}
+                      <span className="text-right text-sm font-medium text-gray-700 whitespace-nowrap overflow-hidden transition-all duration-200 w-16 mr-3 group-hover:w-0 group-hover:mr-0 group-hover:opacity-0">
+                        {formatCurrency(p.value)}
+                      </span>
+                      {/* Status ↔ hover actions */}
+                      <div className="relative flex items-center justify-end w-36">
+                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full transition-opacity duration-200 group-hover:opacity-0 whitespace-nowrap ${STATUS_COLORS[p.status]}`}>
+                          {STATUS_LABELS[p.status]}
+                        </span>
+                        <div className="absolute inset-y-0 right-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none group-hover:pointer-events-auto">
+                          {['Edit', 'Duplicate', 'Archive'].map(action => (
+                            <button
+                              key={action}
+                              onClick={e => {
+                                e.stopPropagation()
+                                if (action === 'Edit') openModal(p)
+                                else if (action === 'Archive') archive(p.id)
+                              }}
+                              className="text-xs text-gray-400 hover:text-gray-700 px-2 py-1 rounded-md transition-colors"
+                            >
+                              {action}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -280,11 +300,11 @@ export default function Dashboard() {
           </div>
           <div className="p-6 space-y-4">
             {PIPELINE_STAGES.map(stage => {
-              const count = allProposals.filter(p => stage.statuses.includes(p.status)).length
-              const value = allProposals
+              const count = visibleProposals.filter(p => stage.statuses.includes(p.status)).length
+              const value = visibleProposals
                 .filter(p => stage.statuses.includes(p.status))
                 .reduce((sum, p) => sum + p.value, 0)
-              const pct = Math.round((count / allProposals.length) * 100)
+              const pct = visibleProposals.length > 0 ? Math.round((count / visibleProposals.length) * 100) : 0
               return (
                 <div key={stage.label}>
                   <div className="flex justify-between mb-1.5">

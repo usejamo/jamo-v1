@@ -33,13 +33,6 @@ function PanelCloseIcon() {
   )
 }
 
-function PanelOpenIcon() {
-  return (
-    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M15 4.5v15M10.5 8.25 6.75 12l3.75 3.75M20.25 19.5H3.75a1.5 1.5 0 0 1-1.5-1.5v-13.5a1.5 1.5 0 0 1 1.5-1.5h16.5a1.5 1.5 0 0 1 1.5 1.5v13.5a1.5 1.5 0 0 1-1.5 1.5Z" />
-    </svg>
-  )
-}
 
 function SparkleIcon({ className = 'w-4 h-4' }: { className?: string }) {
   // viewBox shifted -3 on x-axis: the star's geometric center is at x=9 in the
@@ -262,7 +255,7 @@ export default function AIChatPanel({ draftGenerated, onCommand, onSuggestionRes
                     <button
                       onClick={() => setExpanded(false)}
                       title="Collapse (⌘J)"
-                      className="w-6 h-6 flex items-center justify-center rounded-md text-gray-400 hover:text-gray-700 hover:bg-black/5 transition-colors"
+                      className="w-6 h-6 p-0 flex items-center justify-center rounded-md text-gray-400 hover:text-gray-700 hover:bg-black/5 transition-colors"
                     >
                       <PanelCloseIcon />
                     </button>
@@ -337,7 +330,7 @@ export default function AIChatPanel({ draftGenerated, onCommand, onSuggestionRes
                     <button
                       onClick={() => handleSubmit(input)}
                       disabled={!input.trim() || processing}
-                      className="w-6 h-6 rounded-lg bg-gray-900 hover:bg-gray-700 disabled:opacity-30 flex items-center justify-center transition-colors shrink-0"
+                      className="w-6 h-6 p-0 rounded-lg bg-gray-900 hover:bg-gray-700 disabled:opacity-30 flex items-center justify-center transition-colors shrink-0"
                     >
                       <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />

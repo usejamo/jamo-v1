@@ -106,7 +106,7 @@ export default function SuggestedChange({
               <div className="flex items-center gap-2 pt-1">
                 <button
                   onClick={handleAccept}
-                  className="flex items-center gap-1.5 bg-jamo-500 hover:bg-jamo-600 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
+                  className="inline-flex items-center gap-1.5 bg-jamo-500 hover:bg-jamo-600 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
                 >
                   <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
@@ -115,7 +115,7 @@ export default function SuggestedChange({
                 </button>
                 <button
                   onClick={() => setIsEditing(e => !e)}
-                  className="flex items-center gap-1.5 text-xs font-medium text-gray-600 hover:text-gray-900 border border-gray-200 hover:border-gray-300 px-3 py-1.5 rounded-lg transition-colors"
+                  className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-600 hover:text-gray-900 border border-gray-200 hover:border-gray-300 px-3 py-1.5 rounded-lg transition-colors"
                 >
                   <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z" />
@@ -124,7 +124,7 @@ export default function SuggestedChange({
                 </button>
                 <button
                   onClick={handleDecline}
-                  className="flex items-center gap-1.5 text-xs font-medium text-gray-400 hover:text-red-500 px-3 py-1.5 rounded-lg transition-colors ml-auto"
+                  className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-400 hover:text-red-500 px-3 py-1.5 rounded-lg transition-colors ml-auto"
                 >
                   <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />

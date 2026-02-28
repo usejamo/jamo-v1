@@ -1,14 +1,18 @@
 import { useParams, useNavigate } from 'react-router-dom'
-import { useState, useRef, useCallback, useEffect } from 'react'
-import proposals from '../data/proposals.json'
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import allDocuments from '../data/documents.json'
-import type { Proposal, ProposalStatus } from '../types/proposal'
+import type { ProposalStatus } from '../types/proposal'
 import type { PendingSuggestion } from '../types/draft'
 import { generateProposalDraft } from '../data/proposalDraftData'
+import { COMMAND_MAP } from '../data/demoCommands'
+import type { ContentBlock } from '../types/draft'
 import ProposalDraftRenderer from '../components/ProposalDraftRenderer'
+import ProposalContentsSidebar from '../components/ProposalContentsSidebar'
 import AIChatPanel from '../components/AIChatPanel'
+import { useProposals } from '../context/ProposalsContext'
+import { useProposalModal } from '../context/ProposalModalContext'
+import { useSidebar } from '../context/SidebarContext'
 
-const allProposals = proposals as Proposal[]
 const docsByProposal = allDocuments as Record<string, MockDoc[]>
 
 interface MockDoc {
@@ -79,7 +83,6 @@ function DocIcon({ type }: { type: MockDoc['type'] }) {
 
 
 // ── Export dropdown ────────────────────────────────────────────────────────────
-// Clean, professional — no aurora or glassmorphism.
 
 function ExportDropdown() {
   const [open, setOpen] = useState(false)
@@ -147,21 +150,57 @@ function ExportDropdown() {
 export default function ProposalDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const DRAFT_KEY = `draft-generated-${id}`
+  const OVERRIDES_KEY = `draft-overrides-${id}`
   const [generating, setGenerating] = useState(false)
-  const [generated, setGenerated] = useState(false)
+  const [generated, setGenerated] = useState(() => !!sessionStorage.getItem(DRAFT_KEY))
+  const [acceptedOverrides, setAcceptedOverrides] = useState<Record<string, ContentBlock[]>>(() => {
+    try {
+      const stored = sessionStorage.getItem(`draft-overrides-${id}`)
+      return stored ? JSON.parse(stored) : {}
+    } catch { return {} }
+  })
+  const [flashSectionId, setFlashSectionId] = useState<string | null>(null)
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([])
   const [dragOver, setDragOver] = useState(false)
+  const [isCondensed, setIsCondensed] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
   const [pendingSuggestion, setPendingSuggestion] = useState<PendingSuggestion | null>(null)
   const [lastResolution, setLastResolution] = useState<'accepted' | 'declined' | null>(null)
 
-  const proposal = allProposals.find(p => p.id === id)
+  const { proposals } = useProposals()
+  const { openModal, showToast } = useProposalModal()
+  const { setSidebarNode } = useSidebar()
+  const proposal = proposals.find(p => p.id === id)
   const existingDocs: MockDoc[] = id ? (docsByProposal[id] ?? []) : []
 
   const rfpDoc = existingDocs.find(d => d.type === 'rfp')?.name ?? 'RFP Document'
   const kickoffDoc = existingDocs.find(d => d.type === 'kickoff')?.name ?? null
   const otherDoc = existingDocs.find(d => d.type === 'other')?.name ?? null
-  const draftSections = proposal ? generateProposalDraft(proposal, rfpDoc, kickoffDoc, otherDoc) : []
+  const draftSections = useMemo(
+    () => proposal ? generateProposalDraft(proposal, rfpDoc, kickoffDoc, otherDoc) : [],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [id]
+  )
+
+  // Mount / unmount the proposal contents sidebar
+  useEffect(() => {
+    setSidebarNode(
+      <ProposalContentsSidebar sections={draftSections} generated={generated} />
+    )
+    return () => setSidebarNode(null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [generated, draftSections])
+
+  // Condense header once user scrolls 100px into the content area
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const onScroll = () => setIsCondensed(el.scrollTop > 100)
+    el.addEventListener('scroll', onScroll, { passive: true })
+    return () => el.removeEventListener('scroll', onScroll)
+  }, [])
 
   if (!proposal) {
     return (
@@ -179,6 +218,7 @@ export default function ProposalDetail() {
     setTimeout(() => {
       setGenerating(false)
       setGenerated(true)
+      sessionStorage.setItem(DRAFT_KEY, '1')
     }, 2200)
   }
 
@@ -191,10 +231,22 @@ export default function ProposalDetail() {
     setUploadedFiles(prev => prev.filter((_, i) => i !== index))
   }
 
-  const handleSuggestionAccepted = useCallback(() => {
+  const handleSuggestionAccepted = useCallback((commandKey: string) => {
+    const command = COMMAND_MAP[commandKey]
+    if (command) {
+      setAcceptedOverrides(prev => {
+        const next = { ...prev, [command.targetId]: command.acceptedBlocks }
+        try { sessionStorage.setItem(OVERRIDES_KEY, JSON.stringify(next)) } catch { /* ignore */ }
+        return next
+      })
+      setFlashSectionId(command.targetId)
+      setTimeout(() => setFlashSectionId(null), 1200)
+    }
     setPendingSuggestion(null)
     setLastResolution('accepted')
-  }, [])
+    showToast('Draft updated')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [OVERRIDES_KEY])
 
   const handleSuggestionDeclined = useCallback(() => {
     setPendingSuggestion(null)
@@ -206,245 +258,305 @@ export default function ProposalDetail() {
   }, [])
 
   return (
-    <div className="flex flex-col" style={{ height: 'calc(100vh - 4rem)' }}>
-      {/* Back */}
-      <button
-        onClick={() => navigate('/proposals')}
-        className="self-start inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors mb-4 px-3 py-1.5 rounded-lg"
-      >
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
-        </svg>
-        Back to Proposals
-      </button>
+    <div className="flex gap-5 flex-1 min-h-0" style={{ height: 'calc(100vh - 4rem)' }}>
 
-      {/* Two-pane */}
-      <div className="flex gap-5 flex-1 min-h-0">
+      {/* ── Left: flex-col wrapper so header sits above the scroll area ── */}
+      <div className="flex flex-col flex-1 min-w-0 min-h-0">
 
-        {/* ── Left: scrollable content ── */}
-        <div className="flex-1 overflow-y-auto min-w-0 space-y-5 pr-1">
+        {/* ── Condensing header — lives outside the scroll container ── */}
+        <div className={`shrink-0 bg-white z-10 rounded-lg border border-gray-100 transition-all duration-300 ${
+          isCondensed ? 'shadow-md' : ''
+        }`}>
 
-      {/* Header */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-3 mb-2">
-              <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${STATUS_COLORS[proposal.status]}`}>
-                {STATUS_LABELS[proposal.status]}
-              </span>
-              <span className="text-xs text-gray-400">{proposal.id.toUpperCase()}</span>
-            </div>
-            <h1 className="text-xl font-bold text-gray-900">{proposal.title}</h1>
-            <p className="text-sm text-gray-500 mt-1">{proposal.client} · {proposal.studyType}</p>
+          {/* Condensed bar: single horizontal row, fades in on scroll */}
+          <div className={`flex items-center gap-3 px-6 overflow-hidden transition-all duration-300 ${
+            isCondensed ? 'max-h-16 py-3.5 opacity-100' : 'max-h-0 py-0 opacity-0 pointer-events-none'
+          }`}>
+            <button
+              onClick={() => navigate('/proposals')}
+              className="inline-flex items-center gap-1 text-xs text-gray-400 hover:text-gray-700 transition-colors shrink-0 px-2 py-1.5 rounded-lg"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+              </svg>
+              Back
+            </button>
+            <span className="w-px h-4 bg-gray-200 shrink-0" />
+            <span className="flex-1 text-sm font-semibold text-gray-900 truncate min-w-0">
+              {proposal.title}
+            </span>
+            <span className="text-sm font-bold text-gray-900 shrink-0 tabular-nums">
+              {formatCurrency(proposal.value)}
+            </span>
+            <button
+              onClick={() => openModal(proposal)}
+              className="inline-flex items-center text-xs font-medium text-gray-500 bg-white border border-gray-200 hover:border-gray-300 px-2.5 py-1.5 rounded-lg transition-colors shrink-0"
+            >
+              Edit Proposal
+            </button>
           </div>
-          <div className="text-right shrink-0">
-            <p className="text-2xl font-bold text-gray-900">{formatCurrency(proposal.value)}</p>
-            <p className="text-xs text-gray-400 mt-0.5">Proposal value</p>
-          </div>
-        </div>
 
-        <div className="grid grid-cols-3 gap-6 mt-6 pt-6 border-t border-gray-100">
-          <div>
-            <p className="text-xs text-gray-400 uppercase tracking-wide font-semibold">Therapeutic Area</p>
-            <p className="text-sm text-gray-800 mt-1">{proposal.therapeuticArea}</p>
-          </div>
-          <div>
-            <p className="text-xs text-gray-400 uppercase tracking-wide font-semibold">Due Date</p>
-            <p className="text-sm text-gray-800 mt-1">{formatDate(proposal.dueDate)}</p>
-          </div>
-          <div>
-            <p className="text-xs text-gray-400 uppercase tracking-wide font-semibold">Created</p>
-            <p className="text-sm text-gray-800 mt-1">{formatDate(proposal.createdAt)}</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Context & Documents */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
-        <div className="flex items-center justify-between mb-5">
-          <div>
-            <h2 className="font-semibold text-gray-900">Context & Documents</h2>
-            <p className="text-xs text-gray-500 mt-0.5">All inputs used to generate this proposal</p>
-          </div>
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="flex items-center gap-2 text-sm font-medium text-jamo-500 hover:text-jamo-600 border border-jamo-200 hover:border-jamo-300 px-3 py-1.5 rounded-lg transition-colors"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-            </svg>
-            Upload Document
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            className="hidden"
-            onChange={e => handleFiles(e.target.files)}
-          />
-        </div>
-
-        {/* Existing documents */}
-        <div className="grid grid-cols-2 gap-3 mb-4">
-          {existingDocs.map(doc => (
-            <div key={doc.id} className="flex items-start gap-3 p-4 border border-gray-100 rounded-lg hover:border-gray-200 hover:bg-gray-50 transition-colors group">
-              <div className="mt-0.5 shrink-0">
-                <DocIcon type={doc.type} />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-gray-800 truncate">{doc.name}</p>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <span className="text-xs text-gray-400">{DOC_TYPE_LABELS[doc.type]}</span>
-                  <span className="text-gray-200">·</span>
-                  <span className="text-xs text-gray-400">{doc.size}</span>
-                  <span className="text-gray-200">·</span>
-                  <span className="text-xs text-gray-400">{getFileExt(doc.name)}</span>
-                </div>
-              </div>
-              <button className="text-xs text-jamo-500 hover:text-jamo-600 font-medium opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                View
+          {/* Expanded header: Back link + full metadata, fades out on scroll */}
+          <div className={`overflow-hidden transition-all duration-300 ${
+            isCondensed ? 'max-h-0 opacity-0 pointer-events-none' : 'max-h-96 opacity-100'
+          }`}>
+            {/* Back row */}
+            <div className="px-6 pt-4 pb-1">
+              <button
+                onClick={() => navigate('/proposals')}
+                className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors px-3 py-1.5 rounded-lg"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+                </svg>
+                Back to Proposals
               </button>
             </div>
-          ))}
-        </div>
 
-        {/* Uploaded files */}
-        {uploadedFiles.length > 0 && (
-          <div className="grid grid-cols-2 gap-3 mb-4">
-            {uploadedFiles.map((file, i) => (
-              <div key={i} className="flex items-start gap-3 p-4 border border-jamo-100 bg-jamo-50 rounded-lg group">
-                <div className="mt-0.5 shrink-0">
-                  <svg className="w-6 h-6 text-jamo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 0 0 2.112 2.13" />
-                  </svg>
+            {/* Metadata row */}
+            <div className="px-6 pb-5">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-3 mb-2">
+                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${STATUS_COLORS[proposal.status]}`}>
+                      {STATUS_LABELS[proposal.status]}
+                    </span>
+                    <span className="text-xs text-gray-400">{proposal.id.toUpperCase()}</span>
+                  </div>
+                  <h1 className="text-xl font-bold text-gray-900">{proposal.title}</h1>
+                  <p className="text-sm text-gray-500 mt-1">{proposal.client} · {proposal.studyType}</p>
                 </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-gray-800 truncate">{file.name}</p>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <span className="text-xs text-jamo-400">Just uploaded</span>
-                    <span className="text-jamo-200">·</span>
-                    <span className="text-xs text-gray-400">{(file.size / 1024).toFixed(0)} KB</span>
+                <div className="flex flex-col items-end gap-3 shrink-0">
+                  <button
+                    onClick={() => openModal(proposal)}
+                    className="inline-flex items-center text-sm font-medium text-gray-600 bg-white border border-gray-200 hover:border-gray-300 px-3 py-1.5 rounded-lg transition-colors"
+                  >
+                    Edit Proposal
+                  </button>
+                  <div className="text-right">
+                    <p className="text-2xl font-bold text-gray-900">{formatCurrency(proposal.value)}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">Proposal value</p>
                   </div>
                 </div>
-                <button
-                  onClick={() => removeUpload(i)}
-                  className="text-gray-300 hover:text-red-400 transition-colors shrink-0"
-                >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-                  </svg>
-                </button>
               </div>
-            ))}
-          </div>
-        )}
 
-        {/* Drop zone */}
-        <div
-          onDragOver={e => { e.preventDefault(); setDragOver(true) }}
-          onDragLeave={() => setDragOver(false)}
-          onDrop={e => { e.preventDefault(); setDragOver(false); handleFiles(e.dataTransfer.files) }}
-          onClick={() => fileInputRef.current?.click()}
-          className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
-            dragOver ? 'border-jamo-400 bg-jamo-50' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-          }`}
-        >
-          <svg className={`w-7 h-7 mx-auto mb-2 ${dragOver ? 'text-jamo-400' : 'text-gray-300'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
-          </svg>
-          <p className="text-sm text-gray-400">
-            Drop files here or <span className="text-jamo-500 font-medium">browse</span>
-          </p>
-          <p className="text-xs text-gray-300 mt-1">PDF, DOCX, XLSX, TXT supported</p>
-        </div>
-      </div>
-
-      {/* AI Generation */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h2 className="font-semibold text-gray-900">AI-Generated Proposal Draft</h2>
-            <p className="text-xs text-gray-500 mt-0.5">Based on RFP context and your template</p>
-          </div>
-          {!generated && (
-            <button
-              onClick={handleGenerate}
-              disabled={generating}
-              className="flex items-center gap-2 bg-jamo-500 hover:bg-jamo-600 disabled:opacity-60 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
-            >
-              {generating ? (
-                <>
-                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                  </svg>
-                  Generating…
-                </>
-              ) : (
-                <>
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
-                  </svg>
-                  Generate with AI
-                </>
-              )}
-            </button>
-          )}
-          {generated && (
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-green-600 font-medium flex items-center gap-1">
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-                </svg>
-                Generated
-              </span>
-              <ExportDropdown />
+              {/* TA / Due Date / Created */}
+              <div className="flex items-center gap-5 mt-3 pt-3 border-t border-gray-100 text-xs text-gray-500">
+                <span>
+                  <span className="font-semibold text-gray-400 uppercase tracking-wide text-[10px] mr-1.5">TA</span>
+                  {proposal.therapeuticArea}
+                </span>
+                <span>
+                  <span className="font-semibold text-gray-400 uppercase tracking-wide text-[10px] mr-1.5">Due</span>
+                  {formatDate(proposal.dueDate)}
+                </span>
+                <span>
+                  <span className="font-semibold text-gray-400 uppercase tracking-wide text-[10px] mr-1.5">Created</span>
+                  {formatDate(proposal.createdAt)}
+                </span>
+              </div>
             </div>
-          )}
+          </div>
         </div>
+        {/* end condensing header */}
 
-        {!generated && !generating && (
-          <div className="border-2 border-dashed border-gray-200 rounded-lg p-12 text-center">
-            <svg className="w-10 h-10 text-gray-300 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
-            </svg>
-            <p className="text-sm text-gray-400">Click "Generate with AI" to draft this proposal</p>
-          </div>
-        )}
+        {/* ── Scroll area: fills remaining height in the flex-col ── */}
+        <div ref={scrollRef} className="flex-1 overflow-y-auto min-w-0 pr-1">
 
-        {generating && (
-          <div className="border border-gray-100 rounded-lg p-8 text-center">
-            <svg className="w-8 h-8 text-jamo-400 mx-auto mb-3 animate-spin" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-            </svg>
-            <p className="text-sm text-gray-500">Analyzing RFP context and drafting proposal…</p>
-          </div>
-        )}
+          {/* Context & Documents */}
+          <div className="mt-5 bg-white rounded-xl border border-gray-200 p-6">
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <h2 className="font-semibold text-gray-900">Context & Documents</h2>
+                <p className="text-xs text-gray-500 mt-0.5">All inputs used to generate this proposal</p>
+              </div>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="flex items-center gap-2 text-sm font-medium text-jamo-500 hover:text-jamo-600 border border-jamo-200 hover:border-jamo-300 px-3 py-1.5 rounded-lg transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                </svg>
+                Upload Document
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                className="hidden"
+                onChange={e => handleFiles(e.target.files)}
+              />
+            </div>
 
-        {generated && (
-          <div className="border border-gray-100 rounded-lg p-6 bg-white">
-            <ProposalDraftRenderer
-              sections={draftSections}
-              pendingSuggestion={pendingSuggestion}
-              onSuggestionAccepted={handleSuggestionAccepted}
-              onSuggestionDeclined={handleSuggestionDeclined}
-            />
+            {/* Existing documents */}
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              {existingDocs.map(doc => (
+                <div key={doc.id} className="flex items-start gap-3 p-4 border border-gray-100 rounded-lg hover:border-gray-200 hover:bg-gray-50 transition-colors group">
+                  <div className="mt-0.5 shrink-0">
+                    <DocIcon type={doc.type} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-gray-800 truncate">{doc.name}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="text-xs text-gray-400">{DOC_TYPE_LABELS[doc.type]}</span>
+                      <span className="text-gray-200">·</span>
+                      <span className="text-xs text-gray-400">{doc.size}</span>
+                      <span className="text-gray-200">·</span>
+                      <span className="text-xs text-gray-400">{getFileExt(doc.name)}</span>
+                    </div>
+                  </div>
+                  <button className="text-xs text-jamo-500 hover:text-jamo-600 font-medium opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                    View
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            {/* Uploaded files */}
+            {uploadedFiles.length > 0 && (
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                {uploadedFiles.map((file, i) => (
+                  <div key={i} className="flex items-start gap-3 p-4 border border-jamo-100 bg-jamo-50 rounded-lg group">
+                    <div className="mt-0.5 shrink-0">
+                      <svg className="w-6 h-6 text-jamo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 0 0 2.112 2.13" />
+                      </svg>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-gray-800 truncate">{file.name}</p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-xs text-jamo-400">Just uploaded</span>
+                        <span className="text-jamo-200">·</span>
+                        <span className="text-xs text-gray-400">{(file.size / 1024).toFixed(0)} KB</span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => removeUpload(i)}
+                      className="text-gray-300 hover:text-red-400 transition-colors shrink-0"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Drop zone */}
+            <div
+              onDragOver={e => { e.preventDefault(); setDragOver(true) }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={e => { e.preventDefault(); setDragOver(false); handleFiles(e.dataTransfer.files) }}
+              onClick={() => fileInputRef.current?.click()}
+              className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
+                dragOver ? 'border-jamo-400 bg-jamo-50' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              <svg className={`w-7 h-7 mx-auto mb-2 ${dragOver ? 'text-jamo-400' : 'text-gray-300'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
+              </svg>
+              <p className="text-sm text-gray-400">
+                Drop files here or <span className="text-jamo-500 font-medium">browse</span>
+              </p>
+              <p className="text-xs text-gray-300 mt-1">PDF, DOCX, XLSX, TXT supported</p>
+            </div>
           </div>
-        )}
+
+          {/* AI Generation */}
+          <div className="mt-5 bg-white rounded-xl border border-gray-200 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="font-semibold text-gray-900">AI-Generated Proposal Draft</h2>
+                <p className="text-xs text-gray-500 mt-0.5">Based on RFP context and your template</p>
+              </div>
+              {!generated && (
+                <button
+                  onClick={handleGenerate}
+                  disabled={generating}
+                  className="flex items-center gap-2 bg-jamo-500 hover:bg-jamo-600 disabled:opacity-60 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+                >
+                  {generating ? (
+                    <>
+                      <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                      </svg>
+                      Generating…
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
+                      </svg>
+                      Generate with AI
+                    </>
+                  )}
+                </button>
+              )}
+              {generated && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-green-600 font-medium flex items-center gap-1">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                    </svg>
+                    Generated
+                  </span>
+                  <ExportDropdown />
+                </div>
+              )}
+            </div>
+
+            {!generated && !generating && (
+              <div className="border-2 border-dashed border-gray-200 rounded-lg p-12 text-center">
+                <svg className="w-10 h-10 text-gray-300 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                </svg>
+                <p className="text-sm text-gray-400">Click "Generate with AI" to draft this proposal</p>
+              </div>
+            )}
+
+            {generating && (
+              <div className="border border-gray-100 rounded-lg p-8 text-center">
+                <svg className="w-8 h-8 text-jamo-400 mx-auto mb-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                </svg>
+                <p className="text-sm text-gray-500">Analyzing RFP context and drafting proposal…</p>
+              </div>
+            )}
+
+            {generated && (
+              <div className="border border-gray-100 rounded-lg p-6 bg-white">
+                <ProposalDraftRenderer
+                  sections={draftSections}
+                  acceptedOverrides={acceptedOverrides}
+                  flashSectionId={flashSectionId}
+                  pendingSuggestion={pendingSuggestion}
+                  onSuggestionAccepted={handleSuggestionAccepted}
+                  onSuggestionDeclined={handleSuggestionDeclined}
+                  hideNav
+                  scrollMarginClass="scroll-mt-4"
+                />
+              </div>
+            )}
+          </div>
+
+          <div className="h-8" />
+        </div>
+        {/* end scroll area */}
+
       </div>
+      {/* end left column */}
 
-        </div>{/* end left pane */}
+      {/* ── Right: AI chat panel (self-sizing) ── */}
+      <AIChatPanel
+        draftGenerated={generated}
+        onCommand={setPendingSuggestion}
+        onSuggestionResolved={handleResolutionConsumed}
+        lastResolution={lastResolution}
+      />
 
-        {/* ── Right: AI chat panel (self-sizing) ── */}
-        <AIChatPanel
-            draftGenerated={generated}
-            onCommand={setPendingSuggestion}
-            onSuggestionResolved={handleResolutionConsumed}
-            lastResolution={lastResolution}
-          />
-
-      </div>{/* end two-pane */}
     </div>
   )
 }

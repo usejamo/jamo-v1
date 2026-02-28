@@ -49,18 +49,18 @@ body {
 }
 
 /* ── Universal button tactile feedback ──────────────────────────────────────
-   Hover: fades in a tint overlay derived from the button's current text color
-   (which is in the same palette as the border on every button in this app).
-   Active: physical scale-down with a 50ms snap.
-   The ::before approach keeps this independent of Tailwind's transition classes
-   and doesn't require touching individual button elements.
-   Disabled buttons are excluded from both effects.
+   Base defaults (padding, radius) live in @layer base so Tailwind utility
+   classes (p-0, p-3, rounded-lg, etc.) can override them normally.
+   The ::before overlay and :active scale sit outside the layer — they use
+   pseudo-selectors so they never conflict with utilities.
 */
 
-button {
-  position: relative;
-  padding: 4px 8px;
-  border-radius: 6px;
+@layer base {
+  button {
+    position: relative;
+    padding: 4px 8px;
+    border-radius: 6px;
+  }
 }
 
 button::before {

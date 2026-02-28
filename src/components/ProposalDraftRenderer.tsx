@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import type { DraftSection, Annotation, AnnotationSourceType, PendingSuggestion } from '../types/draft'
+import type { DraftSection, Annotation, AnnotationSourceType, PendingSuggestion, ContentBlock } from '../types/draft'
 import { DEMO_COMMANDS } from '../data/demoCommands'
 import RenderBlock from './RenderBlock'
 import SuggestedChange from './SuggestedChange'
@@ -179,16 +179,24 @@ function DraftNav({ sections, activeId }: { sections: DraftSection[]; activeId: 
 
 interface Props {
   sections: DraftSection[]
+  acceptedOverrides?: Record<string, ContentBlock[]>
+  flashSectionId?: string | null
   pendingSuggestion: PendingSuggestion | null
   onSuggestionAccepted: (commandKey: string) => void
   onSuggestionDeclined: () => void
+  hideNav?: boolean
+  scrollMarginClass?: string
 }
 
 export default function ProposalDraftRenderer({
   sections,
+  acceptedOverrides = {},
+  flashSectionId = null,
   pendingSuggestion,
   onSuggestionAccepted,
   onSuggestionDeclined,
+  hideNav = false,
+  scrollMarginClass = 'scroll-mt-4',
 }: Props) {
   const [popover, setPopover] = useState<PopoverState | null>(null)
   const [activeId, setActiveId] = useState(sections[0]?.id ?? '')
@@ -243,7 +251,7 @@ export default function ProposalDraftRenderer({
 
       {/* Two-column: nav + content */}
       <div className="flex gap-2">
-        <DraftNav sections={sections} activeId={activeId} />
+        {!hideNav && <DraftNav sections={sections} activeId={activeId} />}
 
         <div className="flex-1 min-w-0">
           {sections.map(section => {
@@ -252,9 +260,13 @@ export default function ProposalDraftRenderer({
               ? DEMO_COMMANDS.find(c => c.key === pendingSuggestion!.commandKey)
               : null
 
+            // Use accepted override blocks if this section was edited, else original
+            const blocks = acceptedOverrides[section.id] ?? section.blocks
+            const isFlashing = flashSectionId === section.id
+
             const sectionContent = (
               <>
-                {section.blocks.map((block, i) => (
+                {blocks.map((block, i) => (
                   <RenderBlock key={i} block={block} onAnnotationClick={handleAnnotationClick} />
                 ))}
                 {section.subsections?.map(sub => (
@@ -269,7 +281,13 @@ export default function ProposalDraftRenderer({
             )
 
             return (
-              <div key={section.id} id={section.id} className="mb-8 scroll-mt-4">
+              <div
+                key={section.id}
+                id={section.id}
+                className={`mb-8 ${scrollMarginClass} rounded-lg transition-colors duration-700 ${
+                  isFlashing ? 'bg-amber-50' : ''
+                }`}
+              >
                 <h3 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b border-gray-100">
                   {section.title}
                 </h3>

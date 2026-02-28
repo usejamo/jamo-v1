@@ -10,4 +10,6 @@ export interface Proposal {
   dueDate: string
   value: number
   createdAt: string
+  indication?: string
+  description?: string
 }
