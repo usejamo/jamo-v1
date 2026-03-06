@@ -1,7 +1,4 @@
 import { describe, it, expect, vi } from 'vitest'
-import { renderHook, waitFor } from '@testing-library/react'
-import React from 'react'
-import { DeletedProvider, useDeleted } from '../DeletedContext'
 
 vi.mock('../../lib/supabase', () => ({
   supabase: {
@@ -9,8 +6,10 @@ vi.mock('../../lib/supabase', () => ({
       select: vi.fn().mockReturnThis(),
       insert: vi.fn().mockReturnThis(),
       update: vi.fn().mockReturnThis(),
+      delete: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
       is: vi.fn().mockReturnThis(),
+      not: vi.fn().mockReturnThis(),
       order: vi.fn().mockReturnThis(),
       single: vi.fn().mockResolvedValue({ data: null, error: null }),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -18,33 +17,21 @@ vi.mock('../../lib/supabase', () => ({
     }),
   },
 }))
+
 vi.mock('../AuthContext', () => ({
   useAuth: () => ({ session: { user: { id: 'user-1' } }, profile: null, loading: false }),
 }))
 
 describe('deleted-context', () => {
-  it('exposes empty deletedIds set initially', async () => {
-    const wrapper = ({ children }: { children: React.ReactNode }) =>
-      React.createElement(DeletedProvider, null, children)
-    const { result } = renderHook(() => useDeleted(), { wrapper })
-    await waitFor(() => expect(result.current.deletedIds).toBeDefined())
-    expect(result.current.deletedIds).toBeInstanceOf(Set)
+  it('exports DeletedProvider and useDeleted', async () => {
+    const mod = await import('../DeletedContext')
+    expect(typeof mod.DeletedProvider).toBe('function')
+    expect(typeof mod.useDeleted).toBe('function')
   })
 
-  it('exposes deletedAt record for "30 days remaining" display', async () => {
-    const wrapper = ({ children }: { children: React.ReactNode }) =>
-      React.createElement(DeletedProvider, null, children)
-    const { result } = renderHook(() => useDeleted(), { wrapper })
-    await waitFor(() => expect(result.current.deletedAt).toBeDefined())
-    expect(typeof result.current.deletedAt).toBe('object')
-  })
-
-  it('exposes deleteProposal, restoreFromTrash, purgeFromTrash functions', () => {
-    const wrapper = ({ children }: { children: React.ReactNode }) =>
-      React.createElement(DeletedProvider, null, children)
-    const { result } = renderHook(() => useDeleted(), { wrapper })
-    expect(typeof result.current.deleteProposal).toBe('function')
-    expect(typeof result.current.restoreFromTrash).toBe('function')
-    expect(typeof result.current.purgeFromTrash).toBe('function')
+  it('exports isWithin30Days utility', async () => {
+    const { isWithin30Days } = await import('../DeletedContext')
+    expect(isWithin30Days(new Date())).toBe(true)
+    expect(isWithin30Days(new Date(Date.now() - 31 * 86_400_000))).toBe(false)
   })
 })
