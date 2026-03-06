@@ -64,9 +64,9 @@ Plans:
 **Plans:** 3 plans
 
 Plans:
-- [ ] 02-01-PLAN.md — Extend AuthContext with signIn, signOut, signUp methods
+- [x] 02-01-PLAN.md — Extend AuthContext with signIn, signOut, signUp methods
 - [ ] 02-02-PLAN.md — Create Login page, ProtectedRoute wrapper, update App.tsx routing
-- [ ] 02-03-PLAN.md — Add logout button to Sidebar, role awareness in Settings
+- [x] 02-03-PLAN.md — Add logout button to Sidebar, role awareness in Settings
 
 ---
 
