@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-03-05
 **Current milestone:** Milestone 1 — MVP
-**Current phase:** None started — ready to begin Phase 1
+**Current phase:** 01-supabase-foundation — Plan 01 of 6 (Plan 00 complete)
 
 ---
 
@@ -15,18 +15,26 @@
 | ROADMAP.md | Complete (13 phases) |
 | Codebase map | Complete (.planning/codebase/) |
 | Research | Complete (.planning/research/) |
-| Phase execution | Not started |
+| Phase execution | In progress — Phase 01 Plan 00 complete |
 
 ---
 
 ## Next Action
 
-Run `/gsd:plan-phase 1` to plan the Supabase Foundation phase.
+Execute Plan 01-01: Supabase client singleton + env validation (Phase 01, Plan 1 of 6).
+
+## Last Session
+
+**Stopped at:** Completed 01-supabase-foundation Plan 00 (test infrastructure)
+**Session date:** 2026-03-05
 
 ---
 
 ## Active Decisions
 
+- **Test mock pattern:** `import { supabase } from '../../test/mocks/supabase'` — chainable vi.fn() mock for all Supabase query methods
+- **Stub test pattern:** Use `it.skip` (not dynamic imports) for tests targeting files not yet created — Vite resolves all imports at transform time
+- **test:run scope:** No --coverage flag to keep runs under 15 seconds
 - **Editor:** TipTap v2 (replaces ProposalDraftRenderer)
 - **Backend:** Supabase (Edge Functions, Postgres, Storage, Auth, Realtime, pgvector)
 - **AI:** Anthropic Claude (claude-sonnet-4-5 for generation, claude-haiku for extraction/anchors)
@@ -48,9 +56,10 @@ Run `/gsd:plan-phase 1` to plan the Supabase Foundation phase.
 
 ---
 
-## Completed Phases
+## Completed Plans
 
-None yet.
+### Phase 01: Supabase Foundation
+- **Plan 00** (2026-03-05): Test infrastructure — vitest + jsdom + Supabase mock + stub tests. `npm run test:run` exits 0 in 1.28s.
 
 ---
 
