@@ -4,6 +4,7 @@ import Dashboard from './pages/Dashboard'
 import ProposalsList from './pages/ProposalsList'
 import ProposalDetail from './pages/ProposalDetail'
 import Settings from './pages/Settings'
+import { AuthProvider } from './context/AuthContext'
 import { ArchivedProvider } from './context/ArchivedContext'
 import { ProposalsProvider } from './context/ProposalsContext'
 import { DeletedProvider } from './context/DeletedContext'
@@ -23,27 +24,29 @@ function GlobalToast() {
 
 export default function App() {
   return (
-    <SidebarProvider>
-    <ProposalsProvider>
-      <DeletedProvider>
-        <ArchivedProvider>
-          <ProposalModalProvider>
-            <BrowserRouter>
-              <Routes>
-                <Route element={<Layout />}>
-                  <Route path="/" element={<Dashboard />} />
-                  <Route path="/proposals" element={<ProposalsList />} />
-                  <Route path="/proposals/:id" element={<ProposalDetail />} />
-                  <Route path="/settings" element={<Settings />} />
-                </Route>
-              </Routes>
-            </BrowserRouter>
-            <ProposalEditorModal />
-            <GlobalToast />
-          </ProposalModalProvider>
-        </ArchivedProvider>
-      </DeletedProvider>
-    </ProposalsProvider>
-    </SidebarProvider>
+    <AuthProvider>
+      <SidebarProvider>
+        <ProposalsProvider>
+          <DeletedProvider>
+            <ArchivedProvider>
+              <ProposalModalProvider>
+                <BrowserRouter>
+                  <Routes>
+                    <Route element={<Layout />}>
+                      <Route path="/" element={<Dashboard />} />
+                      <Route path="/proposals" element={<ProposalsList />} />
+                      <Route path="/proposals/:id" element={<ProposalDetail />} />
+                      <Route path="/settings" element={<Settings />} />
+                    </Route>
+                  </Routes>
+                </BrowserRouter>
+                <ProposalEditorModal />
+                <GlobalToast />
+              </ProposalModalProvider>
+            </ArchivedProvider>
+          </DeletedProvider>
+        </ProposalsProvider>
+      </SidebarProvider>
+    </AuthProvider>
   )
 }

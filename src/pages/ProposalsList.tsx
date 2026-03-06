@@ -67,7 +67,7 @@ export default function ProposalsList() {
 
   const { archivedIds, archive, restore } = useArchived()
   const { proposals, permanentlyDelete } = useProposals()
-  const { deletedMap, deletedIds, deleteProposal, restoreFromTrash, purgeFromTrash } = useDeleted()
+  const { deletedAt, deletedIds, deleteProposal, restoreFromTrash, purgeFromTrash } = useDeleted()
   const { openModal, showToast } = useProposalModal()
 
   // Escape closes the permanent-delete confirmation
@@ -86,7 +86,7 @@ export default function ProposalsList() {
   )
 
   const viewProposals = proposals.filter(p => {
-    if (view === 'deleted')  return deletedIds.has(p.id) && isWithin30Days(deletedMap.get(p.id)!)
+    if (view === 'deleted')  return deletedIds.has(p.id) && isWithin30Days(new Date(deletedAt[p.id]))
     if (view === 'archived') return archivedIds.has(p.id) && !deletedIds.has(p.id)
     return !archivedIds.has(p.id) && !deletedIds.has(p.id)
   })
