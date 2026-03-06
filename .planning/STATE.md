@@ -1,8 +1,8 @@
 # STATE.md — Project Memory
 
-**Last updated:** 2026-03-05
+**Last updated:** 2026-03-06
 **Current milestone:** Milestone 1 — MVP
-**Current phase:** 01-supabase-foundation — Plan 01 of 6 (Plan 00 complete)
+**Current phase:** 01-supabase-foundation — Plan 02 of 6 (Plans 00-01 complete)
 
 ---
 
@@ -15,23 +15,26 @@
 | ROADMAP.md | Complete (13 phases) |
 | Codebase map | Complete (.planning/codebase/) |
 | Research | Complete (.planning/research/) |
-| Phase execution | In progress — Phase 01 Plan 00 complete |
+| Phase execution | In progress — Phase 01 Plans 00-01 complete |
 
 ---
 
 ## Next Action
 
-Execute Plan 01-01: Supabase client singleton + env validation (Phase 01, Plan 1 of 6).
+Execute Plan 01-02: Database schema migrations (Phase 01, Plan 2 of 6).
 
 ## Last Session
 
-**Stopped at:** Completed 01-supabase-foundation Plan 00 (test infrastructure)
-**Session date:** 2026-03-05
+**Stopped at:** Completed 01-supabase-foundation Plan 01 (Supabase client singleton + CLI link)
+**Session date:** 2026-03-06
 
 ---
 
 ## Active Decisions
 
+- **Env file location:** `.env` (not `.env.local`) — project already used .env; both are gitignored, Vite reads both
+- **Supabase project ref:** `fuuvdcvbliijffogjnwg` (live project, region: auto)
+- **Key name:** `VITE_SUPABASE_PUBLISHABLE_KEY` (new Supabase post-Nov 2025 naming, not VITE_SUPABASE_ANON_KEY)
 - **Test mock pattern:** `import { supabase } from '../../test/mocks/supabase'` — chainable vi.fn() mock for all Supabase query methods
 - **Stub test pattern:** Use `it.skip` (not dynamic imports) for tests targeting files not yet created — Vite resolves all imports at transform time
 - **test:run scope:** No --coverage flag to keep runs under 15 seconds
@@ -60,6 +63,7 @@ Execute Plan 01-01: Supabase client singleton + env validation (Phase 01, Plan 1
 
 ### Phase 01: Supabase Foundation
 - **Plan 00** (2026-03-05): Test infrastructure — vitest + jsdom + Supabase mock + stub tests. `npm run test:run` exits 0 in 1.28s.
+- **Plan 01** (2026-03-06): Supabase client singleton — @supabase/supabase-js installed, CLI linked to project fuuvdcvbliijffogjnwg, src/lib/supabase.ts typed with Database generic, placeholder types in src/types/database.types.ts. `npm run test:run` exits 0 in 1.29s.
 
 ---
 
