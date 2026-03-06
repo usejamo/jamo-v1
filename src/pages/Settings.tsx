@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useAuth } from '../context/AuthContext'
 
 // ── Shared constants ──────────────────────────────────────────────────────────
 
@@ -122,7 +123,7 @@ const NOTIF_GROUPS: { group: string; items: { key: NotifKey; label: string; sub:
 
 // ── Sub-tabs ──────────────────────────────────────────────────────────────────
 
-const SUB_TABS = ['Integrations', 'General', 'Notifications'] as const
+const SUB_TABS = ['Profile', 'Integrations', 'General', 'Notifications'] as const
 type SubTab = (typeof SUB_TABS)[number]
 
 // ── Primitives ────────────────────────────────────────────────────────────────
@@ -235,6 +236,51 @@ function IntegrationCard({ integration }: { integration: Integration }) {
             Connect
           </button>
         )}
+      </div>
+    </div>
+  )
+}
+
+// ── Profile tab ──────────────────────────────────────────────────────────────
+
+function ProfileTab() {
+  const { user, profile } = useAuth()
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">User Profile</h3>
+        <div className="bg-gray-50 rounded-lg p-6 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+            <div className="text-gray-900">{profile?.full_name || 'Not set'}</div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+            <div className="text-gray-900">{user?.email}</div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+            <div className="text-gray-900">
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-jamo-100 text-jamo-800">
+                {profile?.role || 'user'}
+              </span>
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Organization ID</label>
+            <div className="text-gray-500 text-sm font-mono">{profile?.org_id || 'Not assigned'}</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="border-t border-gray-200 pt-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-2">About Roles</h3>
+        <p className="text-sm text-gray-600">
+          <strong>Admin:</strong> Can manage organization settings and users.<br />
+          <strong>User:</strong> Can create and manage proposals.<br />
+          <strong>Super Admin:</strong> Platform-level access (Jamo staff only).
+        </p>
       </div>
     </div>
   )
@@ -410,7 +456,7 @@ function NotificationsTab() {
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export default function Settings() {
-  const [activeTab, setActiveTab] = useState<SubTab>('Integrations')
+  const [activeTab, setActiveTab] = useState<SubTab>('Profile')
 
   return (
     <div className="space-y-6">
@@ -437,6 +483,9 @@ export default function Settings() {
           </button>
         ))}
       </div>
+
+      {/* Profile */}
+      {activeTab === 'Profile' && <ProfileTab />}
 
       {/* Integrations */}
       {activeTab === 'Integrations' && (
