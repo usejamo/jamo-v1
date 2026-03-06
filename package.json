@@ -9,10 +9,12 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test:run": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "db:types": "npx supabase gen types typescript --linked > src/types/database.types.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
+    "@supabase/supabase-js": "^2.98.0",
     "@tailwindcss/vite": "^4.2.1",
     "framer-motion": "^12.34.3",
     "react": "^19.2.0",
