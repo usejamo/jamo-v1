@@ -7,6 +7,7 @@ const mockQueryBuilder = {
   delete: vi.fn().mockReturnThis(),
   eq: vi.fn().mockReturnThis(),
   is: vi.fn().mockReturnThis(),
+  not: vi.fn().mockReturnThis(),
   order: vi.fn().mockReturnThis(),
   single: vi.fn().mockReturnThis(),
   then: vi.fn((resolve) => resolve({ data: [], error: null })),

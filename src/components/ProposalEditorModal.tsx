@@ -80,7 +80,7 @@ export default function ProposalEditorModal() {
     setForm(prev => ({ ...prev, [field]: value }))
   }
 
-  function handleSave() {
+  async function handleSave() {
     const data = {
       title: form.title,
       client: form.client,
@@ -93,16 +93,16 @@ export default function ProposalEditorModal() {
       status: isEdit ? modalProposal.status : ('draft' as const),
     }
     if (isEdit) {
-      updateProposal(modalProposal.id, data)
+      await updateProposal(modalProposal.id, data)
     } else {
-      createProposal(data)
+      await createProposal(data)
     }
     closeModal()
   }
 
-  function handleConfirmDelete() {
+  async function handleConfirmDelete() {
     if (!modalProposal) return
-    deleteProposal(modalProposal.id)
+    await deleteProposal(modalProposal.id)
     showToast('Proposal moved to Trash')
     closeModal()
   }
