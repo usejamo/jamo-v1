@@ -34,15 +34,15 @@
 
 **Requirements covered:** REQ-7.1 through REQ-7.10
 
-**Plans:** 4/6 plans executed
+**Plans:** 6 plans
 
 Plans:
 - [x] 01-00-PLAN.md — Test infrastructure: vitest config, Supabase mock, stub test files
-- [ ] 01-01-PLAN.md — Supabase CLI init, @supabase/supabase-js install, src/lib/supabase.ts singleton
-- [ ] 01-02-PLAN.md — Core schema migrations: 9 tables + RLS helper functions + policies
-- [ ] 01-03-PLAN.md — pgvector + regulatory_chunks, usage_events, Storage bucket + RLS
-- [ ] 01-04-PLAN.md — Generate TypeScript types, create AuthContext, migrate ProposalsContext
-- [ ] 01-05-PLAN.md — Migrate DeletedContext + ArchivedContext, wire AuthProvider into App.tsx
+- [x] 01-01-PLAN.md — Supabase CLI init, @supabase/supabase-js install, src/lib/supabase.ts singleton
+- [x] 01-02-PLAN.md — Core schema migrations: 9 tables + RLS helper functions + policies
+- [x] 01-03-PLAN.md — pgvector + regulatory_chunks, usage_events, Storage bucket + RLS
+- [x] 01-04-PLAN.md — Generate TypeScript types, create AuthContext, migrate ProposalsContext
+- [x] 01-05-PLAN.md — Migrate DeletedContext + ArchivedContext, wire AuthProvider into App.tsx
 
 ---
 
@@ -60,6 +60,13 @@ Plans:
 - Logout in sidebar
 
 **Requirements covered:** REQ-8.1 through REQ-8.7
+
+**Plans:** 3 plans
+
+Plans:
+- [ ] 02-01-PLAN.md — Extend AuthContext with signIn, signOut, signUp methods
+- [ ] 02-02-PLAN.md — Create Login page, ProtectedRoute wrapper, update App.tsx routing
+- [ ] 02-03-PLAN.md — Add logout button to Sidebar, role awareness in Settings
 
 ---
 
