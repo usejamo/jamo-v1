@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-03-06
 **Current milestone:** Milestone 1 — MVP
-**Current phase:** 01-supabase-foundation — Plan 04 of 6 (Plans 00-03 complete)
+**Current phase:** 02 (next) — Phase 01 complete
 
 ---
 
@@ -15,17 +15,17 @@
 | ROADMAP.md | Complete (13 phases) |
 | Codebase map | Complete (.planning/codebase/) |
 | Research | Complete (.planning/research/) |
-| Phase execution | In progress — Phase 01 Plans 00-03 complete |
+| Phase execution | Phase 01 COMPLETE — 6/6 plans, verified |
 
 ---
 
 ## Next Action
 
-Execute Plan 01-04: Atomic `supabase db push` — push all 14 migrations to project fuuvdcvbliijffogjnwg (Phase 01, Plan 4 of 6).
+Plan Phase 02 — `/gsd:plan-phase 2`
 
 ## Last Session
 
-**Stopped at:** Completed 01-supabase-foundation Plan 03 (regulatory_chunks, usage_events, storage RLS migration files)
+**Stopped at:** Phase 01 complete — all 6 plans executed, verified 12/12 truths, VERIFICATION.md written
 **Session date:** 2026-03-06
 
 ---
@@ -35,7 +35,10 @@ Execute Plan 01-04: Atomic `supabase db push` — push all 14 migrations to proj
 - **Env file location:** `.env` (not `.env.local`) — project already used .env; both are gitignored, Vite reads both
 - **Supabase project ref:** `fuuvdcvbliijffogjnwg` (live project, region: auto)
 - **Key name:** `VITE_SUPABASE_PUBLISHABLE_KEY` (new Supabase post-Nov 2025 naming, not VITE_SUPABASE_ANON_KEY)
-- **Test mock pattern:** `import { supabase } from '../../test/mocks/supabase'` — chainable vi.fn() mock for all Supabase query methods
+- **Test mock pattern:** Inline `vi.mock('../../lib/supabase', () => ({ supabase: { from: vi.fn()... } }))` — NOT `() => import(...)` which resolves the full supabase-js module and OOMs
+- **No renderHook in context tests:** `@testing-library/react` pulls react-dom; OOMs even with 4GB heap on dev machine — use import assertions instead
+- **vitest version:** 4.0.4 (4.0.18 has known memory leak regression, GitHub issue #9560)
+- **vitest pool:** `forks` + `singleFork: true` + `execArgv: ['--max-old-space-size=4096']` + `environment: happy-dom`
 - **Stub test pattern:** Use `it.skip` (not dynamic imports) for tests targeting files not yet created — Vite resolves all imports at transform time
 - **test:run scope:** No --coverage flag to keep runs under 15 seconds
 - **Editor:** TipTap v2 (replaces ProposalDraftRenderer)
@@ -69,8 +72,10 @@ Execute Plan 01-04: Atomic `supabase db push` — push all 14 migrations to proj
 ### Phase 01: Supabase Foundation
 - **Plan 00** (2026-03-05): Test infrastructure — vitest + jsdom + Supabase mock + stub tests. `npm run test:run` exits 0 in 1.28s.
 - **Plan 01** (2026-03-06): Supabase client singleton — @supabase/supabase-js installed, CLI linked to project fuuvdcvbliijffogjnwg, src/lib/supabase.ts typed with Database generic, placeholder types in src/types/database.types.ts. `npm run test:run` exits 0 in 1.29s.
-- **Plan 02** (2026-03-06): Database schema migrations (001-009, 012-013) — organizations, user_profiles, proposals, proposal_sections, proposal_documents, document_extracts, proposal_assumptions, proposal_chats, rls_helper_functions, rls_policies. All 11 migration files written; no push yet.
-- **Plan 03** (2026-03-06): Infrastructure migrations — regulatory_chunks (pgvector HNSW, extensions.vector(1536)), usage_events (org RLS, audit trail), storage_policies (4 storage.objects RLS policies + usage_events_all). Migration files 010, 011, 014 written; private 'documents' bucket created in dashboard. No push yet.
+- **Plan 02** (2026-03-06): Database schema migrations (001-009, 012-013) — organizations, user_profiles, proposals, proposal_sections, proposal_documents, document_extracts, proposal_assumptions, proposal_chats, rls_helper_functions, rls_policies. 11 migration files written.
+- **Plan 03** (2026-03-06): Infrastructure migrations — regulatory_chunks (pgvector HNSW, extensions.vector(1536)), usage_events (org RLS, audit trail), storage_policies (4 storage.objects RLS policies + usage_events_all). Migration files 010, 011, 014 written; private 'documents' bucket created in dashboard.
+- **Plan 04** (2026-03-06): All 14 migrations pushed atomically to project fuuvdcvbliijffogjnwg. database.types.ts generated (700 lines). AuthContext created (session/user/profile/loading). ProposalsContext migrated to async Supabase CRUD.
+- **Plan 05** (2026-03-06): DeletedContext (proposals.deleted_at soft-delete), ArchivedContext (proposals.is_archived toggle). AuthProvider wired as outermost in App.tsx. 7 tests green.
 
 ---
 
