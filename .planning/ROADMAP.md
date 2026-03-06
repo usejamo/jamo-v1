@@ -34,6 +34,16 @@
 
 **Requirements covered:** REQ-7.1 through REQ-7.10
 
+**Plans:** 6 plans
+
+Plans:
+- [x] 01-00-PLAN.md — Test infrastructure: vitest config, Supabase mock, stub test files
+- [ ] 01-01-PLAN.md — Supabase CLI init, @supabase/supabase-js install, src/lib/supabase.ts singleton
+- [ ] 01-02-PLAN.md — Core schema migrations: 9 tables + RLS helper functions + policies
+- [ ] 01-03-PLAN.md — pgvector + regulatory_chunks, usage_events, Storage bucket + RLS
+- [ ] 01-04-PLAN.md — Generate TypeScript types, create AuthContext, migrate ProposalsContext
+- [ ] 01-05-PLAN.md — Migrate DeletedContext + ArchivedContext, wire AuthProvider into App.tsx
+
 ---
 
 ### Phase 2: Authentication & Routing
