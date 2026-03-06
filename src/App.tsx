@@ -4,12 +4,14 @@ import Dashboard from './pages/Dashboard'
 import ProposalsList from './pages/ProposalsList'
 import ProposalDetail from './pages/ProposalDetail'
 import Settings from './pages/Settings'
+import Login from './pages/Login'
 import { AuthProvider } from './context/AuthContext'
 import { ArchivedProvider } from './context/ArchivedContext'
 import { ProposalsProvider } from './context/ProposalsContext'
 import { DeletedProvider } from './context/DeletedContext'
 import { ProposalModalProvider, useProposalModal } from './context/ProposalModalContext'
 import { SidebarProvider } from './context/SidebarContext'
+import { ProtectedRoute } from './components/ProtectedRoute'
 import ProposalEditorModal from './components/ProposalEditorModal'
 
 function GlobalToast() {
@@ -32,11 +34,17 @@ export default function App() {
               <ProposalModalProvider>
                 <BrowserRouter>
                   <Routes>
-                    <Route element={<Layout />}>
-                      <Route path="/" element={<Dashboard />} />
-                      <Route path="/proposals" element={<ProposalsList />} />
-                      <Route path="/proposals/:id" element={<ProposalDetail />} />
-                      <Route path="/settings" element={<Settings />} />
+                    {/* Public route */}
+                    <Route path="/login" element={<Login />} />
+
+                    {/* Protected routes */}
+                    <Route element={<ProtectedRoute />}>
+                      <Route element={<Layout />}>
+                        <Route path="/" element={<Dashboard />} />
+                        <Route path="/proposals" element={<ProposalsList />} />
+                        <Route path="/proposals/:id" element={<ProposalDetail />} />
+                        <Route path="/settings" element={<Settings />} />
+                      </Route>
                     </Route>
                   </Routes>
                 </BrowserRouter>
