@@ -89,6 +89,15 @@ Plans:
 
 **Requirements covered:** REQ-2.1 through REQ-2.8
 
+
+**Plans:** 5 plans in 2 waves
+
+Plans:
+- [ ] 03-01-PLAN.md — FileUpload component with drag-and-drop, direct Storage upload
+- [ ] 03-02-PLAN.md — DocumentList component with status indicators and polling
+- [ ] 03-03-PLAN.md — POC Edge Function for pdfjs-serverless validation (risk mitigation)
+- [ ] 03-04-PLAN.md — Full extract-document Edge Function (PDF, DOCX, XLSX, TXT)
+- [ ] 03-05-PLAN.md — Wire extraction trigger from client, end-to-end testing
 ---
 
 ### Phase 4: Regulatory Knowledge Base (RAG)
