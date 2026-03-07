@@ -1,0 +1,9 @@
+{
+  "imports": {
+    "pdfjs": "npm:pdfjs-serverless@latest"
+  },
+  "compilerOptions": {
+    "lib": ["deno.window", "deno.ns"],
+    "strict": true
+  }
+}
