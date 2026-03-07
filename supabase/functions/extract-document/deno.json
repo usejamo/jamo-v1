@@ -1,0 +1,12 @@
+{
+  "imports": {
+    "pdfjs": "npm:pdfjs-serverless@latest",
+    "mammoth": "npm:mammoth@^1.11.0",
+    "xlsx": "npm:xlsx@0.18.5",
+    "supabase": "npm:@supabase/supabase-js@2"
+  },
+  "compilerOptions": {
+    "lib": ["deno.window", "deno.ns"],
+    "strict": true
+  }
+}
