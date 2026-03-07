@@ -2,22 +2,24 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 02-authentication-routing (in progress — 2/3 plans complete)
+current_phase: 02-authentication-routing (in progress — 3/3 plans complete)
 status: unknown
-stopped_at: Completed 02-03-PLAN.md
-last_updated: "2026-03-06T22:31:01.958Z"
+stopped_at: Completed 02-02-PLAN.md
+last_updated: "2026-03-07T03:54:00.336Z"
 progress:
   total_phases: 13
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 9
   completed_plans: 9
+  percent: 100
+---
 ---
 
 # STATE.md — Project Memory
 
-**Last updated:** 2026-03-06
+**Last updated:** 2026-03-07
 **Current milestone:** Milestone 1 — MVP
-**Current phase:** 02-authentication-routing (in progress — 2/3 plans complete)
+**Current phase:** 02-authentication-routing (in progress — 3/3 plans complete)
 
 ---
 
@@ -30,18 +32,18 @@ progress:
 | ROADMAP.md | Complete (13 phases) |
 | Codebase map | Complete (.planning/codebase/) |
 | Research | Complete (.planning/research/) |
-| Phase execution | Phase 01 COMPLETE, Phase 02 in progress (2/3 plans) |
+| Phase execution | Phase 01 COMPLETE, Phase 02 in progress (3/3 plans) |
 
 ---
 
 ## Next Action
 
-Phase 02 — 2/3 plans complete
+Phase 02 — 3/3 plans complete
 
 ## Last Session
 
-**Stopped at:** Completed 02-03-PLAN.md
-**Session date:** 2026-03-06
+**Stopped at:** Completed 02-02-PLAN.md
+**Session date:** 2026-03-07
 
 ---
 
@@ -72,6 +74,10 @@ Phase 02 — 2/3 plans complete
 - **Storage bucket creation:** Via Supabase dashboard (SQL cannot create Storage buckets), policies written in SQL migrations
 - **Deferred push pattern:** All 14 migration files written in Plans 02-03, pushed atomically once in Plan 04
 - **Auth method response pattern:** signIn, signOut, signUp return raw Supabase response ({ data, error }) — let callers handle errors for flexible UX control
+
+- **Login page layout:** Full-screen centered card (not floating modal) � provides clear focus on authentication flow
+- **ProtectedRoute pattern:** Uses React Router v7 Outlet pattern � clean separation of auth logic from route definitions
+- **Layout placement:** Nested inside ProtectedRoute � ensures Sidebar only renders for authenticated users
 
 ## Critical Risks to Watch
 
