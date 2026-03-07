@@ -4,13 +4,13 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 02-authentication-routing (in progress — 3/3 plans complete)
 status: unknown
-stopped_at: Completed 02-02-PLAN.md
-last_updated: "2026-03-07T04:02:55.040Z"
+stopped_at: Completed 03-04-PLAN.md
+last_updated: "2026-03-07T19:15:51.915Z"
 progress:
   total_phases: 13
   completed_phases: 2
-  total_plans: 9
-  completed_plans: 9
+  total_plans: 15
+  completed_plans: 12
 ---
 
 ---
@@ -57,7 +57,7 @@ Phase 02 — 3/3 plans complete
 
 ## Last Session
 
-**Stopped at:** Completed 02-02-PLAN.md
+**Stopped at:** Completed 03-04-PLAN.md
 **Session date:** 2026-03-07
 
 ---
@@ -133,3 +133,7 @@ Phase 02 — 3/3 plans complete
 ### Phase 02: Authentication & Routing
 - **Plan 01** (2026-03-06): Auth methods — Extended AuthContext with signIn, signOut, signUp methods delegating to Supabase auth. TDD implementation with 4 new tests, all 11 tests passing. Auth state auto-synced via onAuthStateChange.
 - **Plan 03** (2026-03-06): Logout & Profile Display — Added logout button to Sidebar calling signOut and navigating to /login. Added Profile tab to Settings as first tab, displaying user name, email, role (as badge), and org_id. Role awareness foundation for REQ-8.3.
+
+### Phase 03: Document Upload & Parsing Pipeline
+- **Plan 02** (2026-03-07): DocumentList component — Displays uploaded documents with color-coded status badges (gray/blue/green/red for pending/extracting/complete/error). Polls every 2s when documents extracting. Delete removes from Storage + database. TDD with chainable mock query builder. 5 tests passing.
+

@@ -90,7 +90,7 @@ Plans:
 **Requirements covered:** REQ-2.1 through REQ-2.8
 
 
-**Plans:** 5 plans in 2 waves
+**Plans:** 3/6 plans executed
 
 Plans:
 - [ ] 03-01-PLAN.md — FileUpload component with drag-and-drop, direct Storage upload
