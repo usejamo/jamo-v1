@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 03-document-upload-parsing-pipeline (in progress — 1/6 plans complete)
+current_phase: 03-document-upload-parsing-pipeline (in progress — 2/6 plans complete)
 status: in-progress
-stopped_at: Completed 03-00-PLAN.md
-last_updated: "2026-03-07T19:14:35Z"
+stopped_at: Completed 03-01-PLAN.md
+last_updated: "2026-03-07T19:28:48Z"
 progress:
   total_phases: 13
   completed_phases: 2
   total_plans: 15
-  completed_plans: 10
+  completed_plans: 11
 ---
 
 ---
@@ -34,7 +34,7 @@ progress:
 
 **Last updated:** 2026-03-07
 **Current milestone:** Milestone 1 — MVP
-**Current phase:** 03-document-upload-parsing-pipeline (in progress — 1/6 plans complete)
+**Current phase:** 03-document-upload-parsing-pipeline (in progress — 2/6 plans complete)
 
 ---
 
@@ -47,17 +47,17 @@ progress:
 | ROADMAP.md | Complete (13 phases) |
 | Codebase map | Complete (.planning/codebase/) |
 | Research | Complete (.planning/research/) |
-| Phase execution | Phase 01 COMPLETE, Phase 02 COMPLETE, Phase 03 in progress (1/6 plans) |
+| Phase execution | Phase 01 COMPLETE, Phase 02 COMPLETE, Phase 03 in progress (2/6 plans) |
 
 ---
 
 ## Next Action
 
-Phase 03 — 1/6 plans complete
+Phase 03 — 2/6 plans complete
 
 ## Last Session
 
-**Stopped at:** Completed 03-00-PLAN.md
+**Stopped at:** Completed 03-01-PLAN.md
 **Session date:** 2026-03-07
 
 ---
@@ -136,5 +136,6 @@ Phase 03 — 1/6 plans complete
 
 ### Phase 03: Document Upload & Parsing Pipeline
 - **Plan 00** (2026-03-07): Test infrastructure scaffolding (Wave 0) — Created UI component test stubs (FileUpload.test.tsx with 5 todo tests, DocumentList.test.tsx with 4 todo tests) and Edge Function test harnesses (extract-document-poc/test.ts, extract-document/test.ts with 5 stub tests). Added 4 minimal valid test fixtures (test-rfp.pdf, test-protocol.docx, test-budget.xlsx, corrupt.pdf). Nyquist compliance achieved for Phase 3.
+- **Plan 01** (2026-03-07): FileUpload component — Drag-and-drop file upload with direct browser → Supabase Storage upload (no proxy). Validates file types (PDF/DOCX/XLSX/TXT) and size (max 50MB). Org-scoped storage paths ({org_id}/{proposal_id}/{filename}). Inserts proposal_documents row with parse_status='pending'. Per-file status tracking with visual indicators (spinner/check/X). Storage cleanup on database errors. TDD with 5 tests passing.
 - **Plan 02** (2026-03-07): DocumentList component — Displays uploaded documents with color-coded status badges (gray/blue/green/red for pending/extracting/complete/error). Polls every 2s when documents extracting. Delete removes from Storage + database. TDD with chainable mock query builder. 5 tests passing.
 
