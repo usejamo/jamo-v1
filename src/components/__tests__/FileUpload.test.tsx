@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 
+const mockInvoke = vi.fn().mockResolvedValue({
+  data: { success: true, documentId: 'doc-123' },
+  error: null,
+})
+
 vi.mock('../../lib/supabase', () => ({
   supabase: {
     storage: {
@@ -31,6 +36,9 @@ vi.mock('../../lib/supabase', () => ({
         }),
       }),
     }),
+    functions: {
+      invoke: mockInvoke,
+    },
   },
 }))
 
@@ -46,6 +54,10 @@ vi.mock('../../context/AuthContext', () => ({
 describe('FileUpload component', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockInvoke.mockResolvedValue({
+      data: { success: true, documentId: 'doc-123' },
+      error: null,
+    })
   })
 
   it('Test 1: Component renders with file picker and drop zone', async () => {
@@ -95,5 +107,58 @@ describe('FileUpload component', () => {
       const mockUpload = (supabase.storage.from as any)().upload
       expect(mockUpload).toHaveBeenCalledWith('test-org/test-proposal/test.pdf', file, expect.objectContaining({ cacheControl: '3600', upsert: false }))
     })
+  })
+
+  it('Test 6: After successful upload, extract-document Edge Function is called', async () => {
+    const { supabase } = await import('../../lib/supabase')
+    const { FileUpload } = await import('../FileUpload')
+    render(<FileUpload proposalId="test-proposal" />)
+    const dropzone = screen.getByText(/drag files here or click to browse/i).closest('div')
+    const file = new File(['content'], 'test.pdf', { type: 'application/pdf' })
+    fireEvent.drop(dropzone!, { dataTransfer: { files: [file] } })
+    await waitFor(() => {
+      expect(supabase.functions.invoke).toHaveBeenCalledWith('extract-document', {
+        body: { documentId: 'doc-123' },
+      })
+    })
+  })
+
+  it('Test 7: Edge Function receives correct documentId', async () => {
+    const { supabase } = await import('../../lib/supabase')
+    const { FileUpload } = await import('../FileUpload')
+    render(<FileUpload proposalId="test-proposal" />)
+    const dropzone = screen.getByText(/drag files here or click to browse/i).closest('div')
+    const file = new File(['content'], 'test.pdf', { type: 'application/pdf' })
+    fireEvent.drop(dropzone!, { dataTransfer: { files: [file] } })
+    await waitFor(() => {
+      expect(supabase.functions.invoke).toHaveBeenCalledWith(
+        'extract-document',
+        expect.objectContaining({ body: { documentId: 'doc-123' } })
+      )
+    })
+  })
+
+  it('Test 8: onUploadComplete fires after extraction triggered (not after completion)', async () => {
+    const { FileUpload } = await import('../FileUpload')
+    const onUploadComplete = vi.fn()
+    // Make invoke never resolve to confirm callback fires before extraction finishes
+    mockInvoke.mockReturnValue(new Promise(() => {}))
+    render(<FileUpload proposalId="test-proposal" onUploadComplete={onUploadComplete} />)
+    const dropzone = screen.getByText(/drag files here or click to browse/i).closest('div')
+    const file = new File(['content'], 'test.pdf', { type: 'application/pdf' })
+    fireEvent.drop(dropzone!, { dataTransfer: { files: [file] } })
+    await waitFor(() => expect(onUploadComplete).toHaveBeenCalledWith('doc-123'))
+  })
+
+  it('Test 9: Extraction error displays user-friendly message', async () => {
+    const { FileUpload } = await import('../FileUpload')
+    mockInvoke.mockRejectedValue(new Error('Edge Function timeout'))
+    render(<FileUpload proposalId="test-proposal" />)
+    const dropzone = screen.getByText(/drag files here or click to browse/i).closest('div')
+    const file = new File(['content'], 'test.pdf', { type: 'application/pdf' })
+    fireEvent.drop(dropzone!, { dataTransfer: { files: [file] } })
+    await waitFor(() =>
+      expect(screen.getByText(/failed to start extraction/i)).toBeInTheDocument()
+    )
   })
 })

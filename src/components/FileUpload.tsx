@@ -147,6 +147,19 @@ export function FileUpload({ proposalId, onUploadComplete }: FileUploadProps) {
         return updated
       })
 
+      // Trigger extraction (fire-and-forget — don't await)
+      supabase.functions.invoke('extract-document', {
+        body: { documentId: docData.id },
+      }).catch(err => {
+        console.error('Failed to trigger extraction:', err)
+        setUploads(prev => prev.map(f =>
+          f.file === file
+            ? { ...f, status: 'error', error: 'Failed to start extraction' }
+            : f
+        ))
+      })
+
+      // Call onUploadComplete immediately (don't wait for extraction)
       if (onUploadComplete && docData.id) {
         onUploadComplete(docData.id)
       }
