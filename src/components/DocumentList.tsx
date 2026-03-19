@@ -4,6 +4,16 @@ import type { Database } from '../types/database.types'
 
 type DocumentRow = Database['public']['Tables']['proposal_documents']['Row']
 
+interface DocumentExtract {
+  parse_error: string | null
+  word_count: number | null
+  page_count: number | null
+}
+
+interface DocumentWithExtracts extends DocumentRow {
+  document_extracts?: DocumentExtract[]
+}
+
 interface DocumentListProps {
   proposalId: string
   onDocumentDeleted?: () => void
@@ -15,7 +25,7 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-function StatusBadge({ status }: { status: string }) {
+function StatusBadge({ status, error }: { status: string; error?: string | null }) {
   if (status === 'pending')
     return (
       <span className="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-600">
@@ -36,7 +46,10 @@ function StatusBadge({ status }: { status: string }) {
     )
   if (status === 'error')
     return (
-      <span className="px-2 py-1 text-xs rounded-full bg-red-100 text-red-600">
+      <span
+        className="px-2 py-1 text-xs rounded-full bg-red-100 text-red-600 cursor-help"
+        title={error || 'Extraction failed'}
+      >
         Failed
       </span>
     )
@@ -73,14 +86,21 @@ function FileIcon({ mimeType }: { mimeType: string }) {
 }
 
 export function DocumentList({ proposalId, onDocumentDeleted }: DocumentListProps) {
-  const [documents, setDocuments] = useState<DocumentRow[]>([])
+  const [documents, setDocuments] = useState<DocumentWithExtracts[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   async function fetchDocuments() {
     const { data, error } = await supabase
       .from('proposal_documents')
-      .select('*')
+      .select(`
+        *,
+        document_extracts (
+          parse_error,
+          word_count,
+          page_count
+        )
+      `)
       .eq('proposal_id', proposalId)
       .order('created_at', { ascending: false })
 
@@ -88,7 +108,7 @@ export function DocumentList({ proposalId, onDocumentDeleted }: DocumentListProp
       setError('Failed to load documents')
       console.error('Error fetching documents:', error)
     } else {
-      setDocuments(data || [])
+      setDocuments((data as DocumentWithExtracts[]) || [])
     }
     setLoading(false)
   }
@@ -97,11 +117,13 @@ export function DocumentList({ proposalId, onDocumentDeleted }: DocumentListProp
     fetchDocuments()
   }, [proposalId])
 
-  // Poll for status updates when any document is extracting
+  // Poll for status updates when any document is pending or extracting
   useEffect(() => {
-    const hasExtractingDocs = documents.some((doc) => doc.parse_status === 'extracting')
+    const hasActiveProcessing = documents.some(
+      (doc) => doc.parse_status === 'pending' || doc.parse_status === 'extracting'
+    )
 
-    if (!hasExtractingDocs) return
+    if (!hasActiveProcessing) return
 
     const interval = setInterval(() => {
       fetchDocuments()
@@ -110,7 +132,7 @@ export function DocumentList({ proposalId, onDocumentDeleted }: DocumentListProp
     return () => clearInterval(interval)
   }, [documents, proposalId])
 
-  async function handleDelete(document: DocumentRow) {
+  async function handleDelete(document: DocumentWithExtracts) {
     // Delete from Storage
     const { error: storageError } = await supabase.storage
       .from('documents')
@@ -182,42 +204,53 @@ export function DocumentList({ proposalId, onDocumentDeleted }: DocumentListProp
 
   return (
     <div className="divide-y divide-gray-200">
-      {documents.map((document) => (
-        <div
-          key={document.id}
-          className="flex items-center gap-4 py-4 px-4 hover:bg-gray-50 transition"
-        >
-          <FileIcon mimeType={document.mime_type} />
-          <div className="flex-1 min-w-0">
-            <div className="font-medium text-gray-900 truncate">{document.name}</div>
-            <div className="text-sm text-gray-500">
-              {document.size_bytes ? formatBytes(document.size_bytes) : 'Unknown size'}
+      {documents.map((document) => {
+        const extract = document.document_extracts?.[0]
+        const parseError = extract?.parse_error
+        const wordCount = extract?.word_count
+
+        return (
+          <div
+            key={document.id}
+            className="flex items-center gap-4 py-4 px-4 hover:bg-gray-50 transition"
+          >
+            <FileIcon mimeType={document.mime_type} />
+            <div className="flex-1 min-w-0">
+              <div className="font-medium text-gray-900 truncate">{document.name}</div>
+              <div className="text-sm text-gray-500">
+                {document.size_bytes ? formatBytes(document.size_bytes) : 'Unknown size'}
+              </div>
+              {document.parse_status === 'complete' && wordCount && (
+                <span className="text-xs text-gray-500">
+                  {wordCount.toLocaleString()} words
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-3">
+              <StatusBadge status={document.parse_status} error={parseError} />
+              <button
+                onClick={() => handleDelete(document)}
+                className="text-gray-400 hover:text-red-600 transition"
+                aria-label="Delete document"
+              >
+                <svg
+                  className="h-5 w-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                  />
+                </svg>
+              </button>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <StatusBadge status={document.parse_status} />
-            <button
-              onClick={() => handleDelete(document)}
-              className="text-gray-400 hover:text-red-600 transition"
-              aria-label="Delete document"
-            >
-              <svg
-                className="h-5 w-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                />
-              </svg>
-            </button>
-          </div>
-        </div>
-      ))}
+        )
+      })}
     </div>
   )
 }
