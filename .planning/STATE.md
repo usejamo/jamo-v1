@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 04-regulatory-knowledge-base-rag (in progress — 1/4 plans complete)
+current_phase: 04-regulatory-knowledge-base-rag (in progress — 2/4 plans complete)
 status: in_progress
-stopped_at: Completed 04-00-PLAN.md
-last_updated: "2026-03-20T22:00:00.000Z"
+stopped_at: Completed 04-01-PLAN.md
+last_updated: "2026-03-20T18:25:00.000Z"
 progress:
   total_phases: 13
   completed_phases: 3
   total_plans: 19
-  completed_plans: 16
+  completed_plans: 17
 ---
 
 ---
@@ -53,11 +53,11 @@ progress:
 
 ## Next Action
 
-Phase 04 — in progress (1/4 plans complete). Next: Plan 04-01 (database schema for regulatory_chunks + pgvector).
+Phase 04 — in progress (2/4 plans complete). Next: Plan 04-02 (chunker Edge Function — text splitting + embedding).
 
 ## Last Session
 
-**Stopped at:** Completed 04-00-PLAN.md
+**Stopped at:** Completed 04-01-PLAN.md
 **Session date:** 2026-03-20
 
 ---
@@ -136,6 +136,7 @@ Phase 04 — in progress (1/4 plans complete). Next: Plan 04-01 (database schema
 
 ### Phase 04: Regulatory Knowledge Base & RAG
 - **Plan 00** (2026-03-20): Wave 0 test stub scaffolding — 4 Nyquist-compliant stub files (chunker.test.ts, retrieval.test.ts, ingest.test.ts, retrieve-context/test.ts). All use it.skip / Deno ignore:true per stub test pattern. `npm run test:run` exits 0 with 34 passing + 11 skipped.
+- **Plan 01** (2026-03-20): Chunks table migration 015 — DROP regulatory_chunks, CREATE chunks with org_id, doc_type, embedding extensions.vector(1536), search_vector TSVECTOR, HNSW index (m=16, ef_construction=64), GIN index, composite (org_id, doc_type) index, tsvector trigger, RLS org isolation policy. `supabase db push` requires `npx supabase login` first.
 
 ### Phase 03: Document Upload & Parsing Pipeline
 - **Plan 00** (2026-03-07): Test infrastructure scaffolding (Wave 0) — Created UI component test stubs (FileUpload.test.tsx with 5 todo tests, DocumentList.test.tsx with 4 todo tests) and Edge Function test harnesses (extract-document-poc/test.ts, extract-document/test.ts with 5 stub tests). Added 4 minimal valid test fixtures (test-rfp.pdf, test-protocol.docx, test-budget.xlsx, corrupt.pdf). Nyquist compliance achieved for Phase 3.
