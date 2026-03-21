@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 04-regulatory-knowledge-base-rag (COMPLETE — 4/4 plans complete)
+current_phase: 04-regulatory-knowledge-base-rag (COMPLETE — 5/5 plans complete)
 status: in_progress
-stopped_at: Completed 04-03-PLAN.md
-last_updated: "2026-03-20T19:00:00.000Z"
+stopped_at: Completed 04-05-PLAN.md
+last_updated: "2026-03-20T20:00:00.000Z"
 progress:
   total_phases: 13
   completed_phases: 4
-  total_plans: 19
-  completed_plans: 19
+  total_plans: 20
+  completed_plans: 20
 ---
 
 ---
@@ -34,7 +34,7 @@ progress:
 
 **Last updated:** 2026-03-20
 **Current milestone:** Milestone 1 — MVP
-**Current phase:** 04-regulatory-knowledge-base-rag (COMPLETE — 4/4 plans complete)
+**Current phase:** 04-regulatory-knowledge-base-rag (COMPLETE — 5/5 plans complete)
 
 ---
 
@@ -57,7 +57,7 @@ Phase 04 COMPLETE. Next: Phase 05 (next phase per ROADMAP.md).
 
 ## Last Session
 
-**Stopped at:** Completed 04-03-PLAN.md
+**Stopped at:** Completed 04-05-PLAN.md
 **Session date:** 2026-03-20
 
 ---
@@ -146,6 +146,7 @@ Phase 04 COMPLETE. Next: Phase 05 (next phase per ROADMAP.md).
 - **Plan 01** (2026-03-20): Chunks table migration 015 — DROP regulatory_chunks, CREATE chunks with org_id, doc_type, embedding extensions.vector(1536), search_vector TSVECTOR, HNSW index (m=16, ef_construction=64), GIN index, composite (org_id, doc_type) index, tsvector trigger, RLS org isolation policy. `supabase db push` requires `npx supabase login` first.
 - **Plan 02** (2026-03-20): Regulatory ingestion pipeline — chunkDocument (js-tiktoken cl100k_base, section-boundary split, 400-600 token chunks, 100-token overlap), embedBatch (batches=100, 1536-dim assert, exp backoff on 429), ingest-regulatory.ts CLI (--org-id/--agency/--dir/--dry-run), regulatory-docs/ICH/FDA/EMA dirs. denoSpecifierStubPlugin in vitest.config.ts for jsr:/npm: compat. 47/47 tests passing.
 - **Plan 03** (2026-03-20): Retrieval layer — mergeHybridResults (70/30 vector+FTS weighted merge, Map-based dedup), buildSystemPromptBlock (versioned [REGULATORY CONTEXT]/[PROPOSAL HISTORY]/[INSTRUCTIONS] format), retrieve-context Edge Function (org-scoped hybrid search, OpenAI query embedding, belowThreshold warning, RetrieveResponse). 6 vitest tests + 4 Deno tests passing.
+- **Plan 05** (2026-03-20): Gap closure — confirmed regulatory-docs/ICH/.gitkeep, FDA/.gitkeep, EMA/.gitkeep already committed in 04-02 (4f6e24d). REQ-7.7 directory structure gap closed.
 
 ### Phase 03: Document Upload & Parsing Pipeline
 - **Plan 00** (2026-03-07): Test infrastructure scaffolding (Wave 0) — Created UI component test stubs (FileUpload.test.tsx with 5 todo tests, DocumentList.test.tsx with 4 todo tests) and Edge Function test harnesses (extract-document-poc/test.ts, extract-document/test.ts with 5 stub tests). Added 4 minimal valid test fixtures (test-rfp.pdf, test-protocol.docx, test-budget.xlsx, corrupt.pdf). Nyquist compliance achieved for Phase 3.
