@@ -202,7 +202,6 @@ serve(async (req) => {
     // 5. Vector search — regulatory chunks
     const { data: regVectorRows, error: regVecErr } = await supabase.rpc('match_chunks_vector', {
       query_embedding: queryVector,
-      doc_type_filter: 'regulatory',
       org_id_filter: orgId,
       agencies_filter: agencies,
       therapeutic_areas_filter: therapeuticAreas,
@@ -217,7 +216,6 @@ serve(async (req) => {
     // 6. FTS search — regulatory chunks
     const { data: regFtsRows, error: regFtsErr } = await supabase.rpc('match_chunks_fts', {
       query_text: query,
-      doc_type_filter: 'regulatory',
       org_id_filter: orgId,
       agencies_filter: agencies,
       therapeutic_areas_filter: therapeuticAreas,
