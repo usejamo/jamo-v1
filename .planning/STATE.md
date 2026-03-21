@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 03-document-upload-parsing-pipeline (COMPLETE — 6/6 plans complete)
-status: unknown
-stopped_at: Phase 4 context gathered
-last_updated: "2026-03-20T21:31:18.119Z"
+current_phase: 04-regulatory-knowledge-base-rag (in progress — 1/4 plans complete)
+status: in_progress
+stopped_at: Completed 04-00-PLAN.md
+last_updated: "2026-03-20T22:00:00.000Z"
 progress:
   total_phases: 13
   completed_phases: 3
-  total_plans: 15
-  completed_plans: 15
+  total_plans: 19
+  completed_plans: 16
 ---
 
 ---
@@ -32,9 +32,9 @@ progress:
 
 # STATE.md — Project Memory
 
-**Last updated:** 2026-03-19
+**Last updated:** 2026-03-20
 **Current milestone:** Milestone 1 — MVP
-**Current phase:** 03-document-upload-parsing-pipeline (COMPLETE — 6/6 plans complete)
+**Current phase:** 04-regulatory-knowledge-base-rag (in progress — 1/4 plans complete)
 
 ---
 
@@ -47,18 +47,18 @@ progress:
 | ROADMAP.md | Complete (13 phases) |
 | Codebase map | Complete (.planning/codebase/) |
 | Research | Complete (.planning/research/) |
-| Phase execution | Phase 01 COMPLETE, Phase 02 COMPLETE, Phase 03 COMPLETE |
+| Phase execution | Phase 01 COMPLETE, Phase 02 COMPLETE, Phase 03 COMPLETE, Phase 04 in progress |
 
 ---
 
 ## Next Action
 
-Phase 03 — COMPLETE (6/6 plans). Next: Phase 04.
+Phase 04 — in progress (1/4 plans complete). Next: Plan 04-01 (database schema for regulatory_chunks + pgvector).
 
 ## Last Session
 
-**Stopped at:** Phase 4 context gathered
-**Session date:** 2026-03-19
+**Stopped at:** Completed 04-00-PLAN.md
+**Session date:** 2026-03-20
 
 ---
 
@@ -133,6 +133,9 @@ Phase 03 — COMPLETE (6/6 plans). Next: Phase 04.
 ### Phase 02: Authentication & Routing
 - **Plan 01** (2026-03-06): Auth methods — Extended AuthContext with signIn, signOut, signUp methods delegating to Supabase auth. TDD implementation with 4 new tests, all 11 tests passing. Auth state auto-synced via onAuthStateChange.
 - **Plan 03** (2026-03-06): Logout & Profile Display — Added logout button to Sidebar calling signOut and navigating to /login. Added Profile tab to Settings as first tab, displaying user name, email, role (as badge), and org_id. Role awareness foundation for REQ-8.3.
+
+### Phase 04: Regulatory Knowledge Base & RAG
+- **Plan 00** (2026-03-20): Wave 0 test stub scaffolding — 4 Nyquist-compliant stub files (chunker.test.ts, retrieval.test.ts, ingest.test.ts, retrieve-context/test.ts). All use it.skip / Deno ignore:true per stub test pattern. `npm run test:run` exits 0 with 34 passing + 11 skipped.
 
 ### Phase 03: Document Upload & Parsing Pipeline
 - **Plan 00** (2026-03-07): Test infrastructure scaffolding (Wave 0) — Created UI component test stubs (FileUpload.test.tsx with 5 todo tests, DocumentList.test.tsx with 4 todo tests) and Edge Function test harnesses (extract-document-poc/test.ts, extract-document/test.ts with 5 stub tests). Added 4 minimal valid test fixtures (test-rfp.pdf, test-protocol.docx, test-budget.xlsx, corrupt.pdf). Nyquist compliance achieved for Phase 3.
