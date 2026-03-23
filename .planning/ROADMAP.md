@@ -134,7 +134,7 @@ Plans:
 
 **Requirements covered:** REQ-1.1 through REQ-1.7, REQ-9.4
 
-**Plans:** 6 plans
+**Plans:** 1/6 plans executed
 
 Plans:
 - [ ] 05-00-PLAN.md — Wave 0 test stubs: Nyquist compliance for all wizard requirements
