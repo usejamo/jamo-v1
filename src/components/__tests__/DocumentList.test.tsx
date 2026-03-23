@@ -67,7 +67,6 @@ describe('DocumentList', () => {
   })
 
   it('Test 1: Polling starts when any document has parse_status="pending"', async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true })
     let callCount = 0
     mockFrom.mockImplementation(() => {
       callCount++
@@ -75,11 +74,10 @@ describe('DocumentList', () => {
     })
     render(<DocumentList proposalId="proposal-1" />)
     await waitFor(() => expect(screen.getByText('Pending')).toBeInTheDocument())
-
     const countAfterLoad = callCount
-    vi.advanceTimersByTime(2100)
-    await waitFor(() => expect(callCount).toBeGreaterThan(countAfterLoad))
-    vi.useRealTimers()
+    // Wait for at least one poll cycle (2s interval + buffer)
+    await new Promise(r => setTimeout(r, 2200))
+    expect(callCount).toBeGreaterThan(countAfterLoad)
   })
 
   it('Test 2: Polling starts when any document has parse_status="extracting"', async () => {
@@ -93,8 +91,11 @@ describe('DocumentList', () => {
     await waitFor(() => expect(screen.getByText('Extracting...')).toBeInTheDocument())
 
     const countAfterLoad = callCount
-    vi.advanceTimersByTime(2100)
-    await waitFor(() => expect(callCount).toBeGreaterThan(countAfterLoad))
+    await act(async () => {
+      vi.advanceTimersByTime(2100)
+      await Promise.resolve()
+    })
+    expect(callCount).toBeGreaterThan(countAfterLoad)
     vi.useRealTimers()
   })
 

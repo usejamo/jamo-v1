@@ -7,6 +7,7 @@ import {
 } from '../types/wizard'
 import { useProposalModal } from '../context/ProposalModalContext'
 import { WizardStepIndicator } from './wizard/WizardStepIndicator'
+import { Step1StudyInfo } from './wizard/Step1StudyInfo'
 
 const SESSION_KEY = 'jamo-wizard-state'
 
@@ -107,7 +108,7 @@ export function ProposalCreationWizard() {
       <div className="px-6 py-4">
         {state.step === 0 && (
           <div data-testid="step-study-info">
-            {/* Step 1: Study Info — filled in Plan 03 */}
+            <Step1StudyInfo state={state} dispatch={dispatch} />
           </div>
         )}
         {state.step === 1 && (
