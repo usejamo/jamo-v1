@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 04-regulatory-knowledge-base-rag (COMPLETE — 5/5 plans complete)
-status: unknown
-stopped_at: Completed 05-00-PLAN.md
-last_updated: "2026-03-23T19:21:15.572Z"
+current_phase: 05-proposal-creation-wizard (in progress — 2/6 plans complete)
+status: in_progress
+stopped_at: Completed 05-01-PLAN.md
+last_updated: "2026-03-23T00:00:00.000Z"
 progress:
   total_phases: 13
   completed_phases: 4
   total_plans: 27
-  completed_plans: 22
+  completed_plans: 23
 ---
 
 ---
@@ -32,9 +32,9 @@ progress:
 
 # STATE.md — Project Memory
 
-**Last updated:** 2026-03-20
+**Last updated:** 2026-03-23
 **Current milestone:** Milestone 1 — MVP
-**Current phase:** 04-regulatory-knowledge-base-rag (COMPLETE — 5/5 plans complete)
+**Current phase:** 05-proposal-creation-wizard (in progress — 2/6 plans complete)
 
 ---
 
@@ -47,7 +47,7 @@ progress:
 | ROADMAP.md | Complete (13 phases) |
 | Codebase map | Complete (.planning/codebase/) |
 | Research | Complete (.planning/research/) |
-| Phase execution | Phase 01 COMPLETE, Phase 02 COMPLETE, Phase 03 COMPLETE, Phase 04 in progress |
+| Phase execution | Phase 01 COMPLETE, Phase 02 COMPLETE, Phase 03 COMPLETE, Phase 04 COMPLETE, Phase 05 in progress |
 
 ---
 
@@ -57,8 +57,8 @@ Phase 04 COMPLETE. Next: Phase 05 (next phase per ROADMAP.md).
 
 ## Last Session
 
-**Stopped at:** Completed 05-00-PLAN.md
-**Session date:** 2026-03-20
+**Stopped at:** Completed 05-01-PLAN.md
+**Session date:** 2026-03-23
 
 ---
 
@@ -140,6 +140,10 @@ Phase 04 COMPLETE. Next: Phase 05 (next phase per ROADMAP.md).
 ### Phase 02: Authentication & Routing
 - **Plan 01** (2026-03-06): Auth methods — Extended AuthContext with signIn, signOut, signUp methods delegating to Supabase auth. TDD implementation with 4 new tests, all 11 tests passing. Auth state auto-synced via onAuthStateChange.
 - **Plan 03** (2026-03-06): Logout & Profile Display — Added logout button to Sidebar calling signOut and navigating to /login. Added Profile tab to Settings as first tab, displaying user name, email, role (as badge), and org_id. Role awareness foundation for REQ-8.3.
+
+### Phase 05: Proposal Creation Wizard
+- **Plan 00** (2026-03-23): Wave 0 Nyquist stub file — 8 it.skip tests covering REQ-1.1, 1.2, 1.5, 1.6, 1.7, 9.4. No component import (Vite resolves imports at transform time). `npm run test:run` exits 0.
+- **Plan 01** (2026-03-23): Type contracts — `src/types/wizard.ts` with `ServiceOption`, `StudyInfo`, `WizardState`, `WizardAction`, `DEFAULT_WIZARD_STATE`, `WIZARD_STEPS`. `AVAILABLE_SERVICES` restructured to `{label, category}[]` with `groupServicesByCategory` in `cro-proposal-generator.js`. 45 passing + 8 skipped.
 
 ### Phase 04: Regulatory Knowledge Base & RAG
 - **Plan 00** (2026-03-20): Wave 0 test stub scaffolding — 4 Nyquist-compliant stub files (chunker.test.ts, retrieval.test.ts, ingest.test.ts, retrieve-context/test.ts). All use it.skip / Deno ignore:true per stub test pattern. `npm run test:run` exits 0 with 34 passing + 11 skipped.
