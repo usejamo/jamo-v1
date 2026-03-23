@@ -134,12 +134,12 @@ Plans:
 
 **Requirements covered:** REQ-1.1 through REQ-1.7, REQ-9.4
 
-**Plans:** 2/6 plans executed
+**Plans:** 3/6 plans executed
 
 Plans:
 - [x] 05-00-PLAN.md — Wave 0 test stubs: Nyquist compliance for all wizard requirements
 - [x] 05-01-PLAN.md — Type contracts (wizard.ts) + AVAILABLE_SERVICES restructure
-- [ ] 05-02-PLAN.md — Wizard shell: useReducer, sessionStorage, WizardStepIndicator, Skip to Fast Draft
+- [x] 05-02-PLAN.md — Wizard shell: useReducer, sessionStorage, WizardStepIndicator, Skip to Fast Draft
 - [ ] 05-03-PLAN.md — Step 1 Study Info form with validation and services pill toggles
 - [ ] 05-04-PLAN.md — Steps 2 & 3 + ProposalEditorModal wiring + Generate flow
 - [ ] 05-05-PLAN.md — Human verify: full wizard flow, animation, and UX sign-off

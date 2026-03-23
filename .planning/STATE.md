@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 05-proposal-creation-wizard (in progress — 2/6 plans complete)
+current_phase: 05-proposal-creation-wizard (in progress — 3/6 plans complete)
 status: in_progress
-stopped_at: Completed 05-01-PLAN.md
-last_updated: "2026-03-23T00:00:00.000Z"
+stopped_at: Completed 05-02-PLAN.md
+last_updated: "2026-03-23T13:30:00.000Z"
 progress:
   total_phases: 13
   completed_phases: 4
   total_plans: 27
-  completed_plans: 23
+  completed_plans: 24
 ---
 
 ---
@@ -34,7 +34,7 @@ progress:
 
 **Last updated:** 2026-03-23
 **Current milestone:** Milestone 1 — MVP
-**Current phase:** 05-proposal-creation-wizard (in progress — 2/6 plans complete)
+**Current phase:** 05-proposal-creation-wizard (in progress — 3/6 plans complete)
 
 ---
 
@@ -57,7 +57,7 @@ Phase 04 COMPLETE. Next: Phase 05 (next phase per ROADMAP.md).
 
 ## Last Session
 
-**Stopped at:** Completed 05-01-PLAN.md
+**Stopped at:** Completed 05-02-PLAN.md
 **Session date:** 2026-03-23
 
 ---
@@ -144,6 +144,7 @@ Phase 04 COMPLETE. Next: Phase 05 (next phase per ROADMAP.md).
 ### Phase 05: Proposal Creation Wizard
 - **Plan 00** (2026-03-23): Wave 0 Nyquist stub file — 8 it.skip tests covering REQ-1.1, 1.2, 1.5, 1.6, 1.7, 9.4. No component import (Vite resolves imports at transform time). `npm run test:run` exits 0.
 - **Plan 01** (2026-03-23): Type contracts — `src/types/wizard.ts` with `ServiceOption`, `StudyInfo`, `WizardState`, `WizardAction`, `DEFAULT_WIZARD_STATE`, `WIZARD_STEPS`. `AVAILABLE_SERVICES` restructured to `{label, category}[]` with `groupServicesByCategory` in `cro-proposal-generator.js`. 45 passing + 8 skipped.
+- **Plan 02** (2026-03-23): Wizard shell — `WizardStepIndicator.tsx` (numbered step header, backward nav, jamo color scheme) and `ProposalCreationWizard.tsx` (wizardReducer, sessionStorage persist/hydrate/clear, SKIP_TO_GENERATE, placeholder step panels). REQ-1.1, REQ-1.5, REQ-1.6 stubs converted to passing tests. 55 tests (50 passing + 4 skipped + 1 pre-existing flaky).
 
 ### Phase 04: Regulatory Knowledge Base & RAG
 - **Plan 00** (2026-03-20): Wave 0 test stub scaffolding — 4 Nyquist-compliant stub files (chunker.test.ts, retrieval.test.ts, ingest.test.ts, retrieve-context/test.ts). All use it.skip / Deno ignore:true per stub test pattern. `npm run test:run` exits 0 with 34 passing + 11 skipped.
