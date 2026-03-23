@@ -9,6 +9,8 @@ import type { ContentBlock } from '../types/draft'
 import ProposalDraftRenderer from '../components/ProposalDraftRenderer'
 import ProposalContentsSidebar from '../components/ProposalContentsSidebar'
 import AIChatPanel from '../components/AIChatPanel'
+import { FileUpload } from '../components/FileUpload'
+import { DocumentList } from '../components/DocumentList'
 import { useProposals } from '../context/ProposalsContext'
 import { useProposalModal } from '../context/ProposalModalContext'
 import { useSidebar } from '../context/SidebarContext'
@@ -21,13 +23,6 @@ interface MockDoc {
   name: string
   size: string
   uploadedAt: string
-}
-
-const DOC_TYPE_LABELS: Record<MockDoc['type'], string> = {
-  rfp: 'RFP',
-  kickoff: 'Kick-off Call',
-  template: 'Proposal Template',
-  other: 'Supporting Document',
 }
 
 const STATUS_LABELS: Record<ProposalStatus, string> = {
@@ -50,37 +45,10 @@ function formatCurrency(value: number) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(value)
 }
 
-function formatDate(dateStr: string) {
+function formatDate(dateStr: string | undefined | null) {
+  if (!dateStr) return '—'
   return new Date(dateStr).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
 }
-
-function getFileExt(name: string) {
-  return name.split('.').pop()?.toUpperCase() ?? 'FILE'
-}
-
-function DocIcon({ type }: { type: MockDoc['type'] }) {
-  if (type === 'rfp') return (
-    <svg className="w-6 h-6 text-jamo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
-    </svg>
-  )
-  if (type === 'kickoff') return (
-    <svg className="w-6 h-6 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 0 0 6-6v-1.5m-6 7.5a6 6 0 0 1-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 0 1-3-3V4.5a3 3 0 1 1 6 0v8.25a3 3 0 0 1-3 3Z" />
-    </svg>
-  )
-  if (type === 'template') return (
-    <svg className="w-6 h-6 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 0 1-1.125-1.125M3.375 19.5h1.5C5.496 19.5 6 18.996 6 18.375m-3.75 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125m1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125m0 3.75h-1.5A1.125 1.125 0 0 1 18 18.375M20.625 4.5H3.375m17.25 0c.621 0 1.125.504 1.125 1.125M20.625 4.5h-1.5C18.504 4.5 18 5.004 18 5.625m3.75 0v1.5c0 .621-.504 1.125-1.125 1.125M3.375 4.5c-.621 0-1.125.504-1.125 1.125M3.375 4.5h1.5C5.496 4.5 6 5.004 6 5.625m-3.75 0v1.5c0 .621.504 1.125 1.125 1.125m0 0h1.5m-1.5 0c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125m1.5-3.75C6 8.496 6.504 9 7.125 9h9.75c.621 0 1.125-.504 1.125-1.125V6.375c0-.621-.504-1.125-1.125-1.125H7.125C6.504 5.25 6 5.754 6 6.375v1.5" />
-    </svg>
-  )
-  return (
-    <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 0 0 2.112 2.13" />
-    </svg>
-  )
-}
-
 
 // ── Export dropdown ────────────────────────────────────────────────────────────
 
@@ -161,10 +129,7 @@ export default function ProposalDetail() {
     } catch { return {} }
   })
   const [flashSectionId, setFlashSectionId] = useState<string | null>(null)
-  const [uploadedFiles, setUploadedFiles] = useState<File[]>([])
-  const [dragOver, setDragOver] = useState(false)
   const [isCondensed, setIsCondensed] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const [pendingSuggestion, setPendingSuggestion] = useState<PendingSuggestion | null>(null)
   const [lastResolution, setLastResolution] = useState<'accepted' | 'declined' | null>(null)
@@ -220,15 +185,6 @@ export default function ProposalDetail() {
       setGenerated(true)
       sessionStorage.setItem(DRAFT_KEY, '1')
     }, 2200)
-  }
-
-  function handleFiles(files: FileList | null) {
-    if (!files) return
-    setUploadedFiles(prev => [...prev, ...Array.from(files)])
-  }
-
-  function removeUpload(index: number) {
-    setUploadedFiles(prev => prev.filter((_, i) => i !== index))
   }
 
   const handleSuggestionAccepted = useCallback((commandKey: string) => {
@@ -365,102 +321,18 @@ export default function ProposalDetail() {
 
           {/* Context & Documents */}
           <div className="mt-5 bg-white rounded-xl border border-gray-200 p-6">
-            <div className="flex items-center justify-between mb-5">
-              <div>
-                <h2 className="font-semibold text-gray-900">Context & Documents</h2>
-                <p className="text-xs text-gray-500 mt-0.5">All inputs used to generate this proposal</p>
-              </div>
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="flex items-center gap-2 text-sm font-medium text-jamo-500 hover:text-jamo-600 border border-jamo-200 hover:border-jamo-300 px-3 py-1.5 rounded-lg transition-colors"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                </svg>
-                Upload Document
-              </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                className="hidden"
-                onChange={e => handleFiles(e.target.files)}
-              />
+            <div className="mb-5">
+              <h2 className="font-semibold text-gray-900">Context & Documents</h2>
+              <p className="text-xs text-gray-500 mt-0.5">All inputs used to generate this proposal</p>
             </div>
-
-            {/* Existing documents */}
-            <div className="grid grid-cols-2 gap-3 mb-4">
-              {existingDocs.map(doc => (
-                <div key={doc.id} className="flex items-start gap-3 p-4 border border-gray-100 rounded-lg hover:border-gray-200 hover:bg-gray-50 transition-colors group">
-                  <div className="mt-0.5 shrink-0">
-                    <DocIcon type={doc.type} />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-gray-800 truncate">{doc.name}</p>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-xs text-gray-400">{DOC_TYPE_LABELS[doc.type]}</span>
-                      <span className="text-gray-200">·</span>
-                      <span className="text-xs text-gray-400">{doc.size}</span>
-                      <span className="text-gray-200">·</span>
-                      <span className="text-xs text-gray-400">{getFileExt(doc.name)}</span>
-                    </div>
-                  </div>
-                  <button className="text-xs text-jamo-500 hover:text-jamo-600 font-medium opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                    View
-                  </button>
+            {id && (
+              <>
+                <FileUpload proposalId={id} />
+                <div className="mt-4">
+                  <DocumentList proposalId={id} />
                 </div>
-              ))}
-            </div>
-
-            {/* Uploaded files */}
-            {uploadedFiles.length > 0 && (
-              <div className="grid grid-cols-2 gap-3 mb-4">
-                {uploadedFiles.map((file, i) => (
-                  <div key={i} className="flex items-start gap-3 p-4 border border-jamo-100 bg-jamo-50 rounded-lg group">
-                    <div className="mt-0.5 shrink-0">
-                      <svg className="w-6 h-6 text-jamo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 0 0 2.112 2.13" />
-                      </svg>
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-gray-800 truncate">{file.name}</p>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-xs text-jamo-400">Just uploaded</span>
-                        <span className="text-jamo-200">·</span>
-                        <span className="text-xs text-gray-400">{(file.size / 1024).toFixed(0)} KB</span>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => removeUpload(i)}
-                      className="text-gray-300 hover:text-red-400 transition-colors shrink-0"
-                    >
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  </div>
-                ))}
-              </div>
+              </>
             )}
-
-            {/* Drop zone */}
-            <div
-              onDragOver={e => { e.preventDefault(); setDragOver(true) }}
-              onDragLeave={() => setDragOver(false)}
-              onDrop={e => { e.preventDefault(); setDragOver(false); handleFiles(e.dataTransfer.files) }}
-              onClick={() => fileInputRef.current?.click()}
-              className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
-                dragOver ? 'border-jamo-400 bg-jamo-50' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-              }`}
-            >
-              <svg className={`w-7 h-7 mx-auto mb-2 ${dragOver ? 'text-jamo-400' : 'text-gray-300'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
-              </svg>
-              <p className="text-sm text-gray-400">
-                Drop files here or <span className="text-jamo-500 font-medium">browse</span>
-              </p>
-              <p className="text-xs text-gray-300 mt-1">PDF, DOCX, XLSX, TXT supported</p>
-            </div>
           </div>
 
           {/* AI Generation */}

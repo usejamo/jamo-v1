@@ -47,9 +47,9 @@ export default function App() {
                       </Route>
                     </Route>
                   </Routes>
+                  <ProposalEditorModal />
+                  <GlobalToast />
                 </BrowserRouter>
-                <ProposalEditorModal />
-                <GlobalToast />
               </ProposalModalProvider>
             </ArchivedProvider>
           </DeletedProvider>

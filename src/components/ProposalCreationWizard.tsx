@@ -117,7 +117,7 @@ export function ProposalCreationWizard() {
   }
 
   return (
-    <div data-testid="proposal-creation-wizard">
+    <div data-testid="proposal-creation-wizard" className="flex flex-col max-h-[90vh]">
       <WizardStepIndicator
         steps={WIZARD_STEPS}
         currentStep={state.step}
@@ -137,7 +137,7 @@ export function ProposalCreationWizard() {
         </div>
       )}
 
-      <div className="px-6 py-4">
+      <div className="px-6 py-4 overflow-y-auto flex-1">
         {state.step === 0 && (
           <div data-testid="step-study-info">
             <Step1StudyInfo state={state} dispatch={dispatch} />
