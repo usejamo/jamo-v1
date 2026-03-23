@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 05-proposal-creation-wizard (in progress — 4/6 plans complete)
+current_phase: 05-proposal-creation-wizard (in progress — 5/6 plans complete)
 status: in_progress
-stopped_at: Completed 05-03-PLAN.md
-last_updated: "2026-03-23T13:40:00.000Z"
+stopped_at: Completed 05-04-PLAN.md
+last_updated: "2026-03-23T19:42:43.705Z"
 progress:
   total_phases: 13
   completed_phases: 4
   total_plans: 27
-  completed_plans: 25
+  completed_plans: 26
 ---
 
 ---
@@ -34,7 +34,7 @@ progress:
 
 **Last updated:** 2026-03-23
 **Current milestone:** Milestone 1 — MVP
-**Current phase:** 05-proposal-creation-wizard (in progress — 4/6 plans complete)
+**Current phase:** 05-proposal-creation-wizard (in progress — 5/6 plans complete)
 
 ---
 
@@ -57,7 +57,7 @@ Phase 04 COMPLETE. Next: Phase 05 (next phase per ROADMAP.md).
 
 ## Last Session
 
-**Stopped at:** Completed 05-03-PLAN.md
+**Stopped at:** Completed 05-04-PLAN.md
 **Session date:** 2026-03-23
 
 ---
@@ -145,6 +145,7 @@ Phase 04 COMPLETE. Next: Phase 05 (next phase per ROADMAP.md).
 - **Plan 00** (2026-03-23): Wave 0 Nyquist stub file — 8 it.skip tests covering REQ-1.1, 1.2, 1.5, 1.6, 1.7, 9.4. No component import (Vite resolves imports at transform time). `npm run test:run` exits 0.
 - **Plan 01** (2026-03-23): Type contracts — `src/types/wizard.ts` with `ServiceOption`, `StudyInfo`, `WizardState`, `WizardAction`, `DEFAULT_WIZARD_STATE`, `WIZARD_STEPS`. `AVAILABLE_SERVICES` restructured to `{label, category}[]` with `groupServicesByCategory` in `cro-proposal-generator.js`. 45 passing + 8 skipped.
 - **Plan 02** (2026-03-23): Wizard shell — `WizardStepIndicator.tsx` (numbered step header, backward nav, jamo color scheme) and `ProposalCreationWizard.tsx` (wizardReducer, sessionStorage persist/hydrate/clear, SKIP_TO_GENERATE, placeholder step panels). REQ-1.1, REQ-1.5, REQ-1.6 stubs converted to passing tests. 55 tests (50 passing + 4 skipped + 1 pre-existing flaky).
+- **Plan 04** (2026-03-23): Step 2 (document upload informational), Step 3 (ContextSummary + Generate button), ProposalCreationWizard wired with handleGenerate/navigate, ProposalEditorModal branching wizard vs edit form. REQ-9.4 passing. 55/55 tests green.
 - **Plan 03** (2026-03-23): Step 1 Study Info form — `Step1StudyInfo.tsx` with 4 required fields (sponsor name, therapeutic area, indication, study phase), optional due date + regions, grouped services pill toggles from AVAILABLE_SERVICES. Validation blocks Next on empty required fields with inline errors. ProposalCreationWizard updated to render Step1StudyInfo. Pre-existing DocumentList polling flake fixed. REQ-1.2 and REQ-1.7 passing. 54 passing + 1 skipped (REQ-9.4).
 
 ### Phase 04: Regulatory Knowledge Base & RAG
