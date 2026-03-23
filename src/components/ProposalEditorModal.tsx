@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useProposalModal } from '../context/ProposalModalContext'
 import { useProposals } from '../context/ProposalsContext'
 import { useDeleted } from '../context/DeletedContext'
+import { ProposalCreationWizard } from './ProposalCreationWizard'
 import type { Proposal } from '../types/proposal'
 
 const TA_OPTIONS = ['Oncology', 'Immunology', 'CNS', 'Generics', 'Metabolic', 'Rare Disease']
@@ -75,6 +76,23 @@ export default function ProposalEditorModal() {
   }, [isOpen, closeModal])
 
   if (!isOpen) return null
+
+  // Create flow — render wizard instead of form
+  if (modalProposal === undefined) {
+    return (
+      <div
+        className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+        onClick={closeModal}
+      >
+        <div
+          className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col"
+          onClick={e => e.stopPropagation()}
+        >
+          <ProposalCreationWizard />
+        </div>
+      </div>
+    )
+  }
 
   function set(field: keyof FormState, value: string) {
     setForm(prev => ({ ...prev, [field]: value }))

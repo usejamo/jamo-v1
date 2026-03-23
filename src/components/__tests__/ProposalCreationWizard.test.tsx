@@ -3,6 +3,8 @@ import { render, screen, fireEvent } from '@testing-library/react'
 import { ProposalCreationWizard } from '../ProposalCreationWizard'
 
 const mockCloseModal = vi.fn()
+const mockCreateProposal = vi.fn()
+const mockNavigate = vi.fn()
 
 vi.mock('../../context/ProposalModalContext', () => ({
   useProposalModal: vi.fn(() => ({
@@ -13,6 +15,21 @@ vi.mock('../../context/ProposalModalContext', () => ({
     toast: null,
     showToast: vi.fn(),
   })),
+}))
+
+vi.mock('../../context/ProposalsContext', () => ({
+  useProposals: vi.fn(() => ({
+    proposals: [],
+    loading: false,
+    error: null,
+    createProposal: mockCreateProposal,
+    updateProposal: vi.fn(),
+    permanentlyDelete: vi.fn(),
+  })),
+}))
+
+vi.mock('react-router-dom', () => ({
+  useNavigate: vi.fn(() => mockNavigate),
 }))
 
 describe('ProposalCreationWizard', () => {
@@ -95,5 +112,36 @@ describe('ProposalCreationWizard', () => {
     expect(screen.getByTestId('step-study-info')).toBeTruthy()
   })
 
-  it.skip('REQ-9.4: Step 3 renders Generate button and calls createProposal on click', () => {})
+  it('REQ-9.4: Step 3 renders Generate button and calls createProposal on click', async () => {
+    mockCreateProposal.mockResolvedValueOnce('proposal-123')
+    // Pre-load step 2 into sessionStorage so we start on the Generate step
+    sessionStorage.setItem('jamo-wizard-state', JSON.stringify({
+      step: 2,
+      proposalId: null,
+      studyInfo: {
+        sponsorName: 'Pfizer',
+        therapeuticArea: 'Oncology',
+        indication: 'NSCLC',
+        studyPhase: 'Phase II',
+        regions: [],
+        dueDate: '',
+        services: [],
+      },
+      errors: {},
+      submitting: false,
+    }))
+    render(<ProposalCreationWizard />)
+    const generateBtn = screen.getByTestId('generate-button')
+    expect(generateBtn).toBeTruthy()
+    fireEvent.click(generateBtn)
+    // createProposal called with wizard payload
+    expect(mockCreateProposal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Pfizer — NSCLC (Phase II)',
+        client: 'Pfizer',
+        therapeuticArea: 'Oncology',
+        status: 'draft',
+      })
+    )
+  })
 })

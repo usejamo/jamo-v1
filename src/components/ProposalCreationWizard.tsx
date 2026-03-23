@@ -1,13 +1,19 @@
 import { useReducer, useEffect } from 'react'
-import {
+import { useNavigate } from 'react-router-dom'
+import type {
   WizardState,
   WizardAction,
+} from '../types/wizard'
+import {
   DEFAULT_WIZARD_STATE,
   WIZARD_STEPS,
 } from '../types/wizard'
 import { useProposalModal } from '../context/ProposalModalContext'
+import { useProposals } from '../context/ProposalsContext'
 import { WizardStepIndicator } from './wizard/WizardStepIndicator'
 import { Step1StudyInfo } from './wizard/Step1StudyInfo'
+import { Step2DocumentUpload } from './wizard/Step2DocumentUpload'
+import { Step3Generate } from './wizard/Step3Generate'
 
 const SESSION_KEY = 'jamo-wizard-state'
 
@@ -55,6 +61,8 @@ function getInitialState(): WizardState {
 
 export function ProposalCreationWizard() {
   const { closeModal, isOpen } = useProposalModal()
+  const { createProposal } = useProposals()
+  const navigate = useNavigate()
   const [state, dispatch] = useReducer(wizardReducer, undefined, getInitialState)
 
   // Persist state to sessionStorage on every change
@@ -84,6 +92,30 @@ export function ProposalCreationWizard() {
     dispatch({ type: 'SET_STEP', step: index as 0 | 1 | 2 })
   }
 
+  async function handleGenerate() {
+    dispatch({ type: 'SET_SUBMITTING', value: true })
+    try {
+      const { studyInfo } = state
+      const id = await createProposal({
+        title: `${studyInfo.sponsorName} — ${studyInfo.indication} (${studyInfo.studyPhase})`,
+        client: studyInfo.sponsorName,
+        therapeuticArea: studyInfo.therapeuticArea,
+        studyType: studyInfo.studyPhase,
+        indication: studyInfo.indication,
+        dueDate: studyInfo.dueDate,
+        status: 'draft',
+        value: 0,
+        description: JSON.stringify({ services: studyInfo.services, regions: studyInfo.regions }),
+      })
+      sessionStorage.removeItem(SESSION_KEY)
+      closeModal()
+      navigate(`/proposals/${id}`)
+    } catch (err) {
+      console.error('Failed to create proposal:', err)
+      dispatch({ type: 'SET_SUBMITTING', value: false })
+    }
+  }
+
   return (
     <div data-testid="proposal-creation-wizard">
       <WizardStepIndicator
@@ -92,7 +124,7 @@ export function ProposalCreationWizard() {
         onStepClick={handleStepClick}
       />
 
-      {state.step < 2 && (
+      {state.step === 0 && (
         <div className="flex justify-end px-6 pt-3">
           <button
             type="button"
@@ -112,14 +144,10 @@ export function ProposalCreationWizard() {
           </div>
         )}
         {state.step === 1 && (
-          <div data-testid="step-document-upload">
-            {/* Step 2: Document Upload — filled in Plan 04 */}
-          </div>
+          <Step2DocumentUpload state={state} dispatch={dispatch} />
         )}
         {state.step === 2 && (
-          <div data-testid="step-generate">
-            {/* Step 3: Template & Generate — filled in Plan 04 */}
-          </div>
+          <Step3Generate state={state} dispatch={dispatch} onGenerate={handleGenerate} />
         )}
       </div>
 
