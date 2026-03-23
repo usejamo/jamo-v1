@@ -28,9 +28,27 @@ describe('ProposalCreationWizard', () => {
     expect(screen.getByText('Template & Generate')).toBeTruthy()
   })
 
-  it.skip('REQ-1.2: Step 1 renders sponsor name, therapeutic area, indication, study phase fields', () => {})
+  it('REQ-1.2: Step 1 renders sponsor name, therapeutic area, indication, study phase fields', () => {
+    render(<ProposalCreationWizard />)
+    // Required fields
+    expect(screen.getByLabelText('Sponsor Name')).toBeTruthy()
+    expect(screen.getByLabelText('Therapeutic Area')).toBeTruthy()
+    expect(screen.getByLabelText('Indication')).toBeTruthy()
+    expect(screen.getByLabelText('Study Phase')).toBeTruthy()
+    // Optional fields
+    expect(screen.getByLabelText('Proposal Due Date')).toBeTruthy()
+    expect(screen.getByLabelText('Countries / Regions')).toBeTruthy()
+  })
 
-  it.skip('REQ-1.2: Step 1 hard-required fields block forward navigation when empty', () => {})
+  it('REQ-1.2: Step 1 hard-required fields block forward navigation when empty', () => {
+    render(<ProposalCreationWizard />)
+    const nextBtn = screen.getByTestId('next-button')
+    fireEvent.click(nextBtn)
+    // Still on step 0 — step-study-info still visible
+    expect(screen.getByTestId('step-study-info')).toBeTruthy()
+    // Inline errors shown for required fields
+    expect(screen.getAllByText('Required').length).toBeGreaterThanOrEqual(4)
+  })
 
   it('REQ-1.5: Skip to Fast Draft button jumps to Step 3 from Step 1', () => {
     render(<ProposalCreationWizard />)
@@ -66,7 +84,16 @@ describe('ProposalCreationWizard', () => {
     expect(screen.queryByTestId('skip-to-fast-draft')).toBeNull()
   })
 
-  it.skip('REQ-1.7: forward navigation blocked and errors shown when required fields are empty', () => {})
+  it('REQ-1.7: forward navigation blocked and errors shown when required fields are empty', () => {
+    render(<ProposalCreationWizard />)
+    const nextBtn = screen.getByTestId('next-button')
+    fireEvent.click(nextBtn)
+    // Errors appear inline under each required field
+    const errors = screen.getAllByText('Required')
+    expect(errors.length).toBeGreaterThanOrEqual(4)
+    // Step does not advance
+    expect(screen.getByTestId('step-study-info')).toBeTruthy()
+  })
 
   it.skip('REQ-9.4: Step 3 renders Generate button and calls createProposal on click', () => {})
 })
