@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 06-ai-assumption-extraction (in progress — 1/5 plans complete)
-status: in_progress
-stopped_at: Completed 06-00-PLAN.md
-last_updated: "2026-03-23T20:22:00Z"
+current_phase: 06-ai-assumption-extraction (in progress — 2/5 plans complete)
+status: unknown
+stopped_at: Completed 06-02-PLAN.md
+last_updated: "2026-03-24T02:26:31.946Z"
 progress:
   total_phases: 13
   completed_phases: 5
-  total_plans: 27
-  completed_plans: 28
+  total_plans: 32
+  completed_plans: 29
 ---
 
 ---
@@ -53,11 +53,11 @@ progress:
 
 ## Next Action
 
-Phase 06 in progress (1/5 plans complete). Next: Plan 06-01 (extract-assumptions edge function).
+Phase 06 in progress (2/5 plans complete). Next: Plan 06-03 (Step 2 trigger wiring + AssumptionCard UI).
 
 ## Last Session
 
-**Stopped at:** Completed 06-00-PLAN.md
+**Stopped at:** Completed 06-02-PLAN.md
 **Session date:** 2026-03-23
 
 ---
@@ -139,6 +139,7 @@ Phase 06 in progress (1/5 plans complete). Next: Plan 06-01 (extract-assumptions
 
 ### Phase 06: AI Assumption Extraction
 - **Plan 00** (2026-03-23): Wave 0 Nyquist stubs — 3 test stub files (Step3AssumptionReview.test.tsx x8 stubs, AssumptionCard.test.tsx x6 stubs, extract-assumptions/test.ts x5 Deno stubs). All REQ-3.1 through REQ-3.7 have named verify targets. `npm run test:run` exits 0 with 55 passing + 14 skipped.
+- **Plan 02** (2026-03-23): extract-assumptions edge function — Deno function calling Claude Haiku via HTTP API. Fetches document_extracts, builds prompt, parses JSON with regex+try/catch (graceful failure), maps float confidence to string, bulk-inserts to proposal_assumptions (content column). Deploy blocked by auth gate (supabase login required).
 
 ### Phase 02: Authentication & Routing
 - **Plan 01** (2026-03-06): Auth methods — Extended AuthContext with signIn, signOut, signUp methods delegating to Supabase auth. TDD implementation with 4 new tests, all 11 tests passing. Auth state auto-synced via onAuthStateChange.
