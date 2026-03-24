@@ -1,6 +1,6 @@
 import type { WizardState, WizardAction } from '../../types/wizard'
 
-interface Step3GenerateProps {
+interface Step4GenerateProps {
   state: WizardState
   dispatch: React.Dispatch<WizardAction>
   onGenerate: () => Promise<void>
@@ -30,6 +30,11 @@ function ContextSummary({ state }: { state: WizardState }) {
     limited: 'text-gray-400',
   }
 
+  const approvedCount = state.assumptions.filter((a) => a.status === 'approved').length
+  const assumptionLabel = approvedCount > 0
+    ? `${approvedCount} assumption${approvedCount === 1 ? '' : 's'} approved`
+    : 'No assumptions (fast draft)'
+
   return (
     <div className="rounded-lg bg-gray-50 px-4 py-3 space-y-2" data-testid="context-summary">
       <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Context Summary</p>
@@ -45,12 +50,17 @@ function ContextSummary({ state }: { state: WizardState }) {
           Documents: {documentCount} (upload after creation)
         </span>
       </div>
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-gray-400">
+          {assumptionLabel}
+        </span>
+      </div>
       <p className={`text-xs ${qualityColor[quality]}`}>{qualityLabel[quality]}</p>
     </div>
   )
 }
 
-export function Step3Generate({ state, dispatch, onGenerate }: Step3GenerateProps) {
+export function Step4Generate({ state, dispatch, onGenerate }: Step4GenerateProps) {
   return (
     <div className="space-y-5" data-testid="step-generate">
       <div>
@@ -65,7 +75,7 @@ export function Step3Generate({ state, dispatch, onGenerate }: Step3GenerateProp
       <div className="flex justify-between pt-2">
         <button
           type="button"
-          onClick={() => dispatch({ type: 'SET_STEP', step: 1 })}
+          onClick={() => dispatch({ type: 'SET_STEP', step: 2 })}
           className="rounded-md border border-gray-300 px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
         >
           Back

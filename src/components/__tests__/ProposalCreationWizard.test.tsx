@@ -38,10 +38,11 @@ describe('ProposalCreationWizard', () => {
     vi.clearAllMocks()
   })
 
-  it('REQ-1.1: renders 3-step indicator with labels Study Info, Document Upload, Template & Generate', () => {
+  it('REQ-1.1: renders 4-step indicator with labels Study Info, Document Upload, Assumption Review, Template & Generate', () => {
     render(<ProposalCreationWizard />)
     expect(screen.getByText('Study Info')).toBeTruthy()
     expect(screen.getByText('Document Upload')).toBeTruthy()
+    expect(screen.getByText('Assumption Review')).toBeTruthy()
     expect(screen.getByText('Template & Generate')).toBeTruthy()
   })
 
@@ -67,13 +68,13 @@ describe('ProposalCreationWizard', () => {
     expect(screen.getAllByText('Required').length).toBeGreaterThanOrEqual(4)
   })
 
-  it('REQ-1.5: Skip to Fast Draft button jumps to Step 3 from Step 1', () => {
+  it('REQ-1.5: Skip to Fast Draft button jumps to Step 4 (Generate) from Step 1', () => {
     render(<ProposalCreationWizard />)
     // Should start on step 0 — skip button visible
     const skipBtn = screen.getByTestId('skip-to-fast-draft')
     expect(skipBtn).toBeTruthy()
     fireEvent.click(skipBtn)
-    // Now on step 2 — step-generate panel visible, skip button gone
+    // Now on step 3 — step-generate panel visible, skip button gone
     expect(screen.getByTestId('step-generate')).toBeTruthy()
     expect(screen.queryByTestId('skip-to-fast-draft')).toBeNull()
   })
@@ -83,22 +84,40 @@ describe('ProposalCreationWizard', () => {
     fireEvent.click(screen.getByTestId('skip-to-fast-draft'))
     const stored = sessionStorage.getItem('jamo-wizard-state')
     expect(stored).not.toBeNull()
-    expect(JSON.parse(stored!).step).toBe(2)
+    expect(JSON.parse(stored!).step).toBe(3)
   })
 
-  it('REQ-1.6: wizard state hydrated from sessionStorage on mount', () => {
-    // Pre-load step 2 into sessionStorage
+  it('REQ-1.6: wizard state hydrated from sessionStorage on mount when stateVersion matches', () => {
+    // Pre-load step 3 into sessionStorage with stateVersion:6
     sessionStorage.setItem('jamo-wizard-state', JSON.stringify({
-      step: 2,
+      step: 3,
+      proposalId: null,
+      studyInfo: { sponsorName: '', therapeuticArea: '', indication: '', studyPhase: '', regions: [], dueDate: '', services: [] },
+      errors: {},
+      submitting: false,
+      assumptions: [],
+      missingFields: [],
+      extractionStatus: 'idle',
+      stateVersion: 6,
+    }))
+    render(<ProposalCreationWizard />)
+    // Should start on step 3 (hydrated) — skip button not visible, step-generate visible
+    expect(screen.getByTestId('step-generate')).toBeTruthy()
+    expect(screen.queryByTestId('skip-to-fast-draft')).toBeNull()
+  })
+
+  it('REQ-1.6: stale sessionStorage without stateVersion:6 resets to step 0', () => {
+    // Pre-load old shape without stateVersion
+    sessionStorage.setItem('jamo-wizard-state', JSON.stringify({
+      step: 3,
       proposalId: null,
       studyInfo: { sponsorName: '', therapeuticArea: '', indication: '', studyPhase: '', regions: [], dueDate: '', services: [] },
       errors: {},
       submitting: false,
     }))
     render(<ProposalCreationWizard />)
-    // Should start on step 2 (hydrated) — skip button not visible, step-generate visible
-    expect(screen.getByTestId('step-generate')).toBeTruthy()
-    expect(screen.queryByTestId('skip-to-fast-draft')).toBeNull()
+    // Should reset to step 0 — study info visible
+    expect(screen.getByTestId('step-study-info')).toBeTruthy()
   })
 
   it('REQ-1.7: forward navigation blocked and errors shown when required fields are empty', () => {
@@ -112,11 +131,11 @@ describe('ProposalCreationWizard', () => {
     expect(screen.getByTestId('step-study-info')).toBeTruthy()
   })
 
-  it('REQ-9.4: Step 3 renders Generate button and calls createProposal on click', async () => {
+  it('REQ-9.4: Step 4 renders Generate button and calls createProposal on click', async () => {
     mockCreateProposal.mockResolvedValueOnce('proposal-123')
-    // Pre-load step 2 into sessionStorage so we start on the Generate step
+    // Pre-load step 3 into sessionStorage with stateVersion:6
     sessionStorage.setItem('jamo-wizard-state', JSON.stringify({
-      step: 2,
+      step: 3,
       proposalId: null,
       studyInfo: {
         sponsorName: 'Pfizer',
@@ -129,6 +148,10 @@ describe('ProposalCreationWizard', () => {
       },
       errors: {},
       submitting: false,
+      assumptions: [],
+      missingFields: [],
+      extractionStatus: 'idle',
+      stateVersion: 6,
     }))
     render(<ProposalCreationWizard />)
     const generateBtn = screen.getByTestId('generate-button')
