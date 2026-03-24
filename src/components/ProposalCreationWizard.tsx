@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import type {
   WizardState,
   WizardAction,
+  WizardAssumption,
 } from '../types/wizard'
 import {
   DEFAULT_WIZARD_STATE,
@@ -13,7 +14,7 @@ import { useProposals } from '../context/ProposalsContext'
 import { WizardStepIndicator } from './wizard/WizardStepIndicator'
 import { Step1StudyInfo } from './wizard/Step1StudyInfo'
 import { Step2DocumentUpload } from './wizard/Step2DocumentUpload'
-import { Step3Generate } from './wizard/Step3Generate'
+import { Step4Generate } from './wizard/Step4Generate'
 
 const SESSION_KEY = 'jamo-wizard-state'
 
@@ -22,7 +23,7 @@ function wizardReducer(state: WizardState, action: WizardAction): WizardState {
     case 'SET_STEP':
       return { ...state, step: action.step, errors: {} }
     case 'SKIP_TO_GENERATE':
-      return { ...state, step: 2, errors: {} }
+      return { ...state, step: 3, errors: {} }
     case 'UPDATE_STUDY_INFO':
       return {
         ...state,
@@ -44,6 +45,45 @@ function wizardReducer(state: WizardState, action: WizardAction): WizardState {
       return { ...state, proposalId: action.id }
     case 'RESET':
       return DEFAULT_WIZARD_STATE
+    case 'SET_ASSUMPTIONS':
+      return { ...state, assumptions: action.assumptions, missingFields: action.missing }
+    case 'UPDATE_ASSUMPTION':
+      return {
+        ...state,
+        assumptions: state.assumptions.map((a) =>
+          a.id === action.id ? { ...a, ...action.updates } : a
+        ),
+      }
+    case 'ADD_ASSUMPTION': {
+      const newAssumption: WizardAssumption = {
+        id: crypto.randomUUID(),
+        category: 'scope',
+        value: '',
+        confidence: 'high',
+        source: 'user-provided',
+        status: 'pending',
+      }
+      return { ...state, assumptions: [...state.assumptions, newAssumption] }
+    }
+    case 'FILL_MISSING': {
+      const filledAssumption: WizardAssumption = {
+        id: crypto.randomUUID(),
+        category: 'scope',
+        value: action.value,
+        confidence: 'high',
+        source: 'user-provided',
+        status: 'approved',
+      }
+      return {
+        ...state,
+        missingFields: state.missingFields.map((f) =>
+          f.field === action.field ? { ...f, filledValue: action.value } : f
+        ),
+        assumptions: [...state.assumptions, filledAssumption],
+      }
+    }
+    case 'SET_EXTRACTION_STATUS':
+      return { ...state, extractionStatus: action.status }
     default:
       return state
   }
@@ -52,7 +92,10 @@ function wizardReducer(state: WizardState, action: WizardAction): WizardState {
 function getInitialState(): WizardState {
   try {
     const stored = sessionStorage.getItem(SESSION_KEY)
-    if (stored) return JSON.parse(stored) as WizardState
+    if (stored) {
+      const parsed = JSON.parse(stored) as WizardState
+      if (parsed.stateVersion === 6) return parsed
+    }
   } catch {
     // ignore
   }
@@ -89,7 +132,7 @@ export function ProposalCreationWizard() {
   }
 
   function handleStepClick(index: number) {
-    dispatch({ type: 'SET_STEP', step: index as 0 | 1 | 2 })
+    dispatch({ type: 'SET_STEP', step: index as 0 | 1 | 2 | 3 })
   }
 
   async function handleGenerate() {
@@ -130,6 +173,7 @@ export function ProposalCreationWizard() {
             type="button"
             data-testid="skip-to-fast-draft"
             onClick={() => dispatch({ type: 'SKIP_TO_GENERATE' })}
+            title="Skip Upload and Assumption Review"
             className="text-xs text-jamo-500 hover:text-jamo-700 underline"
           >
             Skip to Fast Draft
@@ -147,7 +191,12 @@ export function ProposalCreationWizard() {
           <Step2DocumentUpload state={state} dispatch={dispatch} />
         )}
         {state.step === 2 && (
-          <Step3Generate state={state} dispatch={dispatch} onGenerate={handleGenerate} />
+          <div data-testid="step-assumption-review">
+            <p className="text-sm text-gray-500">Step 3: Assumption Review (coming in Plan 03)</p>
+          </div>
+        )}
+        {state.step === 3 && (
+          <Step4Generate state={state} dispatch={dispatch} onGenerate={handleGenerate} />
         )}
       </div>
 
