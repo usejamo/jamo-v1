@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_phase: 06-ai-assumption-extraction (in progress — 3/5 plans complete)
-status: in_progress
-stopped_at: Completed 06-03-PLAN.md
-last_updated: "2026-03-23T20:35:00.000Z"
+status: unknown
+stopped_at: Completed 06-04-PLAN.md — awaiting human verify checkpoint
+last_updated: "2026-03-24T02:39:24.629Z"
 progress:
   total_phases: 13
-  completed_phases: 5
+  completed_phases: 6
   total_plans: 32
-  completed_plans: 29
+  completed_plans: 32
 ---
 
 ---
@@ -34,7 +34,7 @@ progress:
 
 **Last updated:** 2026-03-23
 **Current milestone:** Milestone 1 — MVP
-**Current phase:** 06-ai-assumption-extraction (in progress — 3/5 plans complete)
+**Current phase:** 06-ai-assumption-extraction (in progress — 4/5 plans complete, awaiting human verify)
 
 ---
 
@@ -47,17 +47,17 @@ progress:
 | ROADMAP.md | Complete (13 phases) |
 | Codebase map | Complete (.planning/codebase/) |
 | Research | Complete (.planning/research/) |
-| Phase execution | Phase 01 COMPLETE, Phase 02 COMPLETE, Phase 03 COMPLETE, Phase 04 COMPLETE, Phase 05 COMPLETE, Phase 06 in progress (2/5) |
+| Phase execution | Phase 01 COMPLETE, Phase 02 COMPLETE, Phase 03 COMPLETE, Phase 04 COMPLETE, Phase 05 COMPLETE, Phase 06 in progress (4/5 — awaiting human verify) |
 
 ---
 
 ## Next Action
 
-Phase 06 in progress (3/5 plans complete). Next: Plan 06-04 (Step 2 trigger wiring — connect document upload to extraction pipeline).
+Phase 06 in progress (4/5 plans complete). Plan 06-04 complete — awaiting human verify checkpoint. Next: Plan 06-05 after human approves end-to-end flow.
 
 ## Last Session
 
-**Stopped at:** Completed 06-03-PLAN.md
+**Stopped at:** Completed 06-04-PLAN.md — awaiting human verify checkpoint
 **Session date:** 2026-03-23
 
 ---
@@ -96,6 +96,9 @@ Phase 06 in progress (3/5 plans complete). Next: Plan 06-04 (Step 2 trigger wiri
 - **Edge Function utilities inlined:** mergeHybridResults and buildSystemPromptBlock duplicated in index.ts — Deno Edge runtime cannot resolve src/lib/ imports at deploy time
 - **Hybrid merge in app layer:** 70/30 vector+FTS weighted merge done in application layer (not SQL UDF) — keeps RPCs simple
 - **System prompt block format is versioned contract:** [REGULATORY CONTEXT]/[PROPOSAL HISTORY]/[INSTRUCTIONS] — Phase 7 depends on this exact format
+- **Step2DocumentUpload owns document polling:** WizardState has no documents field — component fetches/polls Supabase directly by proposalId
+- **prevStepRef for step-transition side effects:** tracks previous step in ProposalCreationWizard to trigger assumption upsert on 2→3 transition without re-running on unrelated state changes
+- **mapConfidence and parseClaudeResponse exported:** from extract-assumptions/index.ts to enable unit testing without live Supabase/Anthropic connections
 
 - **Login page layout:** Full-screen centered card (not floating modal) — provides clear focus on authentication flow
 - **ProtectedRoute pattern:** Uses React Router v7 Outlet pattern � clean separation of auth logic from route definitions
@@ -142,6 +145,7 @@ Phase 06 in progress (3/5 plans complete). Next: Plan 06-04 (Step 2 trigger wiri
 - **Plan 01** (2026-03-23): Wizard type contracts extended — WizardAssumption, MissingField, ExtractionStatus, AssumptionStatus, ConfidenceLevel types added. WizardState.step widened to 0|1|2|3. stateVersion:6 guard clears stale sessionStorage. WIZARD_STEPS has 4 entries. Step3Generate renamed to Step4Generate with assumption count display. All 56 tests pass.
 - **Plan 02** (2026-03-23): extract-assumptions edge function — Deno function calling Claude Haiku via HTTP API. Fetches document_extracts, builds prompt, parses JSON with regex+try/catch (graceful failure), maps float confidence to string, bulk-inserts to proposal_assumptions (content column). Deploy blocked by auth gate (supabase login required).
 - **Plan 03** (2026-03-23): Step3AssumptionReview component — AssumptionCard, ConfidenceBadge, MissingFieldItem inline sub-components. Approve/reject/un-reject/inline-edit controls dispatch correct actions. Missing fields amber section. Next button with unfilled count badge. All REQ-3.3, REQ-3.4, REQ-3.5, REQ-3.7 tests passing. 70/70 tests green.
+- **Plan 04** (2026-03-23): Extraction trigger wired into Step2DocumentUpload (useRef fire-once guard, all-docs-complete detection, fire-and-forget invoke). ProposalCreationWizard renders Step3AssumptionReview at step===2. Approved assumptions upserted to proposal_assumptions on step 2→3 via prevStepRef. Deno stubs converted to 11 real tests (mapConfidence boundaries, parseClaudeResponse shape/categories/regex/graceful-fail, DB schema mapping). 71/71 tests green. Awaiting human verify checkpoint.
 
 ### Phase 02: Authentication & Routing
 - **Plan 01** (2026-03-06): Auth methods — Extended AuthContext with signIn, signOut, signUp methods delegating to Supabase auth. TDD implementation with 4 new tests, all 11 tests passing. Auth state auto-synced via onAuthStateChange.
