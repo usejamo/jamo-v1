@@ -1,4 +1,4 @@
-import { useReducer, useEffect } from 'react'
+import { useReducer, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type {
   WizardState,
@@ -11,9 +11,12 @@ import {
 } from '../types/wizard'
 import { useProposalModal } from '../context/ProposalModalContext'
 import { useProposals } from '../context/ProposalsContext'
+import { useAuth } from '../context/AuthContext'
+import { supabase } from '../lib/supabase'
 import { WizardStepIndicator } from './wizard/WizardStepIndicator'
 import { Step1StudyInfo } from './wizard/Step1StudyInfo'
 import { Step2DocumentUpload } from './wizard/Step2DocumentUpload'
+import { Step3AssumptionReview } from './wizard/Step3AssumptionReview'
 import { Step4Generate } from './wizard/Step4Generate'
 
 const SESSION_KEY = 'jamo-wizard-state'
@@ -105,8 +108,10 @@ function getInitialState(): WizardState {
 export function ProposalCreationWizard() {
   const { closeModal, isOpen } = useProposalModal()
   const { createProposal } = useProposals()
+  const { profile } = useAuth()
   const navigate = useNavigate()
   const [state, dispatch] = useReducer(wizardReducer, undefined, getInitialState)
+  const prevStepRef = useRef(state.step)
 
   // Persist state to sessionStorage on every change
   useEffect(() => {
@@ -124,6 +129,35 @@ export function ProposalCreationWizard() {
       sessionStorage.removeItem(SESSION_KEY)
     }
   }, [isOpen])
+
+  // Persist approved assumptions to DB when transitioning from step 2 → step 3
+  useEffect(() => {
+    const prevStep = prevStepRef.current
+    prevStepRef.current = state.step
+
+    if (prevStep === 2 && state.step === 3 && state.proposalId && profile?.org_id) {
+      const approvedAssumptions = state.assumptions.filter((a) => a.status === 'approved')
+      if (approvedAssumptions.length > 0) {
+        supabase
+          .from('proposal_assumptions')
+          .upsert(
+            approvedAssumptions.map((a) => ({
+              proposal_id: state.proposalId,
+              org_id: profile.org_id,
+              category: a.category,
+              content: a.value,
+              confidence: a.confidence,
+              status: 'approved',
+              user_edited: a.source === 'user-provided',
+            }))
+          )
+          .then(({ error }) => {
+            if (error) console.error('Failed to save assumptions:', error)
+          })
+          .catch((err) => console.error('Failed to save assumptions:', err))
+      }
+    }
+  }, [state.step])
 
   function handleClose() {
     sessionStorage.removeItem(SESSION_KEY)
@@ -191,9 +225,7 @@ export function ProposalCreationWizard() {
           <Step2DocumentUpload state={state} dispatch={dispatch} />
         )}
         {state.step === 2 && (
-          <div data-testid="step-assumption-review">
-            <p className="text-sm text-gray-500">Step 3: Assumption Review (coming in Plan 03)</p>
-          </div>
+          <Step3AssumptionReview state={state} dispatch={dispatch} />
         )}
         {state.step === 3 && (
           <Step4Generate state={state} dispatch={dispatch} onGenerate={handleGenerate} />

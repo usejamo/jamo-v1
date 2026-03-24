@@ -6,6 +6,23 @@ const mockCloseModal = vi.fn()
 const mockCreateProposal = vi.fn()
 const mockNavigate = vi.fn()
 
+vi.mock('../../lib/supabase', () => {
+  const mockChain = {
+    select: vi.fn().mockReturnThis(),
+    eq: vi.fn().mockReturnThis(),
+    order: vi.fn().mockResolvedValue({ data: [], error: null }),
+    upsert: vi.fn().mockResolvedValue({ data: null, error: null }),
+  }
+  return {
+    supabase: {
+      from: vi.fn().mockReturnValue(mockChain),
+      functions: {
+        invoke: vi.fn().mockResolvedValue({ data: { assumptions: [], missing: [] }, error: null }),
+      },
+    },
+  }
+})
+
 vi.mock('../../context/ProposalModalContext', () => ({
   useProposalModal: vi.fn(() => ({
     closeModal: mockCloseModal,
@@ -30,6 +47,18 @@ vi.mock('../../context/ProposalsContext', () => ({
 
 vi.mock('react-router-dom', () => ({
   useNavigate: vi.fn(() => mockNavigate),
+}))
+
+vi.mock('../../context/AuthContext', () => ({
+  useAuth: vi.fn(() => ({
+    session: null,
+    user: null,
+    profile: { org_id: 'org-1', id: 'user-1', role: 'admin', full_name: 'Test User' },
+    loading: false,
+    signIn: vi.fn(),
+    signOut: vi.fn(),
+    signUp: vi.fn(),
+  })),
 }))
 
 describe('ProposalCreationWizard', () => {
@@ -129,6 +158,25 @@ describe('ProposalCreationWizard', () => {
     expect(errors.length).toBeGreaterThanOrEqual(4)
     // Step does not advance
     expect(screen.getByTestId('step-study-info')).toBeTruthy()
+  })
+
+  it('REQ-3.3: step===2 renders Step3AssumptionReview (not placeholder div)', () => {
+    sessionStorage.setItem('jamo-wizard-state', JSON.stringify({
+      step: 2,
+      proposalId: null,
+      studyInfo: { sponsorName: '', therapeuticArea: '', indication: '', studyPhase: '', regions: [], dueDate: '', services: [] },
+      errors: {},
+      submitting: false,
+      assumptions: [],
+      missingFields: [],
+      extractionStatus: 'idle',
+      stateVersion: 6,
+    }))
+    render(<ProposalCreationWizard />)
+    // Step3AssumptionReview has data-testid="step-assumption-review"
+    expect(screen.getByTestId('step-assumption-review')).toBeTruthy()
+    // The placeholder text must NOT be present
+    expect(screen.queryByText(/coming in Plan 03/)).toBeNull()
   })
 
   it('REQ-9.4: Step 4 renders Generate button and calls createProposal on click', async () => {

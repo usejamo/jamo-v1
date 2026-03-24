@@ -186,7 +186,7 @@ export function Step3AssumptionReview({ state, dispatch }: Step3Props) {
   const missingCount = unfilledMissingFields.length
 
   return (
-    <div className="p-4">
+    <div className="p-4" data-testid="step-assumption-review">
       <h2 className="text-lg font-semibold text-gray-800 mb-4">Review Extracted Assumptions</h2>
 
       {/* Missing fields amber section */}
