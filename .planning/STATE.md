@@ -34,7 +34,7 @@ progress:
 
 **Last updated:** 2026-03-23
 **Current milestone:** Milestone 1 — MVP
-**Current phase:** 06-ai-assumption-extraction (in progress — 1/5 plans complete)
+**Current phase:** 06-ai-assumption-extraction (in progress — 2/5 plans complete)
 
 ---
 
@@ -47,7 +47,7 @@ progress:
 | ROADMAP.md | Complete (13 phases) |
 | Codebase map | Complete (.planning/codebase/) |
 | Research | Complete (.planning/research/) |
-| Phase execution | Phase 01 COMPLETE, Phase 02 COMPLETE, Phase 03 COMPLETE, Phase 04 COMPLETE, Phase 05 COMPLETE, Phase 06 in progress (1/5) |
+| Phase execution | Phase 01 COMPLETE, Phase 02 COMPLETE, Phase 03 COMPLETE, Phase 04 COMPLETE, Phase 05 COMPLETE, Phase 06 in progress (2/5) |
 
 ---
 
@@ -139,6 +139,7 @@ Phase 06 in progress (2/5 plans complete). Next: Plan 06-03 (Step 2 trigger wiri
 
 ### Phase 06: AI Assumption Extraction
 - **Plan 00** (2026-03-23): Wave 0 Nyquist stubs — 3 test stub files (Step3AssumptionReview.test.tsx x8 stubs, AssumptionCard.test.tsx x6 stubs, extract-assumptions/test.ts x5 Deno stubs). All REQ-3.1 through REQ-3.7 have named verify targets. `npm run test:run` exits 0 with 55 passing + 14 skipped.
+- **Plan 01** (2026-03-23): Wizard type contracts extended — WizardAssumption, MissingField, ExtractionStatus, AssumptionStatus, ConfidenceLevel types added. WizardState.step widened to 0|1|2|3. stateVersion:6 guard clears stale sessionStorage. WIZARD_STEPS has 4 entries. Step3Generate renamed to Step4Generate with assumption count display. All 56 tests pass.
 - **Plan 02** (2026-03-23): extract-assumptions edge function — Deno function calling Claude Haiku via HTTP API. Fetches document_extracts, builds prompt, parses JSON with regex+try/catch (graceful failure), maps float confidence to string, bulk-inserts to proposal_assumptions (content column). Deploy blocked by auth gate (supabase login required).
 
 ### Phase 02: Authentication & Routing
