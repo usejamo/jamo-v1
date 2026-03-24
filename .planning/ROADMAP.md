@@ -164,6 +164,15 @@ Plans:
 
 **Requirements covered:** REQ-3.1 through REQ-3.7
 
+**Plans:** 5 plans
+
+Plans:
+- [ ] 06-00-PLAN.md — Wave 0 test stubs: Nyquist compliance for all assumption extraction requirements
+- [ ] 06-01-PLAN.md — Extend wizard types, rename Step3→Step4Generate, update wizard shell
+- [ ] 06-02-PLAN.md — extract-assumptions Edge Function (Claude Haiku, JSON extraction, DB insert)
+- [ ] 06-03-PLAN.md — Step3AssumptionReview component with approve/reject/edit/missing-fields UI
+- [ ] 06-04-PLAN.md — Wire extraction trigger in Step2, wire Step3 into wizard, human verify
+
 ---
 
 ### Phase 7: Proposal Generation Engine
