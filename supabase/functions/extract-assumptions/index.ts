@@ -102,9 +102,8 @@ serve(async (req) => {
     const { data: extracts, error: extractsError } = await supabase
       .from('document_extracts')
       .select(`
-        extracted_text,
-        document_type,
-        proposal_documents!inner(filename, proposal_id)
+        content,
+        proposal_documents!inner(name, proposal_id)
       `)
       .eq('proposal_documents.proposal_id', proposalId)
 
@@ -117,8 +116,8 @@ serve(async (req) => {
     // 5. Build user prompt — concatenate all document texts with headers
     let userContent = documents
       .map((d: any) => {
-        const filename = d.proposal_documents?.filename ?? 'unknown'
-        const text = d.extracted_text ?? ''
+        const filename = d.proposal_documents?.name ?? 'unknown'
+        const text = d.content ?? ''
         return `--- Document: ${filename} ---\n${text}`
       })
       .join('\n\n')
@@ -145,7 +144,7 @@ serve(async (req) => {
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-haiku-20240307',
+        model: 'claude-haiku-4-5-20251001',
         max_tokens: 2000,
         system: systemPrompt,
         messages: [

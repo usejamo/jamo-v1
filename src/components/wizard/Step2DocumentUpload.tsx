@@ -29,7 +29,9 @@ export function Step2DocumentUpload({ state, dispatch }: Step2DocumentUploadProp
         .select('id, parse_status')
         .eq('proposal_id', state.proposalId!)
         .order('created_at', { ascending: false })
-      setDocuments((data as DocumentRow[]) || [])
+      const docs = (data as DocumentRow[]) || []
+      setDocuments(docs)
+      dispatch({ type: 'SET_DOCUMENT_COUNT', count: docs.length })
     }
 
     fetchDocuments()
@@ -111,6 +113,7 @@ export function Step2DocumentUpload({ state, dispatch }: Step2DocumentUploadProp
           <DocumentList
             proposalId={state.proposalId}
             onDocumentDeleted={() => setRefreshKey((k) => k + 1)}
+            refreshKey={refreshKey}
           />
           {state.extractionStatus === 'extracting' && (
             <div className="flex items-center gap-2 text-sm text-jamo-600">

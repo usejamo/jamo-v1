@@ -15,7 +15,7 @@ function getOutputQuality(hasStudyInfo: boolean, documentCount: number): 'full' 
 function ContextSummary({ state }: { state: WizardState }) {
   const { studyInfo } = state
   const hasStudyInfo = Boolean(studyInfo.sponsorName && studyInfo.therapeuticArea)
-  const documentCount = 0 // Phase 5: documents uploaded post-creation
+  const documentCount = state.documentCount
   const quality = getOutputQuality(hasStudyInfo, documentCount)
 
   const qualityLabel: Record<typeof quality, string> = {
@@ -47,7 +47,7 @@ function ContextSummary({ state }: { state: WizardState }) {
       </div>
       <div className="flex items-center gap-2">
         <span className="text-xs text-gray-400">
-          Documents: {documentCount} (upload after creation)
+          Documents: {documentCount}
         </span>
       </div>
       <div className="flex items-center gap-2">

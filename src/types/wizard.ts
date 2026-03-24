@@ -44,6 +44,7 @@ export interface WizardState {
   assumptions: WizardAssumption[]
   missingFields: MissingField[]
   extractionStatus: ExtractionStatus
+  documentCount: number
   stateVersion: 6
 }
 
@@ -58,7 +59,9 @@ export type WizardAction =
   | { type: 'RESET' }
   | { type: 'SET_ASSUMPTIONS'; assumptions: WizardAssumption[]; missing: MissingField[] }
   | { type: 'UPDATE_ASSUMPTION'; id: string; updates: Partial<WizardAssumption> }
+  | { type: 'SET_DOCUMENT_COUNT'; count: number }
   | { type: 'ADD_ASSUMPTION' }
+  | { type: 'REMOVE_ASSUMPTION'; id: string }
   | { type: 'FILL_MISSING'; field: string; value: string }
   | { type: 'SET_EXTRACTION_STATUS'; status: ExtractionStatus }
 
@@ -79,6 +82,7 @@ export const DEFAULT_WIZARD_STATE: WizardState = {
   assumptions: [],
   missingFields: [],
   extractionStatus: 'idle',
+  documentCount: 0,
   stateVersion: 6,
 }
 

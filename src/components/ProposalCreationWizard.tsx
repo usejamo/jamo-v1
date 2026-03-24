@@ -68,6 +68,10 @@ function wizardReducer(state: WizardState, action: WizardAction): WizardState {
       }
       return { ...state, assumptions: [...state.assumptions, newAssumption] }
     }
+    case 'REMOVE_ASSUMPTION':
+      return { ...state, assumptions: state.assumptions.filter((a) => a.id !== action.id) }
+    case 'SET_DOCUMENT_COUNT':
+      return { ...state, documentCount: action.count }
     case 'FILL_MISSING': {
       const filledAssumption: WizardAssumption = {
         id: crypto.randomUUID(),
@@ -130,6 +134,27 @@ export function ProposalCreationWizard() {
     }
   }, [isOpen])
 
+  // Create draft proposal when entering step 1 (needed for document upload)
+  useEffect(() => {
+    if (state.step !== 1 || state.proposalId) return
+    const { studyInfo } = state
+    createProposal({
+      title: `${studyInfo.sponsorName} — ${studyInfo.indication} (${studyInfo.studyPhase})`,
+      client: studyInfo.sponsorName,
+      therapeuticArea: studyInfo.therapeuticArea,
+      studyType: studyInfo.studyPhase,
+      indication: studyInfo.indication,
+      dueDate: studyInfo.dueDate,
+      status: 'draft',
+      value: 0,
+      description: JSON.stringify({ services: studyInfo.services, regions: studyInfo.regions }),
+    }).then((id) => {
+      dispatch({ type: 'SET_PROPOSAL_ID', id })
+    }).catch((err) => {
+      console.error('Failed to create draft proposal:', err)
+    })
+  }, [state.step, state.proposalId])
+
   // Persist approved assumptions to DB when transitioning from step 2 → step 3
   useEffect(() => {
     const prevStep = prevStepRef.current
@@ -172,18 +197,21 @@ export function ProposalCreationWizard() {
   async function handleGenerate() {
     dispatch({ type: 'SET_SUBMITTING', value: true })
     try {
-      const { studyInfo } = state
-      const id = await createProposal({
-        title: `${studyInfo.sponsorName} — ${studyInfo.indication} (${studyInfo.studyPhase})`,
-        client: studyInfo.sponsorName,
-        therapeuticArea: studyInfo.therapeuticArea,
-        studyType: studyInfo.studyPhase,
-        indication: studyInfo.indication,
-        dueDate: studyInfo.dueDate,
-        status: 'draft',
-        value: 0,
-        description: JSON.stringify({ services: studyInfo.services, regions: studyInfo.regions }),
-      })
+      let id = state.proposalId
+      if (!id) {
+        const { studyInfo } = state
+        id = await createProposal({
+          title: `${studyInfo.sponsorName} — ${studyInfo.indication} (${studyInfo.studyPhase})`,
+          client: studyInfo.sponsorName,
+          therapeuticArea: studyInfo.therapeuticArea,
+          studyType: studyInfo.studyPhase,
+          indication: studyInfo.indication,
+          dueDate: studyInfo.dueDate,
+          status: 'draft',
+          value: 0,
+          description: JSON.stringify({ services: studyInfo.services, regions: studyInfo.regions }),
+        })
+      }
       sessionStorage.removeItem(SESSION_KEY)
       closeModal()
       navigate(`/proposals/${id}`)

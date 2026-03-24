@@ -17,6 +17,7 @@ interface DocumentWithExtracts extends DocumentRow {
 interface DocumentListProps {
   proposalId: string
   onDocumentDeleted?: () => void
+  refreshKey?: number
 }
 
 function formatBytes(bytes: number): string {
@@ -85,7 +86,7 @@ function FileIcon({ mimeType }: { mimeType: string }) {
   )
 }
 
-export function DocumentList({ proposalId, onDocumentDeleted }: DocumentListProps) {
+export function DocumentList({ proposalId, onDocumentDeleted, refreshKey }: DocumentListProps) {
   const [documents, setDocuments] = useState<DocumentWithExtracts[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -115,7 +116,7 @@ export function DocumentList({ proposalId, onDocumentDeleted }: DocumentListProp
 
   useEffect(() => {
     fetchDocuments()
-  }, [proposalId])
+  }, [proposalId, refreshKey])
 
   // Poll for status updates when any document is pending or extracting
   useEffect(() => {

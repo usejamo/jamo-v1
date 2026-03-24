@@ -33,7 +33,7 @@ function AssumptionCard({
   assumption: WizardAssumption
   dispatch: React.Dispatch<WizardAction>
 }) {
-  const [isEditing, setIsEditing] = useState(false)
+  const [isEditing, setIsEditing] = useState(assumption.value === '')
   const [editValue, setEditValue] = useState(assumption.value)
 
   const isApproved = assumption.status === 'approved'
@@ -95,7 +95,7 @@ function AssumptionCard({
           </span>
         )}
       </div>
-      <div className="flex gap-2">
+      <div className="flex gap-2 items-center">
         <button
           onClick={handleApprove}
           className={`text-sm px-2 py-1 rounded ${isApproved ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-green-100'}`}
@@ -111,6 +111,14 @@ function AssumptionCard({
           aria-label="Reject"
         >
           ✗
+        </button>
+        <button
+          onClick={() => dispatch({ type: 'REMOVE_ASSUMPTION', id: assumption.id })}
+          className="ml-auto text-gray-300 hover:text-red-400 p-1 rounded"
+          data-testid="remove-assumption-button"
+          aria-label="Remove"
+        >
+          🗑
         </button>
       </div>
     </div>
