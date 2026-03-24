@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 05-proposal-creation-wizard (COMPLETE — 6/6 plans complete)
-status: unknown
-stopped_at: Phase 6 context gathered
-last_updated: "2026-03-24T00:53:25.704Z"
+current_phase: 06-ai-assumption-extraction (in progress — 1/5 plans complete)
+status: in_progress
+stopped_at: Completed 06-00-PLAN.md
+last_updated: "2026-03-23T20:22:00Z"
 progress:
   total_phases: 13
   completed_phases: 5
   total_plans: 27
-  completed_plans: 27
+  completed_plans: 28
 ---
 
 ---
@@ -34,7 +34,7 @@ progress:
 
 **Last updated:** 2026-03-23
 **Current milestone:** Milestone 1 — MVP
-**Current phase:** 05-proposal-creation-wizard (COMPLETE — 6/6 plans complete)
+**Current phase:** 06-ai-assumption-extraction (in progress — 1/5 plans complete)
 
 ---
 
@@ -47,17 +47,17 @@ progress:
 | ROADMAP.md | Complete (13 phases) |
 | Codebase map | Complete (.planning/codebase/) |
 | Research | Complete (.planning/research/) |
-| Phase execution | Phase 01 COMPLETE, Phase 02 COMPLETE, Phase 03 COMPLETE, Phase 04 COMPLETE, Phase 05 COMPLETE |
+| Phase execution | Phase 01 COMPLETE, Phase 02 COMPLETE, Phase 03 COMPLETE, Phase 04 COMPLETE, Phase 05 COMPLETE, Phase 06 in progress (1/5) |
 
 ---
 
 ## Next Action
 
-Phase 05 COMPLETE. Next: Phase 06 (next phase per ROADMAP.md).
+Phase 06 in progress (1/5 plans complete). Next: Plan 06-01 (extract-assumptions edge function).
 
 ## Last Session
 
-**Stopped at:** Phase 6 context gathered
+**Stopped at:** Completed 06-00-PLAN.md
 **Session date:** 2026-03-23
 
 ---
@@ -136,6 +136,9 @@ Phase 05 COMPLETE. Next: Phase 06 (next phase per ROADMAP.md).
 | `cro_proposal_prompt_template.md` | Prompt template reference doc |
 | `src/components/AIChatPanel.tsx` | Demo AI chat — to be upgraded in Phase 9 |
 | `src/components/ProposalDraftRenderer.tsx` | Read-only renderer — to be replaced by TipTap in Phase 8 |
+
+### Phase 06: AI Assumption Extraction
+- **Plan 00** (2026-03-23): Wave 0 Nyquist stubs — 3 test stub files (Step3AssumptionReview.test.tsx x8 stubs, AssumptionCard.test.tsx x6 stubs, extract-assumptions/test.ts x5 Deno stubs). All REQ-3.1 through REQ-3.7 have named verify targets. `npm run test:run` exits 0 with 55 passing + 14 skipped.
 
 ### Phase 02: Authentication & Routing
 - **Plan 01** (2026-03-06): Auth methods — Extended AuthContext with signIn, signOut, signUp methods delegating to Supabase auth. TDD implementation with 4 new tests, all 11 tests passing. Auth state auto-synced via onAuthStateChange.
