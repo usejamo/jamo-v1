@@ -2,40 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 06-ai-assumption-extraction (in progress — 3/5 plans complete)
 status: unknown
-stopped_at: Completed 06-04-PLAN.md — awaiting human verify checkpoint
-last_updated: "2026-03-24T02:39:24.629Z"
+stopped_at: Completed 07-01-PLAN.md
+last_updated: "2026-03-25T06:47:44.288Z"
 progress:
   total_phases: 13
   completed_phases: 6
-  total_plans: 32
-  completed_plans: 32
----
-
----
-gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: milestone
-current_phase: 02-authentication-routing (in progress — 3/3 plans complete)
-status: unknown
-stopped_at: Completed 02-02-PLAN.md
-last_updated: "2026-03-07T03:54:00.336Z"
-progress:
-  total_phases: 13
-  completed_phases: 2
-  total_plans: 9
-  completed_plans: 9
-  percent: 100
----
----
-
-# STATE.md — Project Memory
-
-**Last updated:** 2026-03-23
-**Current milestone:** Milestone 1 — MVP
-**Current phase:** 06-ai-assumption-extraction (in progress — 4/5 plans complete, awaiting human verify)
-
+  total_plans: 37
+  completed_plans: 33
 ---
 
 ## Project Status
@@ -57,7 +31,7 @@ Phase 06 in progress (4/5 plans complete). Plan 06-04 complete — awaiting huma
 
 ## Last Session
 
-**Stopped at:** Completed 06-04-PLAN.md — awaiting human verify checkpoint
+**Stopped at:** Completed 07-01-PLAN.md
 **Session date:** 2026-03-23
 
 ---
@@ -117,6 +91,7 @@ Phase 06 in progress (4/5 plans complete). Plan 06-04 complete — awaiting huma
 ## Completed Plans
 
 ### Phase 01: Supabase Foundation
+
 - **Plan 00** (2026-03-05): Test infrastructure — vitest + jsdom + Supabase mock + stub tests. `npm run test:run` exits 0 in 1.28s.
 - **Plan 01** (2026-03-06): Supabase client singleton — @supabase/supabase-js installed, CLI linked to project fuuvdcvbliijffogjnwg, src/lib/supabase.ts typed with Database generic, placeholder types in src/types/database.types.ts. `npm run test:run` exits 0 in 1.29s.
 - **Plan 02** (2026-03-06): Database schema migrations (001-009, 012-013) — organizations, user_profiles, proposals, proposal_sections, proposal_documents, document_extracts, proposal_assumptions, proposal_chats, rls_helper_functions, rls_policies. 11 migration files written.
@@ -141,6 +116,7 @@ Phase 06 in progress (4/5 plans complete). Plan 06-04 complete — awaiting huma
 | `src/components/ProposalDraftRenderer.tsx` | Read-only renderer — to be replaced by TipTap in Phase 8 |
 
 ### Phase 06: AI Assumption Extraction
+
 - **Plan 00** (2026-03-23): Wave 0 Nyquist stubs — 3 test stub files (Step3AssumptionReview.test.tsx x8 stubs, AssumptionCard.test.tsx x6 stubs, extract-assumptions/test.ts x5 Deno stubs). All REQ-3.1 through REQ-3.7 have named verify targets. `npm run test:run` exits 0 with 55 passing + 14 skipped.
 - **Plan 01** (2026-03-23): Wizard type contracts extended — WizardAssumption, MissingField, ExtractionStatus, AssumptionStatus, ConfidenceLevel types added. WizardState.step widened to 0|1|2|3. stateVersion:6 guard clears stale sessionStorage. WIZARD_STEPS has 4 entries. Step3Generate renamed to Step4Generate with assumption count display. All 56 tests pass.
 - **Plan 02** (2026-03-23): extract-assumptions edge function — Deno function calling Claude Haiku via HTTP API. Fetches document_extracts, builds prompt, parses JSON with regex+try/catch (graceful failure), maps float confidence to string, bulk-inserts to proposal_assumptions (content column). Deploy blocked by auth gate (supabase login required).
@@ -148,10 +124,12 @@ Phase 06 in progress (4/5 plans complete). Plan 06-04 complete — awaiting huma
 - **Plan 04** (2026-03-23): Extraction trigger wired into Step2DocumentUpload (useRef fire-once guard, all-docs-complete detection, fire-and-forget invoke). ProposalCreationWizard renders Step3AssumptionReview at step===2. Approved assumptions upserted to proposal_assumptions on step 2→3 via prevStepRef. Deno stubs converted to 11 real tests (mapConfidence boundaries, parseClaudeResponse shape/categories/regex/graceful-fail, DB schema mapping). 71/71 tests green. Awaiting human verify checkpoint.
 
 ### Phase 02: Authentication & Routing
+
 - **Plan 01** (2026-03-06): Auth methods — Extended AuthContext with signIn, signOut, signUp methods delegating to Supabase auth. TDD implementation with 4 new tests, all 11 tests passing. Auth state auto-synced via onAuthStateChange.
 - **Plan 03** (2026-03-06): Logout & Profile Display — Added logout button to Sidebar calling signOut and navigating to /login. Added Profile tab to Settings as first tab, displaying user name, email, role (as badge), and org_id. Role awareness foundation for REQ-8.3.
 
 ### Phase 05: Proposal Creation Wizard
+
 - **Plan 00** (2026-03-23): Wave 0 Nyquist stub file — 8 it.skip tests covering REQ-1.1, 1.2, 1.5, 1.6, 1.7, 9.4. No component import (Vite resolves imports at transform time). `npm run test:run` exits 0.
 - **Plan 01** (2026-03-23): Type contracts — `src/types/wizard.ts` with `ServiceOption`, `StudyInfo`, `WizardState`, `WizardAction`, `DEFAULT_WIZARD_STATE`, `WIZARD_STEPS`. `AVAILABLE_SERVICES` restructured to `{label, category}[]` with `groupServicesByCategory` in `cro-proposal-generator.js`. 45 passing + 8 skipped.
 - **Plan 02** (2026-03-23): Wizard shell — `WizardStepIndicator.tsx` (numbered step header, backward nav, jamo color scheme) and `ProposalCreationWizard.tsx` (wizardReducer, sessionStorage persist/hydrate/clear, SKIP_TO_GENERATE, placeholder step panels). REQ-1.1, REQ-1.5, REQ-1.6 stubs converted to passing tests. 55 tests (50 passing + 4 skipped + 1 pre-existing flaky).
@@ -159,6 +137,7 @@ Phase 06 in progress (4/5 plans complete). Plan 06-04 complete — awaiting huma
 - **Plan 03** (2026-03-23): Step 1 Study Info form — `Step1StudyInfo.tsx` with 4 required fields (sponsor name, therapeutic area, indication, study phase), optional due date + regions, grouped services pill toggles from AVAILABLE_SERVICES. Validation blocks Next on empty required fields with inline errors. ProposalCreationWizard updated to render Step1StudyInfo. Pre-existing DocumentList polling flake fixed. REQ-1.2 and REQ-1.7 passing. 54 passing + 1 skipped (REQ-9.4).
 
 ### Phase 04: Regulatory Knowledge Base & RAG
+
 - **Plan 00** (2026-03-20): Wave 0 test stub scaffolding — 4 Nyquist-compliant stub files (chunker.test.ts, retrieval.test.ts, ingest.test.ts, retrieve-context/test.ts). All use it.skip / Deno ignore:true per stub test pattern. `npm run test:run` exits 0 with 34 passing + 11 skipped.
 - **Plan 01** (2026-03-20): Chunks table migration 015 — DROP regulatory_chunks, CREATE chunks with org_id, doc_type, embedding extensions.vector(1536), search_vector TSVECTOR, HNSW index (m=16, ef_construction=64), GIN index, composite (org_id, doc_type) index, tsvector trigger, RLS org isolation policy. `supabase db push` requires `npx supabase login` first.
 - **Plan 02** (2026-03-20): Regulatory ingestion pipeline — chunkDocument (js-tiktoken cl100k_base, section-boundary split, 400-600 token chunks, 100-token overlap), embedBatch (batches=100, 1536-dim assert, exp backoff on 429), ingest-regulatory.ts CLI (--org-id/--agency/--dir/--dry-run), regulatory-docs/ICH/FDA/EMA dirs. denoSpecifierStubPlugin in vitest.config.ts for jsr:/npm: compat. 47/47 tests passing.
@@ -166,9 +145,9 @@ Phase 06 in progress (4/5 plans complete). Plan 06-04 complete — awaiting huma
 - **Plan 05** (2026-03-20): Gap closure — confirmed regulatory-docs/ICH/.gitkeep, FDA/.gitkeep, EMA/.gitkeep already committed in 04-02 (4f6e24d). REQ-7.7 directory structure gap closed.
 
 ### Phase 03: Document Upload & Parsing Pipeline
+
 - **Plan 00** (2026-03-07): Test infrastructure scaffolding (Wave 0) — Created UI component test stubs (FileUpload.test.tsx with 5 todo tests, DocumentList.test.tsx with 4 todo tests) and Edge Function test harnesses (extract-document-poc/test.ts, extract-document/test.ts with 5 stub tests). Added 4 minimal valid test fixtures (test-rfp.pdf, test-protocol.docx, test-budget.xlsx, corrupt.pdf). Nyquist compliance achieved for Phase 3.
 - **Plan 01** (2026-03-07): FileUpload component — Drag-and-drop file upload with direct browser → Supabase Storage upload (no proxy). Validates file types (PDF/DOCX/XLSX/TXT) and size (max 50MB). Org-scoped storage paths ({org_id}/{proposal_id}/{filename}). Inserts proposal_documents row with parse_status='pending'. Per-file status tracking with visual indicators (spinner/check/X). Storage cleanup on database errors. TDD with 5 tests passing.
 - **Plan 02** (2026-03-07): DocumentList component — Displays uploaded documents with color-coded status badges (gray/blue/green/red for pending/extracting/complete/error). Polls every 2s when documents extracting. Delete removes from Storage + database. TDD with chainable mock query builder. 5 tests passing.
 - **Plan 04** (2026-03-07): extract-document Edge Function — Deno edge function using pdf-parse, mammoth, xlsx for text extraction from PDF/DOCX/XLSX/TXT. Inserts into document_extracts, updates parse_status. Deployed with --no-verify-jwt.
 - **Plan 05** (2026-03-19): End-to-end pipeline wiring — FileUpload triggers extract-document fire-and-forget after upload. DocumentList polls on pending+extracting status. ProposalDetail wired with real components. UAT fixes: uploaded_by FK, RLS subquery policy. Full pipeline verified end-to-end.
-
