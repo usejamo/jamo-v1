@@ -18,7 +18,7 @@ export interface StudyInfo {
 // Phase 6 assumption types
 export type AssumptionStatus = 'pending' | 'approved' | 'rejected'
 export type ConfidenceLevel = 'high' | 'medium' | 'low'
-export type ExtractionStatus = 'idle' | 'extracting' | 'complete' | 'error'
+export type ExtractionStatus = 'idle' | 'extracting' | 'complete' | 'error' | 'no_content'
 
 export interface WizardAssumption {
   id: string           // temp UUID

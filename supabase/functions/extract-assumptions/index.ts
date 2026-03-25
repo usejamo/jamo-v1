@@ -37,18 +37,43 @@ export function mapConfidence(confidence: number): string {
 }
 
 export function parseClaudeResponse(content: string): ClaudeParseResult {
+  // Strip markdown code fences
+  const trimmed = content.trim()
+  const stripped = trimmed.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '')
+
+  // Replace literal (unescaped) newlines and tabs with spaces so JSON.parse
+  // doesn't choke on multi-line string values that Claude sometimes emits.
+  const normalized = stripped.replace(/\r?\n/g, ' ').replace(/\t/g, ' ')
+
   try {
-    const match = content.match(/\{[\s\S]*\}/)
-    if (!match) {
-      return { assumptions: [], missing: [] }
-    }
-    const parsed = JSON.parse(match[0])
+    const parsed = JSON.parse(normalized)
     return {
       assumptions: Array.isArray(parsed.assumptions) ? parsed.assumptions : [],
       missing: Array.isArray(parsed.missing) ? parsed.missing : [],
     }
   } catch {
-    return { assumptions: [], missing: [] }
+    // Fallback: find first balanced JSON object
+    try {
+      const start = normalized.indexOf('{')
+      if (start === -1) return { assumptions: [], missing: [] }
+      let depth = 0
+      let end = -1
+      for (let i = start; i < normalized.length; i++) {
+        if (normalized[i] === '{') depth++
+        else if (normalized[i] === '}') {
+          depth--
+          if (depth === 0) { end = i; break }
+        }
+      }
+      if (end === -1) return { assumptions: [], missing: [] }
+      const parsed = JSON.parse(normalized.slice(start, end + 1))
+      return {
+        assumptions: Array.isArray(parsed.assumptions) ? parsed.assumptions : [],
+        missing: Array.isArray(parsed.missing) ? parsed.missing : [],
+      }
+    } catch {
+      return { assumptions: [], missing: [] }
+    }
   }
 }
 
@@ -98,23 +123,53 @@ serve(async (req) => {
 
     const orgId: string = proposal.org_id
 
-    // 4. Fetch document_extracts joined with proposal_documents for this proposal
-    const { data: extracts, error: extractsError } = await supabase
-      .from('document_extracts')
-      .select(`
-        content,
-        proposal_documents!inner(name, proposal_id)
-      `)
-      .eq('proposal_documents.proposal_id', proposalId)
+    // 4. Fetch document IDs for this proposal, then fetch their extracts
+    const { data: propDocs, error: propDocsError } = await supabase
+      .from('proposal_documents')
+      .select('id, name')
+      .eq('proposal_id', proposalId)
+
+    if (propDocsError) {
+      throw new Error(`Failed to fetch proposal documents: ${propDocsError.message}`)
+    }
+
+    const docIds = (propDocs ?? []).map((d: { id: string }) => d.id)
+    const docNameMap: Record<string, string> = {}
+    for (const d of propDocs ?? []) {
+      docNameMap[d.id] = d.name
+    }
+
+    const { data: extracts, error: extractsError } = docIds.length > 0
+      ? await supabase
+          .from('document_extracts')
+          .select('content, document_id')
+          .in('document_id', docIds)
+      : { data: [], error: null }
 
     if (extractsError) {
       throw new Error(`Failed to fetch document extracts: ${extractsError.message}`)
     }
 
-    const documents = extracts ?? []
+    const documents = (extracts ?? []).map((e: { content: string; document_id: string }) => ({
+      content: e.content,
+      proposal_documents: { name: docNameMap[e.document_id] ?? 'unknown' },
+    }))
 
     // 5. Build user prompt — concatenate all document texts with headers
-    let userContent = documents
+    // Filter out documents with no meaningful text content
+    const docsWithContent = documents.filter((d: any) => d.content?.trim())
+
+    if (docsWithContent.length === 0) {
+      return new Response(JSON.stringify({
+        assumptions: [],
+        missing: [],
+        warning: 'no_document_content',
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    let userContent = docsWithContent
       .map((d: any) => {
         const filename = d.proposal_documents?.name ?? 'unknown'
         const text = d.content ?? ''
@@ -125,10 +180,6 @@ serve(async (req) => {
     // Truncate to ~32000 chars (~8000 tokens) if needed
     if (userContent.length > 32000) {
       userContent = userContent.slice(0, 32000)
-    }
-
-    if (!userContent.trim()) {
-      userContent = '(No document content available)'
     }
 
     // 6. Build system prompt
@@ -145,7 +196,7 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 2000,
+        max_tokens: 4096,
         system: systemPrompt,
         messages: [
           {
@@ -163,7 +214,6 @@ serve(async (req) => {
 
     const anthropicData = await anthropicResponse.json()
     const responseText: string = anthropicData?.content?.[0]?.text ?? ''
-
     // 8. Parse Claude response — graceful failure returns empty assumptions
     const parsed = parseClaudeResponse(responseText)
 
@@ -172,29 +222,9 @@ serve(async (req) => {
       ? 'parse_failed'
       : undefined
 
-    // 9. Map and bulk-insert into proposal_assumptions
-    if (parsed.assumptions.length > 0) {
-      const rows = parsed.assumptions.map((a: RawAssumption) => ({
-        proposal_id: proposalId,
-        org_id: orgId,
-        category: a.category,
-        content: a.value,           // DB column is 'content' not 'value'
-        confidence: mapConfidence(a.confidence),
-        status: 'pending',
-        source_document: null,
-        user_edited: false,
-      }))
-
-      const { error: insertError } = await supabase
-        .from('proposal_assumptions')
-        .insert(rows)
-
-      if (insertError) {
-        throw new Error(`Failed to insert assumptions: ${insertError.message}`)
-      }
-    }
-
-    // 10. Return response shape expected by frontend
+    // 9. Return response shape expected by frontend
+    // NOTE: DB persistence of assumptions is handled by the frontend after receiving this response.
+    // Keeping the insert here caused EarlyDrop (60s wall-clock limit hit by Anthropic + hanging insert).
     const responseBody: Record<string, unknown> = {
       assumptions: parsed.assumptions,
       missing: parsed.missing,

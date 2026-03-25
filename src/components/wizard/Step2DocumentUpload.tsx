@@ -64,6 +64,10 @@ export function Step2DocumentUpload({ state, dispatch }: Step2DocumentUploadProp
             dispatch({ type: 'SET_EXTRACTION_STATUS', status: 'error' })
             return
           }
+          if (data?.warning === 'no_document_content') {
+            dispatch({ type: 'SET_EXTRACTION_STATUS', status: 'no_content' })
+            return
+          }
           const mapped: WizardAssumption[] = (data?.assumptions ?? []).map((a: {
             category: string
             value: string
@@ -84,6 +88,20 @@ export function Step2DocumentUpload({ state, dispatch }: Step2DocumentUploadProp
             missing: data?.missing ?? [],
           })
           dispatch({ type: 'SET_EXTRACTION_STATUS', status: 'complete' })
+          // Persist to DB — fire-and-forget, don't block the UI
+          if (mapped.length > 0 && state.proposalId) {
+            const rows = (data.assumptions as Array<{ category: string; value: string; confidence: number; source?: string }>).map((a) => ({
+              proposal_id: state.proposalId,
+              category: a.category,
+              content: a.value,
+              confidence: a.confidence >= 0.8 ? 'high' : a.confidence >= 0.5 ? 'medium' : 'low',
+              status: 'pending',
+              user_edited: false,
+            }))
+            supabase.from('proposal_assumptions').insert(rows).then(({ error }) => {
+              if (error) console.error('Failed to persist assumptions:', error.message)
+            })
+          }
         })
         .catch((err) => {
           console.error('extract-assumptions failed:', err)
@@ -146,6 +164,11 @@ export function Step2DocumentUpload({ state, dispatch }: Step2DocumentUploadProp
           {state.extractionStatus === 'error' && (
             <p className="text-sm text-red-600">
               Assumption extraction failed. You can proceed and add assumptions manually.
+            </p>
+          )}
+          {state.extractionStatus === 'no_content' && (
+            <p className="text-sm text-amber-600">
+              No text could be extracted from the uploaded document (it may be a scanned PDF). You can add assumptions manually in the next step.
             </p>
           )}
         </div>

@@ -165,19 +165,22 @@ export async function readSSEStream(
 // ---------------------------------------------------------------------------
 
 export async function fetchRagChunks(
-  proposalId: string,
+  orgId: string,
   sectionKey: string,
   therapeuticArea: string
 ): Promise<Array<{ content: string; doc_type: string; agency: string }>> {
   try {
+    const query = SECTION_NAMES[sectionKey] || sectionKey
     const { data, error } = await supabase.functions.invoke('retrieve-context', {
-      body: { proposalId, sectionKey, therapeuticArea, topK: 5 },
+      body: { orgId, query, therapeuticArea },
     })
     if (error) {
       console.warn('[useProposalGeneration] retrieve-context error:', error)
       return []
     }
-    return data?.chunks ?? []
+    const regulatory: Array<{ content: string; doc_type: string; agency: string }> = data?.regulatoryChunks ?? []
+    const proposal: Array<{ content: string; doc_type: string; agency: string }> = data?.proposalChunks ?? []
+    return [...regulatory, ...proposal]
   } catch (err) {
     console.warn('[useProposalGeneration] fetchRagChunks failed:', err)
     return []
@@ -239,7 +242,7 @@ export async function extractAnchor(
 
 export function useProposalGeneration(proposalId: string) {
   const [state, dispatch] = useReducer(generationReducer, initialState)
-  const { session } = useAuth()
+  const { session, profile } = useAuth()
 
   // Supabase Realtime subscription for proposal_sections changes (REQ-4.6)
   useEffect(() => {
@@ -358,7 +361,7 @@ export function useProposalGeneration(proposalId: string) {
         // Wave 1: Understanding (serial)
         const wave1Keys = getWaveSections(1)  // ['understanding']
         const ragChunks1 = await fetchRagChunks(
-          proposalId,
+          profile?.org_id ?? '',
           wave1Keys[0],
           proposalInput.studyInfo.therapeuticArea
         )
@@ -405,7 +408,7 @@ export function useProposalGeneration(proposalId: string) {
         dispatch({ type: 'GENERATION_COMPLETE' })
       }
     },
-    [proposalId, session, streamSection]
+    [proposalId, session, profile, streamSection]
   )
 
   // generateSection: single section independently (REQ-4.7)
