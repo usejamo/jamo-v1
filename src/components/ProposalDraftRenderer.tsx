@@ -1,9 +1,12 @@
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { DraftSection, Annotation, AnnotationSourceType, PendingSuggestion, ContentBlock } from '../types/draft'
+import type { GenerationState } from '../types/generation'
+import { getWaveSections } from '../types/generation'
 import { DEMO_COMMANDS } from '../data/demoCommands'
 import RenderBlock from './RenderBlock'
 import SuggestedChange from './SuggestedChange'
+import { SectionStreamCard } from './SectionStreamCard'
 
 const SOURCE_META: Record<AnnotationSourceType, {
   dot: string; badge: string; badgeText: string
@@ -186,6 +189,12 @@ interface Props {
   onSuggestionDeclined: () => void
   hideNav?: boolean
   scrollMarginClass?: string
+
+  // Streaming mode props
+  mode?: 'review' | 'streaming'
+  generationState?: GenerationState
+  onRegenerate?: (sectionKey: string) => void
+  onRetry?: (sectionKey: string) => void
 }
 
 export default function ProposalDraftRenderer({
@@ -197,6 +206,10 @@ export default function ProposalDraftRenderer({
   onSuggestionDeclined,
   hideNav = false,
   scrollMarginClass = 'scroll-mt-4',
+  mode = 'review',
+  generationState,
+  onRegenerate,
+  onRetry,
 }: Props) {
   const [popover, setPopover] = useState<PopoverState | null>(null)
   const [activeId, setActiveId] = useState(sections[0]?.id ?? '')
@@ -235,6 +248,48 @@ export default function ProposalDraftRenderer({
       prev?.annotation === annotation ? null : { annotation, anchorRect }
     )
   }, [])
+
+  // Streaming mode render path
+  if (mode === 'streaming' && generationState) {
+    return (
+      <div className="relative">
+        {/* Wave 1 — Foundation */}
+        <p className="text-xs text-gray-400 mb-2 mt-4">Wave 1 — Foundation</p>
+        {getWaveSections(1).map(key => (
+          <SectionStreamCard
+            key={key}
+            section={generationState.sections[key]}
+            onRegenerate={() => onRegenerate?.(key)}
+            onRetry={() => onRetry?.(key)}
+          />
+        ))}
+
+        {/* Wave 2 — Body sections */}
+        <p className="text-xs text-gray-400 mb-2 mt-8">Wave 2 — Body sections</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {getWaveSections(2).map(key => (
+            <SectionStreamCard
+              key={key}
+              section={generationState.sections[key]}
+              onRegenerate={() => onRegenerate?.(key)}
+              onRetry={() => onRetry?.(key)}
+            />
+          ))}
+        </div>
+
+        {/* Wave 3 — Summary */}
+        <p className="text-xs text-gray-400 mb-2 mt-8">Wave 3 — Summary</p>
+        {getWaveSections(3).map(key => (
+          <SectionStreamCard
+            key={key}
+            section={generationState.sections[key]}
+            onRegenerate={() => onRegenerate?.(key)}
+            onRetry={() => onRetry?.(key)}
+          />
+        ))}
+      </div>
+    )
+  }
 
   return (
     <div className="relative">

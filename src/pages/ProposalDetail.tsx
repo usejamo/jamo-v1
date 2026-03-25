@@ -1,4 +1,4 @@
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import allDocuments from '../data/documents.json'
 import type { ProposalStatus } from '../types/proposal'
@@ -14,6 +14,10 @@ import { DocumentList } from '../components/DocumentList'
 import { useProposals } from '../context/ProposalsContext'
 import { useProposalModal } from '../context/ProposalModalContext'
 import { useSidebar } from '../context/SidebarContext'
+import { useProposalGeneration } from '../hooks/useProposalGeneration'
+import { GenerationHeader } from '../components/GenerationHeader'
+import { GenerationControls } from '../components/GenerationControls'
+import type { GenerateSectionPayload } from '../types/generation'
 
 const docsByProposal = allDocuments as Record<string, MockDoc[]>
 
@@ -118,6 +122,7 @@ function ExportDropdown() {
 export default function ProposalDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const DRAFT_KEY = `draft-generated-${id}`
   const OVERRIDES_KEY = `draft-overrides-${id}`
   const [generating, setGenerating] = useState(false)
@@ -138,6 +143,10 @@ export default function ProposalDetail() {
   const { openModal, showToast } = useProposalModal()
   const { setSidebarNode } = useSidebar()
   const proposal = proposals.find(p => p.id === id)
+
+  const { state: genState, dispatch: genDispatch, generateAll, regenerateSection } = useProposalGeneration(id ?? '')
+
+  const isStreamingMode = genState.isGenerating || genState.completedCount > 0
   const existingDocs: MockDoc[] = id ? (docsByProposal[id] ?? []) : []
 
   const rfpDoc = existingDocs.find(d => d.type === 'rfp')?.name ?? 'RFP Document'
@@ -178,14 +187,40 @@ export default function ProposalDetail() {
     )
   }
 
-  function handleGenerate() {
-    setGenerating(true)
-    setTimeout(() => {
-      setGenerating(false)
-      setGenerated(true)
-      sessionStorage.setItem(DRAFT_KEY, '1')
-    }, 2200)
+  function buildProposalInput(): GenerateSectionPayload['proposalInput'] {
+    return {
+      studyInfo: {
+        sponsorName: (proposal as any)?.sponsor_name ?? proposal?.client ?? '',
+        therapeuticArea: proposal?.therapeuticArea ?? '',
+        indication: (proposal as any)?.indication ?? '',
+        studyPhase: proposal?.studyType ?? '',
+        countries: (proposal as any)?.countries ?? [],
+        dueDate: proposal?.dueDate ?? '',
+        services: (proposal as any)?.services ?? [],
+      },
+      assumptions: [],
+      services: (proposal as any)?.services ?? [],
+    }
   }
+
+  function handleGenerate() {
+    const input = buildProposalInput()
+    generateAll(input)
+  }
+
+  function handleRegenerate(sectionKey: string) {
+    const input = buildProposalInput()
+    regenerateSection(sectionKey, input)
+  }
+
+  // Auto-trigger generation when navigated from wizard with ?generate=true
+  useEffect(() => {
+    if (searchParams.get('generate') === 'true' && proposal && !genState.isGenerating && genState.completedCount === 0) {
+      handleGenerate()
+      window.history.replaceState({}, '', window.location.pathname)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [proposal, searchParams])
 
   const handleSuggestionAccepted = useCallback((commandKey: string) => {
     const command = COMMAND_MAP[commandKey]
@@ -342,7 +377,7 @@ export default function ProposalDetail() {
                 <h2 className="font-semibold text-gray-900">AI-Generated Proposal Draft</h2>
                 <p className="text-xs text-gray-500 mt-0.5">Based on RFP context and your template</p>
               </div>
-              {!generated && (
+              {!isStreamingMode && !generated && (
                 <button
                   onClick={handleGenerate}
                   disabled={generating}
@@ -366,7 +401,7 @@ export default function ProposalDetail() {
                   )}
                 </button>
               )}
-              {generated && (
+              {generated && !isStreamingMode && (
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-green-600 font-medium flex items-center gap-1">
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -379,7 +414,38 @@ export default function ProposalDetail() {
               )}
             </div>
 
-            {!generated && !generating && (
+            {/* Streaming mode: GenerationHeader + GenerationControls + streaming renderer */}
+            {isStreamingMode && (
+              <>
+                <GenerationHeader
+                  isGenerating={genState.isGenerating}
+                  currentWave={genState.currentWave}
+                  completedCount={genState.completedCount}
+                  totalCount={genState.totalCount}
+                />
+                <GenerationControls
+                  tone={genState.tone}
+                  onToneChange={(tone) => genDispatch({ type: 'SET_TONE', tone })}
+                  isGenerating={genState.isGenerating}
+                  onGenerate={handleGenerate}
+                  hasCompleted={genState.completedCount === genState.totalCount && !genState.isGenerating}
+                />
+                <ProposalDraftRenderer
+                  mode="streaming"
+                  sections={draftSections}
+                  generationState={genState}
+                  onRegenerate={handleRegenerate}
+                  onRetry={handleRegenerate}
+                  hideNav={genState.isGenerating}
+                  pendingSuggestion={pendingSuggestion}
+                  onSuggestionAccepted={handleSuggestionAccepted}
+                  onSuggestionDeclined={handleSuggestionDeclined}
+                  scrollMarginClass="scroll-mt-4"
+                />
+              </>
+            )}
+
+            {!isStreamingMode && !generated && !generating && (
               <div className="border-2 border-dashed border-gray-200 rounded-lg p-12 text-center">
                 <svg className="w-10 h-10 text-gray-300 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
@@ -388,7 +454,7 @@ export default function ProposalDetail() {
               </div>
             )}
 
-            {generating && (
+            {!isStreamingMode && generating && (
               <div className="border border-gray-100 rounded-lg p-8 text-center">
                 <svg className="w-8 h-8 text-jamo-400 mx-auto mb-3 animate-spin" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -398,7 +464,7 @@ export default function ProposalDetail() {
               </div>
             )}
 
-            {generated && (
+            {!isStreamingMode && generated && (
               <div className="border border-gray-100 rounded-lg p-6 bg-white">
                 <ProposalDraftRenderer
                   sections={draftSections}

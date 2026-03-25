@@ -214,7 +214,7 @@ export function ProposalCreationWizard() {
       }
       sessionStorage.removeItem(SESSION_KEY)
       closeModal()
-      navigate(`/proposals/${id}`)
+      navigate(`/proposals/${id}?generate=true`)
     } catch (err) {
       console.error('Failed to create proposal:', err)
       dispatch({ type: 'SET_SUBMITTING', value: false })
