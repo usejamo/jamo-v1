@@ -1,0 +1,48 @@
+{
+  "version": "1.0",
+  "timestamp": "2026-03-25T17:58:51.839Z",
+  "phase": "07",
+  "phase_name": "proposal-generation-engine",
+  "phase_dir": ".planning/phases/07-proposal-generation-engine",
+  "plan": 4,
+  "task": 2,
+  "total_tasks": 2,
+  "status": "paused",
+  "completed_tasks": [
+    {"id": "07-00", "name": "Type contracts + test stubs", "status": "done", "commit": "e990775"},
+    {"id": "07-01", "name": "generate-proposal-section Edge Function", "status": "done", "commit": "84b839d"},
+    {"id": "07-02", "name": "useProposalGeneration hook", "status": "done", "commit": "f896a15"},
+    {"id": "07-03", "name": "Streaming UI components", "status": "done", "commit": "8427c85"},
+    {"id": "07-04-t1", "name": "Extend ProposalDraftRenderer + wire ProposalDetail", "status": "done", "commit": "4b417e4"},
+    {"id": "bugfix", "name": "Fix infinite assumption re-extraction loop", "status": "done", "commit": "3c168ec"}
+  ],
+  "remaining_tasks": [
+    {"id": "07-04-t2", "name": "Human verify E2E generation flow", "status": "blocked"}
+  ],
+  "blockers": [
+    {
+      "description": "extract-assumptions returns 0 assumptions for Vericel RFP document",
+      "type": "technical",
+      "workaround": "Add console.log to extract-assumptions, redeploy, check logs to see Claude response"
+    }
+  ],
+  "human_actions_pending": [
+    {
+      "action": "Add debug log to supabase/functions/extract-assumptions/index.ts line ~165, deploy, check logs",
+      "context": "Need to see Claude raw response to know if it returns empty JSON or unparseable format",
+      "blocking": true
+    },
+    {
+      "action": "Deploy generate-proposal-section: SUPABASE_ACCESS_TOKEN=sbp_c8b850f4456bd20a89e23d07ead1d3136a7fb1e3 npx supabase functions deploy generate-proposal-section --no-verify-jwt",
+      "context": "Required for Phase 7 E2E generation verify",
+      "blocking": true
+    }
+  ],
+  "decisions": [
+    {"decision": "Use state.extractionStatus === 'idle' instead of extractionFiredRef", "rationale": "Ref resets on component unmount; state persists across navigation", "phase": "06"},
+    {"decision": "07-02 agent covered 07-00 type contracts as prerequisite", "rationale": "07-00 agent exited early; 07-02 agent noticed missing types and created them", "phase": "07"}
+  ],
+  "uncommitted_files": [],
+  "next_action": "Add debug log to extract-assumptions, deploy, check Supabase logs for Claude response, fix accordingly",
+  "context_notes": "All Phase 7 code is built and wired. Only blocker is pre-existing Phase 6 assumption extraction bug. Once assumptions work, E2E verify should be straightforward."
+}
