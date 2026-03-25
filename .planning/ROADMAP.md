@@ -195,13 +195,13 @@ Plans:
 
 **Requirements covered:** REQ-4.1 through REQ-4.10
 
-**Plans:** 1/5 plans executed
+**Plans:** 4/5 plans executed
 
 Plans:
 - [x] 07-00-PLAN.md — Wave 0: type contracts + Nyquist test stubs
 - [x] 07-01-PLAN.md — generate-proposal-section Edge Function (SSE proxy + anchor mode)
 - [x] 07-02-PLAN.md — useProposalGeneration client orchestrator (three-wave sequencing)
-- [ ] 07-03-PLAN.md — Streaming UI components (SectionStreamCard, GenerationHeader, GenerationControls)
+- [x] 07-03-PLAN.md — Streaming UI components (SectionStreamCard, GenerationHeader, GenerationControls)
 - [ ] 07-04-PLAN.md — Wire into ProposalDetail + ProposalDraftRenderer + human verify
 
 ---
