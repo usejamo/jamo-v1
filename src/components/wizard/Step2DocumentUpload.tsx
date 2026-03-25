@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import type { WizardState, WizardAction, WizardAssumption } from '../../types/wizard'
 import { supabase } from '../../lib/supabase'
 import { FileUpload } from '../FileUpload'
@@ -17,7 +17,6 @@ interface DocumentRow {
 export function Step2DocumentUpload({ state, dispatch }: Step2DocumentUploadProps) {
   const [documents, setDocuments] = useState<DocumentRow[]>([])
   const [refreshKey, setRefreshKey] = useState(0)
-  const extractionFiredRef = useRef(false)
 
   // Poll proposal_documents to detect when all docs reach parse_status=complete
   useEffect(() => {
@@ -54,8 +53,7 @@ export function Step2DocumentUpload({ state, dispatch }: Step2DocumentUploadProp
     const allComplete =
       documents.length > 0 && documents.every((d) => d.parse_status === 'complete')
 
-    if (allComplete && !hasAssumptions && !extractionFiredRef.current) {
-      extractionFiredRef.current = true
+    if (allComplete && state.extractionStatus === 'idle') {
       dispatch({ type: 'SET_EXTRACTION_STATUS', status: 'extracting' })
       supabase.functions
         .invoke('extract-assumptions', {
