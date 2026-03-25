@@ -198,9 +198,9 @@ Plans:
 **Plans:** 1/5 plans executed
 
 Plans:
-- [ ] 07-00-PLAN.md — Wave 0: type contracts + Nyquist test stubs
+- [x] 07-00-PLAN.md — Wave 0: type contracts + Nyquist test stubs
 - [x] 07-01-PLAN.md — generate-proposal-section Edge Function (SSE proxy + anchor mode)
-- [ ] 07-02-PLAN.md — useProposalGeneration client orchestrator (three-wave sequencing)
+- [x] 07-02-PLAN.md — useProposalGeneration client orchestrator (three-wave sequencing)
 - [ ] 07-03-PLAN.md — Streaming UI components (SectionStreamCard, GenerationHeader, GenerationControls)
 - [ ] 07-04-PLAN.md — Wire into ProposalDetail + ProposalDraftRenderer + human verify
 

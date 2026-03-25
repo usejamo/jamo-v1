@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 07-01-PLAN.md
+stopped_at: Completed 07-02-PLAN.md — useProposalGeneration hook
 last_updated: "2026-03-25T06:47:44.288Z"
 progress:
   total_phases: 13
@@ -21,23 +21,26 @@ progress:
 | ROADMAP.md | Complete (13 phases) |
 | Codebase map | Complete (.planning/codebase/) |
 | Research | Complete (.planning/research/) |
-| Phase execution | Phase 01 COMPLETE, Phase 02 COMPLETE, Phase 03 COMPLETE, Phase 04 COMPLETE, Phase 05 COMPLETE, Phase 06 in progress (4/5 — awaiting human verify) |
+| Phase execution | Phase 01 COMPLETE, Phase 02 COMPLETE, Phase 03 COMPLETE, Phase 04 COMPLETE, Phase 05 COMPLETE, Phase 06 in progress (4/5 — awaiting human verify), Phase 07 in progress (1/5 plans complete) |
 
 ---
 
 ## Next Action
 
-Phase 06 in progress (4/5 plans complete). Plan 06-04 complete — awaiting human verify checkpoint. Next: Plan 06-05 after human approves end-to-end flow.
+Phase 07 in progress. Plan 07-02 complete (useProposalGeneration hook). Next: Plan 07-03 (SectionStreamCard component).
 
 ## Last Session
 
-**Stopped at:** Completed 07-01-PLAN.md
-**Session date:** 2026-03-23
+**Stopped at:** Completed 07-02-PLAN.md — useProposalGeneration hook
+**Session date:** 2026-03-25
 
 ---
 
 ## Active Decisions
 
+- **SSE streaming pattern:** Raw `fetch()` for generate-proposal-section (not supabase.functions.invoke which buffers) — VITE_SUPABASE_URL + VITE_SUPABASE_PUBLISHABLE_KEY in headers
+- **Realtime fallback:** 10s setTimeout dispatches SECTION_COMPLETE from local SSE text if Realtime hasn't confirmed
+- **RAG non-blocking:** fetchRagChunks returns [] on error — RAG enhances but does not block generation
 - **Env file location:** `.env` (not `.env.local`) — project already used .env; both are gitignored, Vite reads both
 - **Supabase project ref:** `fuuvdcvbliijffogjnwg` (live project, region: auto)
 - **Key name:** `VITE_SUPABASE_PUBLISHABLE_KEY` (new Supabase post-Nov 2025 naming, not VITE_SUPABASE_ANON_KEY)

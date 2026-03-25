@@ -1,5 +1,3 @@
-// Generation type contracts — Phase 7 Proposal Generation Engine
-
 export type SectionStatus = 'queued' | 'generating' | 'waiting' | 'complete' | 'error'
 export type ToneOption = 'formal' | 'regulatory' | 'persuasive'
 export type WaveNumber = 1 | 2 | 3
