@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import type { WizardState, WizardAction, WizardAssumption } from '../../types/wizard'
 import { supabase } from '../../lib/supabase'
+import { useAuth } from '../../context/AuthContext'
 import { FileUpload } from '../FileUpload'
 import { DocumentList } from '../DocumentList'
 
@@ -15,6 +16,7 @@ interface DocumentRow {
 }
 
 export function Step2DocumentUpload({ state, dispatch }: Step2DocumentUploadProps) {
+  const { profile } = useAuth()
   const [documents, setDocuments] = useState<DocumentRow[]>([])
   const [refreshKey, setRefreshKey] = useState(0)
 
@@ -92,6 +94,7 @@ export function Step2DocumentUpload({ state, dispatch }: Step2DocumentUploadProp
           if (mapped.length > 0 && state.proposalId) {
             const rows = (data.assumptions as Array<{ category: string; value: string; confidence: number; source?: string }>).map((a) => ({
               proposal_id: state.proposalId,
+              org_id: profile?.org_id,
               category: a.category,
               content: a.value,
               confidence: a.confidence >= 0.8 ? 'high' : a.confidence >= 0.5 ? 'medium' : 'low',

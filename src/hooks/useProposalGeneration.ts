@@ -244,6 +244,24 @@ export function useProposalGeneration(proposalId: string) {
   const [state, dispatch] = useReducer(generationReducer, initialState)
   const { session, profile } = useAuth()
 
+  // Hydrate completed sections from DB on mount (so navigating back restores progress)
+  useEffect(() => {
+    if (!proposalId) return
+    supabase
+      .from('proposal_sections')
+      .select('section_key, content, status')
+      .eq('proposal_id', proposalId)
+      .eq('status', 'complete')
+      .then(({ data }) => {
+        if (!data || data.length === 0) return
+        for (const row of data) {
+          if (row.section_key && row.content) {
+            dispatch({ type: 'SECTION_COMPLETE', sectionKey: row.section_key, content: row.content })
+          }
+        }
+      })
+  }, [proposalId])
+
   // Supabase Realtime subscription for proposal_sections changes (REQ-4.6)
   useEffect(() => {
     if (!proposalId) return
@@ -289,6 +307,7 @@ export function useProposalGeneration(proposalId: string) {
         await supabase.from('proposal_sections').upsert(
           {
             proposal_id: proposalId,
+            org_id: profile?.org_id,
             section_key: sectionKey,
             section_name: SECTION_NAMES[sectionKey],
             status: 'generating',

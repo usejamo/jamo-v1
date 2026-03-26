@@ -268,7 +268,7 @@ serve(async (req) => {
     const { data: profile } = await supabase
       .from('user_profiles')
       .select('org_id')
-      .eq('id', user!.id)
+      .eq('user_id', user!.id)
       .single()
 
     const orgId: string = profile!.org_id
@@ -301,6 +301,7 @@ serve(async (req) => {
 
     if (!anthropicResp.ok || !anthropicResp.body) {
       const errBody = await anthropicResp.text()
+      console.error(`[generate-proposal-section] Anthropic ${anthropicResp.status} for section=${sectionId}:`, errBody)
       return new Response(
         JSON.stringify({
           error: `Anthropic error ${anthropicResp.status}`,

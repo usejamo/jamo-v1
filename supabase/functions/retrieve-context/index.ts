@@ -183,21 +183,9 @@ serve(async (req) => {
     })
     const queryVector = embeddingResponse.data[0].embedding
 
-    // 4. Fetch org config (agencies + therapeutic_areas) — resolve at query time
-    const { data: orgConfig, error: orgError } = await supabase
-      .from('organizations')
-      .select('agencies, therapeutic_areas')
-      .eq('id', orgId)
-      .single()
-
-    if (orgError || !orgConfig) {
-      throw new Error(`Failed to fetch org config for orgId=${orgId}: ${orgError?.message}`)
-    }
-
-    const agencies: string[] = orgConfig.agencies ?? []
-    const therapeuticAreas: string[] = therapeuticArea
-      ? [therapeuticArea]
-      : (orgConfig.therapeutic_areas ?? [])
+    // 4. Resolve filters — agencies column doesn't exist on organizations, pass null to skip filter
+    const agencies: string[] | null = null
+    const therapeuticAreas: string[] = therapeuticArea ? [therapeuticArea] : []
 
     // 5. Vector search — regulatory chunks
     const { data: regVectorRows, error: regVecErr } = await supabase.rpc('match_chunks_vector', {
