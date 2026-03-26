@@ -391,18 +391,18 @@ export function useProposalGeneration(proposalId: string) {
         dispatch({ type: 'SET_ANCHOR', anchor: anchor1 })
         dispatch({ type: 'WAVE_COMPLETE', wave: 1 })
 
-        // Wave 2: Body sections in parallel (REQ-4.2, D-02)
+        // Wave 2: Body sections serial (rate limit: 8k output tokens/min)
         const wave2Keys = getWaveSections(2)
-        const wave2Results = await Promise.all(
-          wave2Keys.map(async (key) => {
-            const ragChunks = await fetchRagChunks(
-              proposalId,
-              key,
-              proposalInput.studyInfo.therapeuticArea
-            )
-            return streamSection(key, enrichedInput, ragChunks, anchor1)
-          })
-        )
+        const wave2Results: string[] = []
+        for (const key of wave2Keys) {
+          const ragChunks = await fetchRagChunks(
+            profile?.org_id ?? '',
+            key,
+            proposalInput.studyInfo.therapeuticArea
+          )
+          const result = await streamSection(key, enrichedInput, ragChunks, anchor1)
+          wave2Results.push(result)
+        }
         dispatch({ type: 'WAVE_COMPLETE', wave: 2 })
 
         // Extract full anchor after Wave 2 (REQ-4.3)
