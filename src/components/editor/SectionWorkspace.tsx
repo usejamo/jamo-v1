@@ -2,6 +2,7 @@ import { useRef, useEffect, useCallback } from 'react'
 import { SectionEditorBlock } from './SectionEditorBlock'
 import { SectionNavPanel } from './SectionNavPanel'
 import { VersionHistoryOverlay } from './VersionHistoryOverlay'
+import { ConsistencyCheckBanner } from './ConsistencyCheckBanner'
 import { SectionWorkspaceProvider, useSectionWorkspace } from '../../context/SectionWorkspaceContext'
 import { SECTION_NAMES, SECTION_WAVE_MAP } from '../../types/generation'
 import type { SectionEditorHandle, SectionEditorState } from '../../types/workspace'
@@ -23,6 +24,7 @@ function SectionWorkspaceInner({ proposalId, sections, orgId }: SectionWorkspace
   const { state, dispatch } = useSectionWorkspace()
   const editorRefs = useRef<Map<string, SectionEditorHandle>>(new Map())
   const sectionKeys = Object.keys(SECTION_WAVE_MAP)
+  const consistencyChecked = useRef(false)
 
   // Populate workspace state from sections prop on mount
   useEffect(() => {
@@ -84,6 +86,36 @@ function SectionWorkspaceInner({ proposalId, sections, orgId }: SectionWorkspace
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sectionKeys.join(',')])
 
+  // Auto-trigger consistency check after all sections reach 'complete' status (D-12)
+  useEffect(() => {
+    const sectionValues = Object.values(state.sections)
+    if (sectionValues.length === 0) return
+    const allComplete = sectionValues.every((s) => s.status === 'complete')
+    if (allComplete && !consistencyChecked.current) {
+      consistencyChecked.current = true
+      const sectionInputs = Object.entries(state.sections).map(([key, s]) => ({
+        section_key: key,
+        content: s.content,
+      }))
+      supabase.functions
+        .invoke('consistency-check', { body: { sections: sectionInputs } })
+        .then(({ data }) => {
+          if (data?.flags?.length) {
+            dispatch({
+              type: 'SET_CONSISTENCY_FLAGS',
+              payload: data.flags.map((f: { message: string; sections_involved: string[] }) => ({
+                ...f,
+                id: crypto.randomUUID(),
+              })),
+            })
+          }
+        })
+        .catch(() => {
+          // Non-blocking — consistency check failure does not surface to user
+        })
+    }
+  }, [state.sections, dispatch])
+
   const handleSelectSection = useCallback((key: string) => {
     dispatch({ type: 'SET_ACTIVE_SECTION', payload: key })
     document.getElementById(key)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -122,6 +154,13 @@ function SectionWorkspaceInner({ proposalId, sections, orgId }: SectionWorkspace
 
       {/* Center column — TipTap editors */}
       <div className="flex-1 overflow-y-auto px-8 py-6">
+        {/* Consistency check banner — appears after full generation, dismissible */}
+        {state.consistency_flags.length > 0 && !state.consistency_dismissed && (
+          <ConsistencyCheckBanner
+            flags={state.consistency_flags}
+            onDismiss={() => dispatch({ type: 'DISMISS_CONSISTENCY' })}
+          />
+        )}
         {sectionKeys.map((key) => {
           const editorState = state.sections[key]
           if (!editorState) return null
