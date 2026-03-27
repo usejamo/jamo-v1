@@ -1,19 +1,50 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
+import { render, screen } from '@testing-library/react'
+import { SectionActionToolbar } from '../SectionActionToolbar'
+
+const defaultProps = {
+  sectionKey: 'executive_summary',
+  sectionTitle: 'Executive Summary',
+  hasContent: false,
+  isLocked: false,
+  isStreaming: false,
+  onAction: vi.fn(),
+  onToggleLock: vi.fn(),
+  onOpenHistory: vi.fn(),
+}
 
 describe('SectionActionToolbar', () => {
-  it.skip('renders Generate button when section has no content', () => {
-    expect(true).toBe(false)
+  it('renders Generate button when section has no content', () => {
+    render(<SectionActionToolbar {...defaultProps} hasContent={false} />)
+    expect(screen.getByText('Generate Section')).toBeTruthy()
   })
-  it.skip('renders Regenerate/Expand/Condense/Rewrite when section has content', () => {
-    expect(true).toBe(false)
+
+  it('renders Regenerate/Expand/Condense/Rewrite when section has content', () => {
+    render(<SectionActionToolbar {...defaultProps} hasContent={true} />)
+    expect(screen.getByText('Regenerate')).toBeTruthy()
+    expect(screen.getByText('Expand')).toBeTruthy()
+    expect(screen.getByText('Condense')).toBeTruthy()
+    expect(screen.getByText('Rewrite')).toBeTruthy()
   })
-  it.skip('disables all action buttons when section is locked', () => {
-    expect(true).toBe(false)
+
+  it('disables all action buttons when section is locked', () => {
+    render(<SectionActionToolbar {...defaultProps} hasContent={true} isLocked={true} />)
+    const regenerateBtn = screen.getByText('Regenerate').closest('button')
+    expect(regenerateBtn).not.toBeNull()
+    expect(regenerateBtn!.disabled).toBe(true)
   })
-  it.skip('lock toggle remains active even when section is locked', () => {
-    expect(true).toBe(false)
+
+  it('lock toggle remains active even when section is locked', () => {
+    render(<SectionActionToolbar {...defaultProps} isLocked={true} />)
+    const lockBtn = screen.getByTitle('Unlock')
+    expect(lockBtn).not.toBeNull()
+    expect(lockBtn.disabled).toBeFalsy()
   })
-  it.skip('shows History icon button that opens version history overlay', () => {
-    expect(true).toBe(false)
+
+  it('shows History icon button with title attribute', () => {
+    render(<SectionActionToolbar {...defaultProps} hasContent={true} />)
+    const historyBtn = screen.getByTitle('History')
+    expect(historyBtn).not.toBeNull()
+    expect(historyBtn.disabled).toBeFalsy()
   })
 })
