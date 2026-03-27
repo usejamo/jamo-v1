@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 08-00-PLAN.md
-last_updated: "2026-03-27T02:18:34.511Z"
+stopped_at: Completed 08-01-PLAN.md
+last_updated: "2026-03-26T20:20:00.000Z"
 progress:
   total_phases: 13
   completed_phases: 6
   total_plans: 43
-  completed_plans: 37
+  completed_plans: 38
 ---
 
 ## Project Status
@@ -80,6 +80,11 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 - **Login page layout:** Full-screen centered card (not floating modal) — provides clear focus on authentication flow
 - **ProtectedRoute pattern:** Uses React Router v7 Outlet pattern � clean separation of auth logic from route definitions
 - **Layout placement:** Nested inside ProtectedRoute � ensures Sidebar only renders for authenticated users
+
+- **TipTap immediatelyRender: false:** Required for React 19 hydration safety — prevents SSR/CSR mismatch on editor mount
+- **editorRefs as useRef<Map>:** Stores SectionEditorHandle per section for Phase 9 injection without triggering re-renders
+- **Autosave cancel on unmount:** useAutosave.cancel() called in useEffect cleanup to prevent stale Supabase writes
+- **SectionWorkspace wraps inner component:** SectionWorkspaceProvider co-located with layout — inner component consumes context
 
 ## Critical Risks to Watch
 
@@ -154,3 +159,7 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 - **Plan 02** (2026-03-07): DocumentList component — Displays uploaded documents with color-coded status badges (gray/blue/green/red for pending/extracting/complete/error). Polls every 2s when documents extracting. Delete removes from Storage + database. TDD with chainable mock query builder. 5 tests passing.
 - **Plan 04** (2026-03-07): extract-document Edge Function — Deno edge function using pdf-parse, mammoth, xlsx for text extraction from PDF/DOCX/XLSX/TXT. Inserts into document_extracts, updates parse_status. Deployed with --no-verify-jwt.
 - **Plan 05** (2026-03-19): End-to-end pipeline wiring — FileUpload triggers extract-document fire-and-forget after upload. DocumentList polls on pending+extracting status. ProposalDetail wired with real components. UAT fixes: uploaded_by FK, RLS subquery policy. Full pipeline verified end-to-end.
+
+### Phase 08: Section Workspace & Rich Text Editor
+
+- **Plan 01** (2026-03-26): Core editing workspace — SectionWorkspaceContext (useReducer, 16 action types), useAutosave (1500ms debounce to last_saved_content), SectionEditorBlock (TipTap per-section editor, immediatelyRender:false, lock/unlock, autosave, SectionEditorHandle ref), SectionWorkspace (three-panel layout: nav + editors + Phase 9 slot, IntersectionObserver active tracking, editorRefs Map). REQ-5.1, REQ-5.2, REQ-5.4 complete.
