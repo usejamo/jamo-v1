@@ -222,10 +222,10 @@ Plans:
 
 **Requirements covered:** REQ-5.1 through REQ-5.8
 
-**Plans:** 6 plans
+**Plans:** 1/6 plans executed
 
 Plans:
-- [ ] 08-00-PLAN.md — Wave 0: TipTap install, migrations, type contracts, test stubs
+- [x] 08-00-PLAN.md — Wave 0: TipTap install, migrations, type contracts, test stubs
 - [ ] 08-01-PLAN.md — SectionWorkspace + SectionEditorBlock + autosave + lock/unlock
 - [ ] 08-02-PLAN.md — SectionActionToolbar + AI action previews (Expand/Condense/Rewrite)
 - [ ] 08-03-PLAN.md — Version history overlay + section nav with status dots
