@@ -4,16 +4,20 @@ import StarterKit from '@tiptap/starter-kit'
 import type { SectionEditorHandle, SectionEditorState } from '../../types/workspace'
 import { useAutosave } from '../../hooks/useAutosave'
 import { useSectionWorkspace } from '../../context/SectionWorkspaceContext'
+import { supabase } from '../../lib/supabase'
+import { AIActionPreview } from './AIActionPreview'
+import { RewriteDiffView } from './RewriteDiffView'
 
 interface SectionEditorBlockProps {
   sectionKey: string
   sectionTitle: string
   proposalId: string
+  orgId?: string
   editorState: SectionEditorState
 }
 
 export const SectionEditorBlock = forwardRef<SectionEditorHandle, SectionEditorBlockProps>(
-  function SectionEditorBlock({ sectionKey, sectionTitle, proposalId, editorState }, ref) {
+  function SectionEditorBlock({ sectionKey, sectionTitle, proposalId, orgId = '', editorState }, ref) {
     const { dispatch } = useSectionWorkspace()
 
     const onStatusChange = useCallback(
@@ -48,6 +52,27 @@ export const SectionEditorBlock = forwardRef<SectionEditorHandle, SectionEditorB
     useEffect(() => {
       return () => cancel()
     }, [cancel])
+
+    // Accept AI action: inject content via setContent (D-05), write post-accept version
+    const handleAcceptAIAction = useCallback(async () => {
+      const aiAction = editorState.ai_action
+      if (!aiAction) return
+      dispatch({ type: 'ACCEPT_AI_ACTION', payload: { section_key: sectionKey } })
+      editor?.commands.setContent(aiAction.preview_content, true)
+      // Write post-accept version
+      const actionLabel = `After ${aiAction.type.charAt(0).toUpperCase() + aiAction.type.slice(1)}`
+      await supabase.from('proposal_section_versions').insert({
+        proposal_id: proposalId,
+        org_id: orgId,
+        section_key: sectionKey,
+        content: aiAction.preview_content,
+        action_label: actionLabel,
+      })
+    }, [editorState.ai_action, dispatch, sectionKey, editor, proposalId, orgId])
+
+    const handleDeclineAIAction = useCallback(() => {
+      dispatch({ type: 'REJECT_AI_ACTION', payload: { section_key: sectionKey } })
+    }, [dispatch, sectionKey])
 
     useImperativeHandle(ref, () => ({
       insertContentAt: (pos: number, content: string) => {
@@ -121,8 +146,28 @@ export const SectionEditorBlock = forwardRef<SectionEditorHandle, SectionEditorB
         {/* Compliance flags placeholder — rendered in Plan 04 */}
         <div data-slot="compliance-flags" />
 
-        {/* AI action preview placeholder — rendered in Plan 02 */}
-        <div data-slot="ai-action-preview" />
+        {/* AI action preview — rendered based on ai_action state */}
+        {editorState.ai_action && (
+          <div className="px-4 pb-4">
+            {editorState.ai_action.type === 'rewrite' ? (
+              <RewriteDiffView
+                beforeContent={editorState.ai_action.snapshot_before}
+                afterContent={editorState.ai_action.preview_content}
+                isStreaming={editorState.ai_action.streaming}
+                onApply={handleAcceptAIAction}
+                onDiscard={handleDeclineAIAction}
+              />
+            ) : (
+              <AIActionPreview
+                previewContent={editorState.ai_action.preview_content}
+                isStreaming={editorState.ai_action.streaming}
+                actionType={editorState.ai_action.type as 'expand' | 'condense' | 'generate' | 'regenerate'}
+                onAccept={handleAcceptAIAction}
+                onDecline={handleDeclineAIAction}
+              />
+            )}
+          </div>
+        )}
       </div>
     )
   }
