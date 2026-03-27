@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 08-03-PLAN.md
-last_updated: "2026-03-27T02:23:14.364Z"
+stopped_at: Completed 08-02-PLAN.md (backfill)
+last_updated: "2026-03-27T02:27:07Z"
 progress:
   total_phases: 13
   completed_phases: 6
@@ -85,6 +85,11 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 - **editorRefs as useRef<Map>:** Stores SectionEditorHandle per section for Phase 9 injection without triggering re-renders
 - **Autosave cancel on unmount:** useAutosave.cancel() called in useEffect cleanup to prevent stale Supabase writes
 - **SectionWorkspace wraps inner component:** SectionWorkspaceProvider co-located with layout — inner component consumes context
+- **useSectionAIAction uses raw fetch SSE:** Same pattern as useProposalGeneration — no buffering via supabase.functions.invoke
+- **Pre-action snapshot before streaming:** D-02 — version written to proposal_section_versions before streaming starts
+- **Version pruning at 20:** Oldest entries deleted when count exceeds 20 per section
+- **Rewrite = higher friction UX:** Two-column diff + confirm-before-discard; other actions use inline preview
+- **Accept injects via setContent (D-05):** TipTap command API only, post-accept version entry written after injection
 
 ## Critical Risks to Watch
 
@@ -163,3 +168,4 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 ### Phase 08: Section Workspace & Rich Text Editor
 
 - **Plan 01** (2026-03-26): Core editing workspace — SectionWorkspaceContext (useReducer, 16 action types), useAutosave (1500ms debounce to last_saved_content), SectionEditorBlock (TipTap per-section editor, immediatelyRender:false, lock/unlock, autosave, SectionEditorHandle ref), SectionWorkspace (three-panel layout: nav + editors + Phase 9 slot, IntersectionObserver active tracking, editorRefs Map). REQ-5.1, REQ-5.2, REQ-5.4 complete.
+- **Plan 02** (2026-03-27): Per-section AI action toolbar & preview system — useSectionAIAction (SSE streaming, pre-action snapshot, version pruning), SectionActionToolbar (Generate/Regenerate/Expand/Condense/Rewrite, lock/history icons, 44px touch targets), AIActionPreview (inline Expand/Condense preview, Accept/Decline, dcfce7 flash), RewriteDiffView (two-column before/after diff, Apply Rewrite/Discard with confirm). SectionEditorBlock wired to render preview below editor; setContent injection (D-05). REQ-5.3 complete.
