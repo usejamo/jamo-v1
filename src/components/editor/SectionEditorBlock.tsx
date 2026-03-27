@@ -7,6 +7,8 @@ import { useSectionWorkspace } from '../../context/SectionWorkspaceContext'
 import { supabase } from '../../lib/supabase'
 import { AIActionPreview } from './AIActionPreview'
 import { RewriteDiffView } from './RewriteDiffView'
+import { ComplianceFlagList } from './ComplianceFlag'
+import { useComplianceCheck } from '../../hooks/useComplianceCheck'
 
 interface SectionEditorBlockProps {
   sectionKey: string
@@ -19,6 +21,7 @@ interface SectionEditorBlockProps {
 export const SectionEditorBlock = forwardRef<SectionEditorHandle, SectionEditorBlockProps>(
   function SectionEditorBlock({ sectionKey, sectionTitle, proposalId, orgId = '', editorState }, ref) {
     const { dispatch } = useSectionWorkspace()
+    const { checkCompliance } = useComplianceCheck(proposalId, orgId)
 
     const onStatusChange = useCallback(
       (status: 'idle' | 'saving' | 'saved') => {
@@ -68,7 +71,9 @@ export const SectionEditorBlock = forwardRef<SectionEditorHandle, SectionEditorB
         content: aiAction.preview_content,
         action_label: actionLabel,
       })
-    }, [editorState.ai_action, dispatch, sectionKey, editor, proposalId, orgId])
+      // Fire compliance check on accept (D-13)
+      checkCompliance(sectionKey, aiAction.preview_content)
+    }, [editorState.ai_action, dispatch, sectionKey, editor, proposalId, orgId, checkCompliance])
 
     const handleDeclineAIAction = useCallback(() => {
       dispatch({ type: 'REJECT_AI_ACTION', payload: { section_key: sectionKey } })
@@ -143,8 +148,11 @@ export const SectionEditorBlock = forwardRef<SectionEditorHandle, SectionEditorB
           </div>
         )}
 
-        {/* Compliance flags placeholder — rendered in Plan 04 */}
-        <div data-slot="compliance-flags" />
+        {/* Compliance flags */}
+        <ComplianceFlagList
+          flags={editorState.compliance_flags}
+          checking={editorState.compliance_checking}
+        />
 
         {/* AI action preview — rendered based on ai_action state */}
         {editorState.ai_action && (
