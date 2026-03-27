@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 08-02-PLAN.md (backfill)
+stopped_at: Completed 08-04-PLAN.md
 last_updated: "2026-03-27T02:27:07Z"
 progress:
   total_phases: 13
@@ -31,8 +31,8 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 
 ## Last Session
 
-**Stopped at:** Completed 08-03-PLAN.md
-**Session date:** 2026-03-25
+**Stopped at:** Completed 08-04-PLAN.md
+**Session date:** 2026-03-27
 
 ---
 
@@ -90,6 +90,9 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 - **Version pruning at 20:** Oldest entries deleted when count exceeds 20 per section
 - **Rewrite = higher friction UX:** Two-column diff + confirm-before-discard; other actions use inline preview
 - **Accept injects via setContent (D-05):** TipTap command API only, post-accept version entry written after injection
+- **Compliance fires on accept (D-13):** checkCompliance called after setContent in accept handler, not on stream complete
+- **Two-pass compliance (D-14):** Rule-based first (word count, placeholders, section keywords), Haiku only if rules pass
+- **Consistency check auto-triggers (D-12):** useEffect in SectionWorkspace detects all-complete, fires consistency-check invoke once via consistencyChecked ref
 
 ## Critical Risks to Watch
 
@@ -169,3 +172,4 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 
 - **Plan 01** (2026-03-26): Core editing workspace — SectionWorkspaceContext (useReducer, 16 action types), useAutosave (1500ms debounce to last_saved_content), SectionEditorBlock (TipTap per-section editor, immediatelyRender:false, lock/unlock, autosave, SectionEditorHandle ref), SectionWorkspace (three-panel layout: nav + editors + Phase 9 slot, IntersectionObserver active tracking, editorRefs Map). REQ-5.1, REQ-5.2, REQ-5.4 complete.
 - **Plan 02** (2026-03-27): Per-section AI action toolbar & preview system — useSectionAIAction (SSE streaming, pre-action snapshot, version pruning), SectionActionToolbar (Generate/Regenerate/Expand/Condense/Rewrite, lock/history icons, 44px touch targets), AIActionPreview (inline Expand/Condense preview, Accept/Decline, dcfce7 flash), RewriteDiffView (two-column before/after diff, Apply Rewrite/Discard with confirm). SectionEditorBlock wired to render preview below editor; setContent injection (D-05). REQ-5.3 complete.
+- **Plan 04** (2026-03-27): Compliance flags & consistency check — useComplianceCheck (two-pass: rule-based word count/placeholder/keyword then Haiku-on-accept), ComplianceFlag/ComplianceFlagList (amber/red chips), ConsistencyCheckBanner (framer-motion, dismissible), consistency-check Deno edge function (Haiku cross-section review). Fires on accept (D-13), Haiku only if rules pass (D-14), consistency auto-triggers after all-complete (D-12). REQ-5.7 and REQ-5.8 complete.
