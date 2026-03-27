@@ -230,7 +230,7 @@ Plans:
 - [x] 08-02-PLAN.md — SectionActionToolbar + AI action previews (Expand/Condense/Rewrite)
 - [x] 08-03-PLAN.md — Version history overlay + section nav with status dots
 - [x] 08-04-PLAN.md — Compliance flags + consistency check Edge Function + banner
-- [ ] 08-05-PLAN.md — Wire into ProposalDetail + activate tests + human verify
+- [~] 08-05-PLAN.md — Wire into ProposalDetail + activate tests + human verify (Task 1 done; awaiting human verify)
 
 ---
 

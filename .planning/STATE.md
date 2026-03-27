@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 08-04-PLAN.md
-last_updated: "2026-03-27T02:27:07Z"
+stopped_at: Checkpoint 08-05-PLAN.md Task 2 (human-verify)
+last_updated: "2026-03-27T10:45:00Z"
 progress:
   total_phases: 13
   completed_phases: 6
@@ -31,7 +31,7 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 
 ## Last Session
 
-**Stopped at:** Completed 08-04-PLAN.md
+**Stopped at:** Checkpoint 08-05-PLAN.md Task 2 (human-verify) — awaiting browser verification of SectionWorkspace
 **Session date:** 2026-03-27
 
 ---
@@ -173,3 +173,4 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 - **Plan 01** (2026-03-26): Core editing workspace — SectionWorkspaceContext (useReducer, 16 action types), useAutosave (1500ms debounce to last_saved_content), SectionEditorBlock (TipTap per-section editor, immediatelyRender:false, lock/unlock, autosave, SectionEditorHandle ref), SectionWorkspace (three-panel layout: nav + editors + Phase 9 slot, IntersectionObserver active tracking, editorRefs Map). REQ-5.1, REQ-5.2, REQ-5.4 complete.
 - **Plan 02** (2026-03-27): Per-section AI action toolbar & preview system — useSectionAIAction (SSE streaming, pre-action snapshot, version pruning), SectionActionToolbar (Generate/Regenerate/Expand/Condense/Rewrite, lock/history icons, 44px touch targets), AIActionPreview (inline Expand/Condense preview, Accept/Decline, dcfce7 flash), RewriteDiffView (two-column before/after diff, Apply Rewrite/Discard with confirm). SectionEditorBlock wired to render preview below editor; setContent injection (D-05). REQ-5.3 complete.
 - **Plan 04** (2026-03-27): Compliance flags & consistency check — useComplianceCheck (two-pass: rule-based word count/placeholder/keyword then Haiku-on-accept), ComplianceFlag/ComplianceFlagList (amber/red chips), ConsistencyCheckBanner (framer-motion, dismissible), consistency-check Deno edge function (Haiku cross-section review). Fires on accept (D-13), Haiku only if rules pass (D-14), consistency auto-triggers after all-complete (D-12). REQ-5.7 and REQ-5.8 complete.
+- **Plan 05** (2026-03-27): SectionWorkspace integration into ProposalDetail — replaces ProposalDraftRenderer for completed sections; ProposalDraftRenderer retained for streaming mode. Activated test stubs: SectionWorkspace.test.tsx (2 passing), SectionActionToolbar.test.tsx (5 passing). Total 18 editor tests passing. Awaiting human-verify checkpoint (Task 2).
