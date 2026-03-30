@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Checkpoint 08-05-PLAN.md Task 2 (human-verify) — awaiting browser verification of SectionWorkspace
-last_updated: "2026-03-30T20:14:36.503Z"
+stopped_at: Completed 09-00-PLAN.md
+last_updated: "2026-03-30T23:52:35.139Z"
 progress:
   total_phases: 13
   completed_phases: 8
-  total_plans: 43
-  completed_plans: 43
+  total_plans: 48
+  completed_plans: 44
 ---
 
 ## Project Status
@@ -31,7 +31,7 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 
 ## Last Session
 
-**Stopped at:** Checkpoint 08-05-PLAN.md Task 2 (human-verify) — awaiting browser verification of SectionWorkspace
+**Stopped at:** Completed 09-00-PLAN.md
 **Session date:** 2026-03-27
 
 ---
@@ -93,6 +93,10 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 - **Compliance fires on accept (D-13):** checkCompliance called after setContent in accept handler, not on stream complete
 - **Two-pass compliance (D-14):** Rule-based first (word count, placeholders, section keywords), Haiku only if rules pass
 - **Consistency check auto-triggers (D-12):** useEffect in SectionWorkspace detects all-complete, fires consistency-check invoke once via consistencyChecked ref
+
+- **detectGaps order:** checks placeholder first, then error status, then thin content — continues to next section after first match
+- **buildSlidingWindow granularity:** stops on first message that exceeds char budget (no partial/mid-message truncation)
+- **AIChatPanel stubs:** use it.skip (not dynamic imports) — Vite resolves all imports at transform time; component implemented in Plan 01
 
 ## Critical Risks to Watch
 
