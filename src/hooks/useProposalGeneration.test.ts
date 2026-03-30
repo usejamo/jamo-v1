@@ -249,17 +249,16 @@ describe('fetchRagChunks', () => {
     const { supabase } = await import('../lib/supabase')
     const invokeMock = vi.mocked(supabase.functions.invoke)
     invokeMock.mockResolvedValueOnce({
-      data: { chunks: [{ content: 'chunk1', doc_type: 'ICH', agency: 'FDA' }] },
+      data: { regulatoryChunks: [{ content: 'chunk1', doc_type: 'ICH', agency: 'FDA' }], proposalChunks: [] },
       error: null,
     })
 
     const result = await fetchRagChunks('proposal-1', 'understanding', 'Oncology')
     expect(invokeMock).toHaveBeenCalledWith('retrieve-context', {
       body: {
-        proposalId: 'proposal-1',
-        sectionKey: 'understanding',
+        orgId: 'proposal-1',
+        query: 'Understanding of the Study',
         therapeuticArea: 'Oncology',
-        topK: 5,
       },
     })
     expect(result).toHaveLength(1)
