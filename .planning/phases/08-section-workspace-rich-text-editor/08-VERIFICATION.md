@@ -1,7 +1,7 @@
 ---
 phase: 08-section-workspace-rich-text-editor
 verified: 2026-03-30T00:00:00Z
-status: human_needed
+status: passed
 score: 13/14 must-haves verified
 human_verification:
   - test: "Open a proposal with generated sections and verify the full TipTap workspace"
