@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback } from 'react'
+import React, { useRef, useEffect, useCallback } from 'react'
 import { SectionEditorBlock } from './SectionEditorBlock'
 import { SectionNavPanel } from './SectionNavPanel'
 import { VersionHistoryOverlay } from './VersionHistoryOverlay'
@@ -18,11 +18,14 @@ interface SectionWorkspaceProps {
     last_saved_content: string | null
   }>
   orgId: string
+  editorRefsRef?: React.MutableRefObject<Map<string, SectionEditorHandle>>
 }
 
-function SectionWorkspaceInner({ proposalId, sections, orgId }: SectionWorkspaceProps) {
+function SectionWorkspaceInner({ proposalId, sections, orgId, editorRefsRef }: SectionWorkspaceProps) {
   const { state, dispatch } = useSectionWorkspace()
-  const editorRefs = useRef<Map<string, SectionEditorHandle>>(new Map())
+  const localEditorRefs = useRef<Map<string, SectionEditorHandle>>(new Map())
+  const editorRefs = editorRefsRef ?? localEditorRefs
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
   const sectionKeys = Object.keys(SECTION_WAVE_MAP)
   const consistencyChecked = useRef(false)
 
@@ -65,26 +68,30 @@ function SectionWorkspaceInner({ proposalId, sections, orgId }: SectionWorkspace
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [proposalId])
 
-  // Intersection observer for active section tracking
+  // Scroll listener for active section tracking
   useEffect(() => {
-    const observers: IntersectionObserver[] = []
-    sectionKeys.forEach((key) => {
-      const el = document.getElementById(key)
-      if (!el) return
-      const observer = new IntersectionObserver(
-        ([entry]) => {
-          if (entry.isIntersecting) {
-            dispatch({ type: 'SET_ACTIVE_SECTION', payload: key })
-          }
-        },
-        { rootMargin: '-10% 0px -80% 0px', threshold: 0 }
-      )
-      observer.observe(el)
-      observers.push(observer)
-    })
-    return () => observers.forEach((o) => o.disconnect())
+    const container = scrollContainerRef.current
+    if (!container || Object.keys(state.sections).length === 0) return
+
+    const handleScroll = () => {
+      const containerTop = container.getBoundingClientRect().top
+      let activeKey = sectionKeys[0]
+      for (const key of sectionKeys) {
+        const el = document.getElementById(key)
+        if (!el) continue
+        const rect = el.getBoundingClientRect()
+        if (rect.top - containerTop <= 80) {
+          activeKey = key
+        }
+      }
+      dispatch({ type: 'SET_ACTIVE_SECTION', payload: activeKey })
+    }
+
+    container.addEventListener('scroll', handleScroll)
+    handleScroll()
+    return () => container.removeEventListener('scroll', handleScroll)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sectionKeys.join(',')])
+  }, [sectionKeys.join(','), Object.keys(state.sections).length])
 
   // Auto-trigger consistency check after all sections reach 'complete' status (D-12)
   useEffect(() => {
@@ -126,14 +133,16 @@ function SectionWorkspaceInner({ proposalId, sections, orgId }: SectionWorkspace
     const currentSection = state.sections[sectionKey]
     const currentContent = currentSection?.content ?? ''
 
-    // Snapshot current content as "Before Restore"
-    await supabase.from('proposal_section_versions').insert({
-      proposal_id: proposalId,
-      org_id: orgId,
-      section_key: sectionKey,
-      content: currentContent,
-      action_label: 'Before Restore',
-    })
+    // Snapshot current content as "Before Restore" (skip if orgId not yet available)
+    if (orgId) {
+      await supabase.from('proposal_section_versions').insert({
+        proposal_id: proposalId,
+        org_id: orgId,
+        section_key: sectionKey,
+        content: currentContent,
+        action_label: 'Before Restore',
+      })
+    }
 
     // Inject restored content via command API (undoable with Cmd+Z per D-11)
     editorRefs.current.get(sectionKey)?.setContent(restoredContent)
@@ -153,7 +162,8 @@ function SectionWorkspaceInner({ proposalId, sections, orgId }: SectionWorkspace
       />
 
       {/* Center column — TipTap editors */}
-      <div className="flex-1 overflow-y-auto px-8 py-6">
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-8 py-6">
+        <div className="max-w-4xl mx-auto">
         {/* Consistency check banner — appears after full generation, dismissible */}
         {state.consistency_flags.length > 0 && !state.consistency_dismissed && (
           <ConsistencyCheckBanner
@@ -177,14 +187,13 @@ function SectionWorkspaceInner({ proposalId, sections, orgId }: SectionWorkspace
               sectionKey={key}
               sectionTitle={SECTION_NAMES[key] ?? key}
               proposalId={proposalId}
+              orgId={orgId}
               editorState={editorState}
             />
           )
         })}
+        </div>
       </div>
-
-      {/* Right column — Phase 9 AI chat slot (empty for now) */}
-      <div className="w-80 shrink-0 border-l border-gray-200" data-slot="ai-chat-panel" />
 
       {/* Version history overlay */}
       {versionHistorySectionKey && (
@@ -201,10 +210,10 @@ function SectionWorkspaceInner({ proposalId, sections, orgId }: SectionWorkspace
   )
 }
 
-export default function SectionWorkspace({ proposalId, sections, orgId }: SectionWorkspaceProps) {
+export default function SectionWorkspace({ proposalId, sections, orgId, editorRefsRef }: SectionWorkspaceProps) {
   return (
     <SectionWorkspaceProvider>
-      <SectionWorkspaceInner proposalId={proposalId} sections={sections} orgId={orgId} />
+      <SectionWorkspaceInner proposalId={proposalId} sections={sections} orgId={orgId} editorRefsRef={editorRefsRef} />
     </SectionWorkspaceProvider>
   )
 }
