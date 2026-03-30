@@ -1,3 +1,4 @@
+import React from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import allDocuments from '../data/documents.json'
@@ -7,17 +8,20 @@ import { generateProposalDraft } from '../data/proposalDraftData'
 import { COMMAND_MAP } from '../data/demoCommands'
 import type { ContentBlock } from '../types/draft'
 import ProposalDraftRenderer from '../components/ProposalDraftRenderer'
-import ProposalContentsSidebar from '../components/ProposalContentsSidebar'
 import AIChatPanel from '../components/AIChatPanel'
 import { FileUpload } from '../components/FileUpload'
 import { DocumentList } from '../components/DocumentList'
 import { useProposals } from '../context/ProposalsContext'
 import { useProposalModal } from '../context/ProposalModalContext'
-import { useSidebar } from '../context/SidebarContext'
+import { useAuth } from '../context/AuthContext'
 import { useProposalGeneration } from '../hooks/useProposalGeneration'
 import { GenerationHeader } from '../components/GenerationHeader'
 import { GenerationControls } from '../components/GenerationControls'
 import type { GenerateSectionPayload } from '../types/generation'
+import type { SectionEditorHandle } from '../types/workspace'
+import SectionWorkspace from '../components/editor/SectionWorkspace'
+import { supabase } from '../lib/supabase'
+import { detectGaps } from '../utils/chatContext'
 
 const docsByProposal = allDocuments as Record<string, MockDoc[]>
 
@@ -141,12 +145,58 @@ export default function ProposalDetail() {
 
   const { proposals } = useProposals()
   const { openModal, showToast } = useProposalModal()
-  const { setSidebarNode } = useSidebar()
+  const { profile, user } = useAuth()
   const proposal = proposals.find(p => p.id === id)
+
+  // Fetch proposal_sections from Supabase for SectionWorkspace
+  const [proposalSections, setProposalSections] = useState<Array<{
+    section_key: string
+    content: string
+    is_locked: boolean
+    status: string
+    last_saved_content: string | null
+  }>>([])
+
+  useEffect(() => {
+    if (!id) return
+    supabase
+      .from('proposal_sections')
+      .select('section_key, content, is_locked, status, last_saved_content')
+      .eq('proposal_id', id)
+      .then(({ data }) => {
+        if (data && data.length > 0) {
+          setProposalSections(data as any)
+          setGenerated(true)
+        }
+      })
+  }, [id])
+
+  // Phase 9: editor refs for chat injection
+  const editorRefsMap = useRef<Map<string, SectionEditorHandle>>(new Map())
+  const [gapCount, setGapCount] = useState(0)
 
   const { state: genState, dispatch: genDispatch, generateAll, regenerateSection } = useProposalGeneration(id ?? '')
 
-  const isStreamingMode = genState.isGenerating || genState.completedCount > 0
+  // Gap analysis — fires when streaming generation completes (D-01, D-02)
+  useEffect(() => {
+    const isComplete =
+      genState &&
+      !genState.isGenerating &&
+      genState.completedCount > 0 &&
+      genState.completedCount === genState.totalCount
+
+    if (!isComplete || !proposalSections?.length) return
+
+    const sections = proposalSections.map(s => ({
+      section_key: s.section_key,
+      content: s.content ?? '',
+      status: s.status ?? '',
+    }))
+    const gaps = detectGaps(sections)
+    setGapCount(gaps.length)
+  }, [genState?.isGenerating, genState?.completedCount, genState?.totalCount])
+
+  const isStreamingMode = genState.isGenerating || genState.currentWave !== null
   const existingDocs: MockDoc[] = id ? (docsByProposal[id] ?? []) : []
 
   const rfpDoc = existingDocs.find(d => d.type === 'rfp')?.name ?? 'RFP Document'
@@ -158,16 +208,7 @@ export default function ProposalDetail() {
     [id]
   )
 
-  // Mount / unmount the proposal contents sidebar
-  useEffect(() => {
-    setSidebarNode(
-      <ProposalContentsSidebar sections={draftSections} generated={generated} />
-    )
-    return () => setSidebarNode(null)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [generated, draftSections])
-
-  // Condense header once user scrolls 100px into the content area
+// Condense header once user scrolls 100px into the content area
   useEffect(() => {
     const el = scrollRef.current
     if (!el) return
@@ -465,16 +506,18 @@ export default function ProposalDetail() {
             )}
 
             {!isStreamingMode && generated && (
-              <div className="border border-gray-100 rounded-lg p-6 bg-white">
-                <ProposalDraftRenderer
-                  sections={draftSections}
-                  acceptedOverrides={acceptedOverrides}
-                  flashSectionId={flashSectionId}
-                  pendingSuggestion={pendingSuggestion}
-                  onSuggestionAccepted={handleSuggestionAccepted}
-                  onSuggestionDeclined={handleSuggestionDeclined}
-                  hideNav
-                  scrollMarginClass="scroll-mt-4"
+              <div className="border border-gray-100 rounded-lg bg-white">
+                <SectionWorkspace
+                  proposalId={id ?? ''}
+                  sections={proposalSections.map(s => ({
+                    section_key: s.section_key,
+                    content: s.content ?? '',
+                    is_locked: s.is_locked ?? false,
+                    status: s.status ?? 'missing',
+                    last_saved_content: s.last_saved_content ?? null,
+                  }))}
+                  orgId={profile?.org_id ?? user?.user_metadata?.org_id ?? ''}
+                  editorRefsRef={editorRefsMap}
                 />
               </div>
             )}
@@ -488,12 +531,24 @@ export default function ProposalDetail() {
       {/* end left column */}
 
       {/* ── Right: AI chat panel (self-sizing) ── */}
-      <AIChatPanel
-        draftGenerated={generated}
-        onCommand={setPendingSuggestion}
-        onSuggestionResolved={handleResolutionConsumed}
-        lastResolution={lastResolution}
-      />
+      {(() => {
+        // Phase 9 wiring — AIChatPanel props extended in plan 03; cast to any to bridge until then
+        const AIChatPanelWired = AIChatPanel as React.ComponentType<any>
+        return (
+          <AIChatPanelWired
+            draftGenerated={generated}
+            onCommand={setPendingSuggestion}
+            onSuggestionResolved={handleResolutionConsumed}
+            lastResolution={lastResolution}
+            proposalId={id ?? ''}
+            orgId={profile?.org_id ?? user?.user_metadata?.org_id ?? ''}
+            sections={proposalSections ?? []}
+            editorRefs={editorRefsMap}
+            gapCount={gapCount}
+            onGapsConsumed={() => setGapCount(0)}
+          />
+        )
+      })()}
 
     </div>
   )
