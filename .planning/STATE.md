@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 09-02-PLAN.md
-last_updated: "2026-03-30T23:58:43.939Z"
+stopped_at: Completed 09-03-PLAN.md
+last_updated: "2026-03-30T18:10:00.000Z"
 progress:
   total_phases: 13
   completed_phases: 8
@@ -31,8 +31,8 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 
 ## Last Session
 
-**Stopped at:** Completed 09-02-PLAN.md
-**Session date:** 2026-03-27
+**Stopped at:** Completed 09-03-PLAN.md
+**Session date:** 2026-03-30
 
 ---
 
@@ -93,6 +93,10 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 - **Compliance fires on accept (D-13):** checkCompliance called after setContent in accept handler, not on stream complete
 - **Two-pass compliance (D-14):** Rule-based first (word count, placeholders, section keywords), Haiku only if rules pass
 - **Consistency check auto-triggers (D-12):** useEffect in SectionWorkspace detects all-complete, fires consistency-check invoke once via consistencyChecked ref
+
+- **activeSectionKey lift pattern:** SectionWorkspace exposes onActiveSectionChange callback — AIChatPanel is outside SectionWorkspaceProvider tree so cannot call useSectionWorkspace() directly
+- **StreamingContent merge on [DONE]:** accumulate in state during stream, merge into messages array on completion to avoid layout thrash during fast streaming
+- **handleAcceptEdit via insertContentAt(0):** injects edit proposal content into active section editor via editorRefs Map — D-07 undoable injection pattern
 
 - **detectGaps order:** checks placeholder first, then error status, then thin content — continues to next section after first match
 - **buildSlidingWindow granularity:** stops on first message that exceeds char budget (no partial/mid-message truncation)
