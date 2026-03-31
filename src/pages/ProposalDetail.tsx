@@ -1,4 +1,3 @@
-import React from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import allDocuments from '../data/documents.json'
@@ -174,6 +173,7 @@ export default function ProposalDetail() {
   // Phase 9: editor refs for chat injection
   const editorRefsMap = useRef<Map<string, SectionEditorHandle>>(new Map())
   const [gapCount, setGapCount] = useState(0)
+  const [activeSectionKey, setActiveSectionKey] = useState<string | null>(null)
 
   const { state: genState, dispatch: genDispatch, generateAll, regenerateSection } = useProposalGeneration(id ?? '')
 
@@ -518,6 +518,7 @@ export default function ProposalDetail() {
                   }))}
                   orgId={profile?.org_id ?? user?.user_metadata?.org_id ?? ''}
                   editorRefsRef={editorRefsMap}
+                  onActiveSectionChange={setActiveSectionKey}
                 />
               </div>
             )}
@@ -531,24 +532,16 @@ export default function ProposalDetail() {
       {/* end left column */}
 
       {/* ── Right: AI chat panel (self-sizing) ── */}
-      {(() => {
-        // Phase 9 wiring — AIChatPanel props extended in plan 03; cast to any to bridge until then
-        const AIChatPanelWired = AIChatPanel as React.ComponentType<any>
-        return (
-          <AIChatPanelWired
-            draftGenerated={generated}
-            onCommand={setPendingSuggestion}
-            onSuggestionResolved={handleResolutionConsumed}
-            lastResolution={lastResolution}
-            proposalId={id ?? ''}
-            orgId={profile?.org_id ?? user?.user_metadata?.org_id ?? ''}
-            sections={proposalSections ?? []}
-            editorRefs={editorRefsMap}
-            gapCount={gapCount}
-            onGapsConsumed={() => setGapCount(0)}
-          />
-        )
-      })()}
+      <AIChatPanel
+        draftGenerated={generated}
+        proposalId={id ?? ''}
+        orgId={profile?.org_id ?? user?.user_metadata?.org_id ?? ''}
+        sections={proposalSections ?? []}
+        editorRefs={editorRefsMap}
+        activeSectionKey={activeSectionKey}
+        gapCount={gapCount}
+        onGapsConsumed={() => setGapCount(0)}
+      />
 
     </div>
   )

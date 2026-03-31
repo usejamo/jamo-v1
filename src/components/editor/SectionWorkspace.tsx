@@ -19,9 +19,10 @@ interface SectionWorkspaceProps {
   }>
   orgId: string
   editorRefsRef?: React.MutableRefObject<Map<string, SectionEditorHandle>>
+  onActiveSectionChange?: (sectionKey: string | null) => void
 }
 
-function SectionWorkspaceInner({ proposalId, sections, orgId, editorRefsRef }: SectionWorkspaceProps) {
+function SectionWorkspaceInner({ proposalId, sections, orgId, editorRefsRef, onActiveSectionChange }: SectionWorkspaceProps) {
   const { state, dispatch } = useSectionWorkspace()
   const localEditorRefs = useRef<Map<string, SectionEditorHandle>>(new Map())
   const editorRefs = editorRefsRef ?? localEditorRefs
@@ -123,6 +124,14 @@ function SectionWorkspaceInner({ proposalId, sections, orgId, editorRefsRef }: S
     }
   }, [state.sections, dispatch])
 
+  // Notify parent when active section changes (for AIChatPanel activeSectionKey)
+  useEffect(() => {
+    if (onActiveSectionChange) {
+      onActiveSectionChange(state.active_section ?? null)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.active_section])
+
   const handleSelectSection = useCallback((key: string) => {
     dispatch({ type: 'SET_ACTIVE_SECTION', payload: key })
     document.getElementById(key)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -210,10 +219,10 @@ function SectionWorkspaceInner({ proposalId, sections, orgId, editorRefsRef }: S
   )
 }
 
-export default function SectionWorkspace({ proposalId, sections, orgId, editorRefsRef }: SectionWorkspaceProps) {
+export default function SectionWorkspace({ proposalId, sections, orgId, editorRefsRef, onActiveSectionChange }: SectionWorkspaceProps) {
   return (
     <SectionWorkspaceProvider>
-      <SectionWorkspaceInner proposalId={proposalId} sections={sections} orgId={orgId} editorRefsRef={editorRefsRef} />
+      <SectionWorkspaceInner proposalId={proposalId} sections={sections} orgId={orgId} editorRefsRef={editorRefsRef} onActiveSectionChange={onActiveSectionChange} />
     </SectionWorkspaceProvider>
   )
 }
