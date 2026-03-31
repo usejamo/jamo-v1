@@ -1,29 +1,64 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { DEMO_COMMANDS, matchCommand } from '../data/demoCommands'
-import type { PendingSuggestion } from '../types/draft'
-
-interface ChatMessage {
-  id: string
-  role: 'user' | 'assistant'
-  content: string
-  isThinking?: boolean
-}
+import { supabase } from '../lib/supabase'
+import type { ChatMessage, GapResult } from '../types/chat'
+import type { SectionEditorHandle } from '../types/workspace'
+import { buildContextPayload, detectGaps } from '../utils/chatContext'
 
 interface Props {
-  draftGenerated: boolean
-  onCommand: (suggestion: PendingSuggestion) => void
-  onSuggestionResolved: () => void
-  lastResolution: 'accepted' | 'declined' | null
+  proposalId: string
+  orgId: string
+  draftGenerated: boolean                        // keep — gate for "generate first" message
+  sections: Array<{ section_key: string; content: string; title?: string }>
+  editorRefs: React.MutableRefObject<Map<string, SectionEditorHandle>>
+  activeSectionKey?: string | null
+  gapCount: number
+  onGapsConsumed: () => void
 }
 
-const GREETING: ChatMessage = {
-  id: 'greeting',
-  role: 'assistant',
-  content: "Hi — I'm jamo AI. I can help you refine this proposal. Try one of the quick edits below, or type your own instruction.",
+// ── ChatEditPreview sub-component ──────────────────────────────────────────────
+
+function ChatEditPreview({
+  content,
+  isStreaming,
+  onAccept,
+  onReject,
+}: {
+  content: string
+  isStreaming: boolean
+  onAccept: () => void
+  onReject: () => void
+}) {
+  return (
+    <div className="rounded-lg border border-blue-500/30 bg-blue-950/20 p-3 text-sm">
+      <div
+        className="prose prose-invert prose-sm max-w-none mb-3"
+        dangerouslySetInnerHTML={{ __html: content }}
+      />
+      {!isStreaming && (
+        <div className="flex gap-2 mt-2">
+          <button
+            onClick={onAccept}
+            className="px-3 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium"
+          >
+            Accept
+          </button>
+          <button
+            onClick={onReject}
+            className="px-3 py-1 rounded bg-white/10 hover:bg-white/20 text-white/70 text-xs"
+          >
+            Reject
+          </button>
+        </div>
+      )}
+      {isStreaming && (
+        <p className="text-white/40 text-xs mt-1">Generating…</p>
+      )}
+    </div>
+  )
 }
 
-// ── Icons ────────────────────────────────────────────────────────────────────
+// ── Icons ─────────────────────────────────────────────────────────────────────
 
 function PanelCloseIcon() {
   return (
@@ -33,11 +68,7 @@ function PanelCloseIcon() {
   )
 }
 
-
 function SparkleIcon({ className = 'w-4 h-4' }: { className?: string }) {
-  // viewBox shifted -3 on x-axis: the star's geometric center is at x=9 in the
-  // 24-unit coordinate space, not x=12. Shifting the viewBox left by 3 units
-  // makes the star appear optically centered in its container.
   return (
     <svg className={className} fill="none" viewBox="-3 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
@@ -47,26 +78,33 @@ function SparkleIcon({ className = 'w-4 h-4' }: { className?: string }) {
 
 // ── Spectrum sparkle button (ROYGBIV pulse) ───────────────────────────────────
 
-function SpectrumSparkle({ onToggle }: { onToggle: () => void }) {
+function SpectrumSparkle({ onToggle, gapCount }: { onToggle: () => void; gapCount?: number }) {
   return (
-    <motion.div
-      onClick={onToggle}
-      className="roygbiv-spin p-[1.5px] rounded-lg shrink-0 cursor-pointer"
-      style={{
-        background: 'linear-gradient(135deg, #ff0000, #ff7f00, #ffff00, #00cc44, #0066ff, #4b0082, #8b00ff)',
-        boxShadow: '0 0 8px 2px rgba(255, 80, 80, 0.35)',
-      }}
-      whileHover={{
-        scale: 1.08,
-        boxShadow: '0 0 16px 5px rgba(255, 80, 80, 0.55)',
-      }}
-      whileTap={{ scale: 0.93 }}
-      transition={{ type: 'spring', stiffness: 400, damping: 20 }}
-    >
-      <div className="w-7 h-7 rounded-[6px] bg-white flex items-center justify-center">
-        <SparkleIcon className="w-3.5 h-3.5 text-red-500" />
-      </div>
-    </motion.div>
+    <div className="relative">
+      <motion.div
+        onClick={onToggle}
+        className="roygbiv-spin p-[1.5px] rounded-lg shrink-0 cursor-pointer"
+        style={{
+          background: 'linear-gradient(135deg, #ff0000, #ff7f00, #ffff00, #00cc44, #0066ff, #4b0082, #8b00ff)',
+          boxShadow: '0 0 8px 2px rgba(255, 80, 80, 0.35)',
+        }}
+        whileHover={{
+          scale: 1.08,
+          boxShadow: '0 0 16px 5px rgba(255, 80, 80, 0.55)',
+        }}
+        whileTap={{ scale: 0.93 }}
+        transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+      >
+        <div className="w-7 h-7 rounded-[6px] bg-white flex items-center justify-center">
+          <SparkleIcon className="w-3.5 h-3.5 text-red-500" />
+        </div>
+      </motion.div>
+      {gapCount != null && gapCount > 0 && (
+        <span className="absolute -top-1 -right-1 min-w-[16px] h-4 rounded-full bg-orange-500 text-white text-[10px] font-bold flex items-center justify-center px-1 animate-pulse">
+          {gapCount}
+        </span>
+      )}
+    </div>
   )
 }
 
@@ -84,18 +122,16 @@ function AuroraBorder({ children, fast, className = '' }: {
   )
 }
 
-// ── Rail (collapsed) view ────────────────────────────────────────────────────
+// ── Rail (collapsed) view ─────────────────────────────────────────────────────
 
-function Rail({ onExpand, processing }: { onExpand: () => void; processing: boolean }) {
+function Rail({ onExpand, processing, gapCount }: { onExpand: () => void; processing: boolean; gapCount: number }) {
   return (
-    // Entire rail is the clickable hot-zone; parent has overflow-hidden so
-    // the hover tint is clipped cleanly to the panel's rounded corners.
     <div
       onClick={onExpand}
       title="Open jamo AI (⌘J)"
       className="flex flex-col items-center h-full pt-4 pb-3 gap-3 cursor-pointer hover:bg-black/[0.03] transition-colors"
     >
-      <SpectrumSparkle onToggle={onExpand} />
+      <SpectrumSparkle onToggle={onExpand} gapCount={gapCount} />
 
       {/* Pulsing dot + label */}
       <div className="mt-auto mb-2 flex flex-col items-center gap-1.5">
@@ -114,11 +150,23 @@ function Rail({ onExpand, processing }: { onExpand: () => void; processing: bool
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function AIChatPanel({ draftGenerated, onCommand, onSuggestionResolved, lastResolution }: Props) {
+export default function AIChatPanel({
+  proposalId,
+  orgId,
+  draftGenerated,
+  sections,
+  editorRefs,
+  activeSectionKey,
+  gapCount,
+  onGapsConsumed,
+}: Props) {
   const [expanded, setExpanded] = useState(true)
-  const [messages, setMessages] = useState<ChatMessage[]>([GREETING])
+  const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
-  const [processing, setProcessing] = useState(false)
+  const [streamingContent, setStreamingContent] = useState('')
+  const [isStreaming, setIsStreaming] = useState(false)
+  const [currentIntent, setCurrentIntent] = useState<string>('general')
+  const [gapMessagesInjected, setGapMessagesInjected] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -127,80 +175,229 @@ export default function AIChatPanel({ draftGenerated, onCommand, onSuggestionRes
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'j') {
         e.preventDefault()
-        setExpanded(prev => !prev)
+        handlePanelToggle()
       }
     }
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-scroll on new message
+  // Auto-scroll on new message or streaming content
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+  }, [messages, streamingContent])
 
   // Focus input when expanding
   useEffect(() => {
     if (expanded) setTimeout(() => inputRef.current?.focus(), 320)
   }, [expanded])
 
-  // Resolution acknowledgement
-  useEffect(() => {
-    if (!lastResolution) return
-    addAssistant(
-      lastResolution === 'accepted'
-        ? 'Change applied. The proposal has been updated.'
-        : 'No problem — the original content has been kept.'
-    )
-    onSuggestionResolved()
-  }, [lastResolution, onSuggestionResolved])
+  // ── Gap message injection ──────────────────────────────────────────────────
 
-  function addAssistant(content: string) {
-    setMessages(prev => [...prev, { id: `a-${Date.now()}`, role: 'assistant', content }])
+  function formatGapMessage(gap: GapResult): string {
+    if (gap.reason === 'placeholder') {
+      return `**${gap.sectionTitle}** has an unfilled placeholder: "${gap.detail}". What should go here?`
+    }
+    if (gap.reason === 'thin') {
+      return `**${gap.sectionTitle}** looks thin (${gap.detail}). Want me to expand it?`
+    }
+    return `**${gap.sectionTitle}** failed to generate. Want me to try again?`
   }
 
-  const handleSubmit = useCallback((text: string) => {
-    if (!text.trim() || processing) return
+  function injectGapMessages() {
+    const gaps = detectGaps(
+      sections.map(s => ({ section_key: s.section_key, content: s.content, status: '' }))
+    )
+    if (gaps.length === 0) return
 
-    setMessages(prev => [
-      ...prev,
-      { id: `u-${Date.now()}`, role: 'user', content: text.trim() },
-      { id: 'thinking', role: 'assistant', content: '', isThinking: true },
-    ])
-    setInput('')
-    setProcessing(true)
+    const capped = gaps.slice(0, 2)
+    const hasMore = gaps.length > 2
 
-    setTimeout(() => {
-      setMessages(prev => prev.filter(m => m.id !== 'thinking'))
+    const gapMsgs: ChatMessage[] = capped.map((gap, i) => ({
+      id: `gap-${i}`,
+      role: 'assistant' as const,
+      content: formatGapMessage(gap),
+      messageType: 'gap' as const,
+    }))
 
-      if (!draftGenerated) {
-        addAssistant("Please generate the proposal draft first — I need the content loaded before I can make edits.")
-        setProcessing(false)
-        return
-      }
+    if (hasMore) {
+      const remainCount = gaps.length - 2
+      gapMsgs.push({
+        id: 'gap-consolidate',
+        role: 'assistant' as const,
+        content: `There ${remainCount === 1 ? 'is' : 'are'} also ${remainCount} smaller gap${remainCount === 1 ? '' : 's'} — want me to walk through those next?`,
+        messageType: 'gap' as const,
+      })
+    }
 
-      const command = matchCommand(text)
-      if (command) {
-        addAssistant(command.assistantMessage)
-        const el = document.getElementById(command.targetId)
-        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    const openingMessage: ChatMessage = {
+      id: 'gap-intro',
+      role: 'assistant' as const,
+      content: `I found ${gaps.length} thing${gaps.length === 1 ? '' : 's'} worth addressing before you finalize this.`,
+      messageType: 'gap' as const,
+    }
 
+    setMessages(prev => [...prev, openingMessage, ...gapMsgs])
+    onGapsConsumed()
+  }
+
+  function handlePanelToggle() {
+    setExpanded(prev => {
+      const next = !prev
+      if (next && gapCount > 0 && !gapMessagesInjected) {
+        // Schedule gap injection after state update
         setTimeout(() => {
-          onCommand({
-            commandKey: command.key,
-            targetId: command.targetId,
-            explanation: command.explanation,
-            suggestedPreview: command.suggestedPreview,
-            status: 'pending',
-          })
-          setProcessing(false)
-        }, 600)
-      } else {
-        addAssistant("I didn't catch that. Try one of the quick actions below, or rephrase your request.")
-        setProcessing(false)
+          injectGapMessages()
+          setGapMessagesInjected(true)
+        }, 0)
       }
-    }, 950)
-  }, [processing, draftGenerated, onCommand])
+      return next
+    })
+  }
+
+  function handlePanelOpen() {
+    if (gapCount > 0 && !gapMessagesInjected) {
+      injectGapMessages()
+      setGapMessagesInjected(true)
+    }
+    setExpanded(true)
+  }
+
+  // ── Accept/Reject edit proposals ───────────────────────────────────────────
+
+  const handleAcceptEdit = useCallback((messageId: string, content: string) => {
+    const targetKey = activeSectionKey
+    if (!targetKey) return
+    const handle = editorRefs.current.get(targetKey)
+    if (!handle) {
+      console.warn('Editor handle not found for section:', targetKey)
+      return
+    }
+    handle.insertContentAt(0, content)
+    setMessages(prev => prev.map(m =>
+      m.id === messageId ? { ...m, messageType: 'chat' as const } : m
+    ))
+  }, [activeSectionKey, editorRefs])
+
+  // ── Live streaming handleSubmit ────────────────────────────────────────────
+
+  const handleSubmit = useCallback(async (messageText?: string) => {
+    const text = messageText ?? input.trim()
+    if (!text || isStreaming) return
+    setInput('')
+
+    if (!draftGenerated) {
+      setMessages(prev => [...prev, {
+        id: `a-${Date.now()}`,
+        role: 'assistant',
+        content: 'Please generate the proposal draft first — I need the content loaded before I can make edits.',
+        messageType: 'chat',
+      }])
+      return
+    }
+
+    // Add user message to display
+    const userMsg: ChatMessage = {
+      id: crypto.randomUUID(),
+      role: 'user',
+      content: text,
+      messageType: 'chat',
+    }
+    setMessages(prev => [...prev, userMsg])
+    setIsStreaming(true)
+    setStreamingContent('')
+
+    // Persist user message
+    await supabase.from('proposal_chats').insert({
+      proposal_id: proposalId,
+      org_id: orgId,
+      role: 'user',
+      content: text,
+      section_target_id: activeSectionKey ?? null,
+      message_type: 'chat',
+    })
+
+    // Build context payload
+    const payload = buildContextPayload({
+      proposalId,
+      orgId,
+      userMessage: text,
+      targetSectionKey: activeSectionKey ?? (sections[0]?.section_key ?? ''),
+      sections,
+      chatHistory: messages,
+    })
+
+    // Detect explain intent for chip shortcut
+    const intentHint = text.toLowerCase().includes('explain') ? 'explain' : null
+
+    let fullContent = ''
+    let intent = 'general'
+
+    try {
+      const { data, error } = await supabase.functions.invoke('chat-with-jamo', {
+        body: { ...payload, intent_hint: intentHint },
+      })
+      if (error) throw error
+
+      // data is a ReadableStream from SSE
+      const reader = (data as ReadableStream).getReader()
+      const decoder = new TextDecoder()
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        const chunk = decoder.decode(value, { stream: true })
+        const lines = chunk.split('\n').filter(l => l.startsWith('data: '))
+        for (const line of lines) {
+          const raw = line.slice(6)
+          if (raw === '[DONE]') break
+          try {
+            const event = JSON.parse(raw)
+            // Intent metadata event (emitted first by Edge Function)
+            if (event.type === 'intent') {
+              intent = event.intent
+              setCurrentIntent(event.intent)
+              continue
+            }
+            // Anthropic SDK content_block_delta event
+            if (event.type === 'content_block_delta' && event.delta?.type === 'text_delta') {
+              fullContent += event.delta.text
+              setStreamingContent(fullContent)
+            }
+          } catch {
+            // Non-JSON line — skip
+          }
+        }
+      }
+    } catch (err) {
+      console.error('chat-with-jamo error:', err)
+      fullContent = 'Sorry, something went wrong. Please try again.'
+    }
+
+    // Merge streamed content into messages
+    const assistantMsg: ChatMessage = {
+      id: crypto.randomUUID(),
+      role: 'assistant',
+      content: fullContent,
+      messageType: intent === 'edit' ? 'edit-proposal' : (intent as ChatMessage['messageType']),
+    }
+    setMessages(prev => [...prev, assistantMsg])
+    setStreamingContent('')
+    setIsStreaming(false)
+
+    // Persist assistant message
+    await supabase.from('proposal_chats').insert({
+      proposal_id: proposalId,
+      org_id: orgId,
+      role: 'assistant',
+      content: fullContent,
+      section_target_id: activeSectionKey ?? null,
+      message_type: assistantMsg.messageType ?? 'chat',
+    })
+  }, [input, isStreaming, draftGenerated, proposalId, orgId, activeSectionKey, sections, messages])
+
+  // currentIntent used in rendering to determine streaming bubble style
+  const _currentIntent = currentIntent
 
   return (
     // Outer shell: drives the width animation and acts as the aurora border host
@@ -210,7 +407,7 @@ export default function AIChatPanel({ draftGenerated, onCommand, onSuggestionRes
       className="shrink-0 h-full"
       style={{ minWidth: expanded ? 350 : 60 }}
     >
-      <AuroraBorder fast={processing} className="h-full">
+      <AuroraBorder fast={isStreaming} className="h-full">
         {/* Glass inner panel */}
         <div className="h-full rounded-[14px] bg-white/92 backdrop-blur-md overflow-hidden flex flex-col"
           style={{ boxShadow: 'inset 0 0 0 0 transparent' }}
@@ -225,7 +422,7 @@ export default function AIChatPanel({ draftGenerated, onCommand, onSuggestionRes
                 transition={{ duration: 0.15 }}
                 className="h-full"
               >
-                <Rail onExpand={() => setExpanded(true)} processing={processing} />
+                <Rail onExpand={handlePanelOpen} processing={isStreaming} gapCount={gapCount} />
               </motion.div>
             ) : (
               <motion.div
@@ -270,7 +467,7 @@ export default function AIChatPanel({ draftGenerated, onCommand, onSuggestionRes
                         key={msg.id}
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.22, delay: msg.id === 'greeting' ? i * 0.04 : 0 }}
+                        transition={{ duration: 0.22, delay: i === 0 ? 0 : 0 }}
                         className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                       >
                         {msg.isThinking ? (
@@ -283,6 +480,17 @@ export default function AIChatPanel({ draftGenerated, onCommand, onSuggestionRes
                                 transition={{ duration: 0.9, repeat: Infinity, delay: j * 0.18 }}
                               />
                             ))}
+                          </div>
+                        ) : msg.role === 'assistant' && msg.messageType === 'edit-proposal' ? (
+                          <div className="max-w-[88%]">
+                            <ChatEditPreview
+                              content={msg.content}
+                              isStreaming={false}
+                              onAccept={() => handleAcceptEdit(msg.id, msg.content)}
+                              onReject={() => setMessages(prev => prev.map(m =>
+                                m.id === msg.id ? { ...m, messageType: 'chat' as const } : m
+                              ))}
+                            />
                           </div>
                         ) : (
                           <div
@@ -298,21 +506,79 @@ export default function AIChatPanel({ draftGenerated, onCommand, onSuggestionRes
                       </motion.div>
                     ))}
                   </AnimatePresence>
+
+                  {/* Streaming bubble */}
+                  {isStreaming && streamingContent && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="flex justify-start"
+                    >
+                      {_currentIntent === 'edit' ? (
+                        <div className="max-w-[88%]">
+                          <ChatEditPreview
+                            content={streamingContent}
+                            isStreaming={true}
+                            onAccept={() => {}}
+                            onReject={() => {}}
+                          />
+                        </div>
+                      ) : (
+                        <div className="max-w-[88%] rounded-2xl px-3.5 py-2.5 text-xs leading-relaxed bg-gray-100/80 backdrop-blur-sm text-gray-700 rounded-tl-sm">
+                          {streamingContent}
+                        </div>
+                      )}
+                    </motion.div>
+                  )}
+
+                  {/* Thinking indicator when streaming but no content yet */}
+                  {isStreaming && !streamingContent && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="flex justify-start"
+                    >
+                      <div className="bg-gray-100/80 backdrop-blur-sm rounded-2xl rounded-tl-sm px-4 py-2.5 flex items-center gap-1.5">
+                        {[0, 1, 2].map(j => (
+                          <motion.span
+                            key={j}
+                            className="w-1.5 h-1.5 rounded-full bg-gray-400"
+                            animate={{ opacity: [0.3, 1, 0.3], y: [0, -3, 0] }}
+                            transition={{ duration: 0.9, repeat: Infinity, delay: j * 0.18 }}
+                          />
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+
                   <div ref={bottomRef} />
                 </div>
 
                 {/* Quick chips */}
                 <div className="px-3 pb-2 flex flex-wrap gap-1.5 shrink-0">
-                  {DEMO_COMMANDS.map(cmd => (
+                  {activeSectionKey && (
                     <button
-                      key={cmd.key}
-                      onClick={() => handleSubmit(cmd.label)}
-                      disabled={processing}
+                      onClick={() => handleSubmit('Explain this section')}
+                      disabled={isStreaming}
                       className="text-xs text-gray-600 bg-white/70 hover:bg-white border border-gray-200 hover:border-gray-300 px-2.5 py-1 rounded-full transition-colors disabled:opacity-40"
                     >
-                      {cmd.label}
+                      Explain this section
                     </button>
-                  ))}
+                  )}
+                  <button
+                    onClick={() => handleSubmit('What gaps should I address?')}
+                    disabled={isStreaming}
+                    className="text-xs text-gray-600 bg-white/70 hover:bg-white border border-gray-200 hover:border-gray-300 px-2.5 py-1 rounded-full transition-colors disabled:opacity-40"
+                  >
+                    Review gaps
+                  </button>
+                  <button
+                    onClick={() => handleSubmit('How can I strengthen this proposal?')}
+                    disabled={isStreaming}
+                    className="text-xs text-gray-600 bg-white/70 hover:bg-white border border-gray-200 hover:border-gray-300 px-2.5 py-1 rounded-full transition-colors disabled:opacity-40"
+                  >
+                    Strengthen proposal
+                  </button>
                 </div>
 
                 {/* Input */}
@@ -325,11 +591,11 @@ export default function AIChatPanel({ draftGenerated, onCommand, onSuggestionRes
                       value={input}
                       onChange={e => setInput(e.target.value)}
                       onKeyDown={e => { if (e.key === 'Enter') handleSubmit(input) }}
-                      disabled={processing}
+                      disabled={isStreaming}
                     />
                     <button
                       onClick={() => handleSubmit(input)}
-                      disabled={!input.trim() || processing}
+                      disabled={!input.trim() || isStreaming}
                       className="w-6 h-6 p-0 rounded-lg bg-gray-900 hover:bg-gray-700 disabled:opacity-30 flex items-center justify-center transition-colors shrink-0"
                     >
                       <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
