@@ -167,6 +167,7 @@ export default function AIChatPanel({
   const [isStreaming, setIsStreaming] = useState(false)
   const [currentIntent, setCurrentIntent] = useState<string>('general')
   const [gapMessagesInjected, setGapMessagesInjected] = useState(false)
+  const prevGapCountRef = useRef(0)
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -201,15 +202,32 @@ export default function AIChatPanel({
     return () => document.removeEventListener('keydown', handler)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-scroll on new message or streaming content
+  // Auto-scroll on new message, streaming content, or panel expand
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, streamingContent])
+  }, [messages, streamingContent, expanded])
 
   // Focus input when expanding
   useEffect(() => {
     if (expanded) setTimeout(() => inputRef.current?.focus(), 320)
   }, [expanded])
+
+  // Reset injection flag when gapCount increases (new gaps after re-generation)
+  useEffect(() => {
+    if (gapCount > 0 && gapCount !== prevGapCountRef.current) {
+      setGapMessagesInjected(false)
+    }
+    prevGapCountRef.current = gapCount
+  }, [gapCount])
+
+  // Inject gap messages immediately if panel is already open when gaps are detected
+  useEffect(() => {
+    if (expanded && gapCount > 0 && !gapMessagesInjected) {
+      injectGapMessages()
+      setGapMessagesInjected(true)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expanded, gapCount, gapMessagesInjected])
 
   // ── Gap message injection ──────────────────────────────────────────────────
 
@@ -416,14 +434,14 @@ export default function AIChatPanel({
     setStreamingContent('')
     setIsStreaming(false)
 
-    // Persist assistant message
+    // Persist assistant message — edit-proposal stored as 'chat' so history never re-shows Accept/Reject
     await supabase.from('proposal_chats').insert({
       proposal_id: proposalId,
       org_id: orgId,
       role: 'assistant',
       content: fullContent,
       section_target_id: activeSectionKey ?? null,
-      message_type: assistantMsg.messageType ?? 'chat',
+      message_type: 'chat',
     })
   }, [input, isStreaming, draftGenerated, proposalId, orgId, activeSectionKey, sections, messages])
 
