@@ -185,7 +185,8 @@ export default function AIChatPanel({
           id: row.id,
           role: row.role as ChatMessage['role'],
           content: row.content,
-          messageType: (row.message_type ?? 'chat') as ChatMessage['messageType'],
+          // edit-proposal is ephemeral — on reload show as plain chat (decision already made)
+          messageType: row.message_type === 'edit-proposal' ? 'chat' : (row.message_type ?? 'chat') as ChatMessage['messageType'],
         })))
       })
   }, [proposalId])
@@ -202,10 +203,15 @@ export default function AIChatPanel({
     return () => document.removeEventListener('keydown', handler)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-scroll on new message, streaming content, or panel expand
+  // Auto-scroll on new message or streaming content
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, streamingContent, expanded])
+  }, [messages, streamingContent])
+
+  // Scroll to bottom when panel expands — delayed so messages are rendered first
+  useEffect(() => {
+    if (expanded) setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 350)
+  }, [expanded])
 
   // Focus input when expanding
   useEffect(() => {

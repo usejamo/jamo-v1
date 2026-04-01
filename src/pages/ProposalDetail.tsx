@@ -177,7 +177,19 @@ export default function ProposalDetail() {
 
   const { state: genState, dispatch: genDispatch, generateAll, regenerateSection } = useProposalGeneration(id ?? '')
 
-  // Gap analysis — fires after full generation completes OR after any section update lands in proposalSections
+  // Re-fetch sections from Supabase after each section completes — keeps proposalSections fresh for gap analysis
+  useEffect(() => {
+    if (!id || genState?.isGenerating || genState?.completedCount === 0) return
+    supabase
+      .from('proposal_sections')
+      .select('section_key, content, is_locked, status, last_saved_content')
+      .eq('proposal_id', id)
+      .then(({ data }) => {
+        if (data && data.length > 0) setProposalSections(data as any)
+      })
+  }, [id, genState?.completedCount])
+
+  // Gap analysis — fires whenever proposalSections updates (after load or after regen)
   useEffect(() => {
     if (genState?.isGenerating) return
     if (!proposalSections?.length) return
