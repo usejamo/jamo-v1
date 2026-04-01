@@ -170,6 +170,25 @@ export default function AIChatPanel({
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
+  // Load chat history from Supabase on mount
+  useEffect(() => {
+    if (!proposalId) return
+    supabase
+      .from('proposal_chats')
+      .select('id, role, content, message_type, created_at')
+      .eq('proposal_id', proposalId)
+      .order('created_at', { ascending: true })
+      .then(({ data }) => {
+        if (!data?.length) return
+        setMessages((data as any[]).map((row: any) => ({
+          id: row.id,
+          role: row.role as ChatMessage['role'],
+          content: row.content,
+          messageType: (row.message_type ?? 'chat') as ChatMessage['messageType'],
+        })))
+      })
+  }, [proposalId])
+
   // Keyboard shortcut: Cmd/Ctrl + J
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -266,14 +285,18 @@ export default function AIChatPanel({
   // ── Accept/Reject edit proposals ───────────────────────────────────────────
 
   const handleAcceptEdit = useCallback((messageId: string, content: string) => {
-    const targetKey = activeSectionKey
-    if (!targetKey) return
+    // Use active section, or fall back to first available editor
+    const targetKey = activeSectionKey ?? [...editorRefs.current.keys()][0]
+    if (!targetKey) {
+      console.warn('No editor section available to apply edit')
+      return
+    }
     const handle = editorRefs.current.get(targetKey)
     if (!handle) {
       console.warn('Editor handle not found for section:', targetKey)
       return
     }
-    handle.insertContentAt(0, content)
+    handle.setContent(content)
     setMessages(prev => prev.map(m =>
       m.id === messageId ? { ...m, messageType: 'chat' as const } : m
     ))
@@ -334,13 +357,21 @@ export default function AIChatPanel({
     let intent = 'general'
 
     try {
-      const { data, error } = await supabase.functions.invoke('chat-with-jamo', {
-        body: { ...payload, intent_hint: intentHint },
+      const { data: { session } } = await supabase.auth.getSession()
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string
+      const response = await fetch(`${supabaseUrl}/functions/v1/chat-with-jamo`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token ?? ''}`,
+          'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string,
+        },
+        body: JSON.stringify({ ...payload, intent_hint: intentHint }),
       })
-      if (error) throw error
+      if (!response.ok) throw new Error(`Edge function error: ${response.status}`)
 
-      // data is a ReadableStream from SSE
-      const reader = (data as ReadableStream).getReader()
+      // response.body is the raw ReadableStream for SSE
+      const reader = response.body!.getReader()
       const decoder = new TextDecoder()
 
       while (true) {
