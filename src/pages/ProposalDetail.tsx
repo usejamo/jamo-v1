@@ -142,7 +142,7 @@ export default function ProposalDetail() {
   const [pendingSuggestion, setPendingSuggestion] = useState<PendingSuggestion | null>(null)
   const [lastResolution, setLastResolution] = useState<'accepted' | 'declined' | null>(null)
 
-  const { proposals } = useProposals()
+  const { proposals, loading: proposalsLoading } = useProposals()
   const { openModal, showToast } = useProposalModal()
   const { profile, user } = useAuth()
   const proposal = proposals.find(p => p.id === id)
@@ -177,15 +177,10 @@ export default function ProposalDetail() {
 
   const { state: genState, dispatch: genDispatch, generateAll, regenerateSection } = useProposalGeneration(id ?? '')
 
-  // Gap analysis — fires when streaming generation completes (D-01, D-02)
+  // Gap analysis — fires after full generation completes OR after any section update lands in proposalSections
   useEffect(() => {
-    const isComplete =
-      genState &&
-      !genState.isGenerating &&
-      genState.completedCount > 0 &&
-      genState.completedCount === genState.totalCount
-
-    if (!isComplete || !proposalSections?.length) return
+    if (genState?.isGenerating) return
+    if (!proposalSections?.length) return
 
     const sections = proposalSections.map(s => ({
       section_key: s.section_key,
@@ -194,7 +189,7 @@ export default function ProposalDetail() {
     }))
     const gaps = detectGaps(sections)
     setGapCount(gaps.length)
-  }, [genState?.isGenerating, genState?.completedCount, genState?.totalCount])
+  }, [genState?.isGenerating, proposalSections])
 
   const isStreamingMode = genState.isGenerating || genState.currentWave !== null
   const existingDocs: MockDoc[] = id ? (docsByProposal[id] ?? []) : []
@@ -216,6 +211,51 @@ export default function ProposalDetail() {
     el.addEventListener('scroll', onScroll, { passive: true })
     return () => el.removeEventListener('scroll', onScroll)
   }, [])
+
+  // Auto-trigger generation when navigated from wizard with ?generate=true
+  // Must be before early returns to satisfy Rules of Hooks
+  useEffect(() => {
+    if (searchParams.get('generate') === 'true' && proposal && !genState.isGenerating && genState.completedCount === 0) {
+      const input = buildProposalInput()
+      generateAll(input)
+      window.history.replaceState({}, '', window.location.pathname)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [proposal, searchParams])
+
+  const handleSuggestionAccepted = useCallback((commandKey: string) => {
+    const command = COMMAND_MAP[commandKey]
+    if (command) {
+      setAcceptedOverrides(prev => {
+        const next = { ...prev, [command.targetId]: command.acceptedBlocks }
+        try { sessionStorage.setItem(OVERRIDES_KEY, JSON.stringify(next)) } catch { /* ignore */ }
+        return next
+      })
+      setFlashSectionId(command.targetId)
+      setTimeout(() => setFlashSectionId(null), 1200)
+    }
+    setPendingSuggestion(null)
+    setLastResolution('accepted')
+    showToast('Draft updated')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [OVERRIDES_KEY])
+
+  const handleSuggestionDeclined = useCallback(() => {
+    setPendingSuggestion(null)
+    setLastResolution('declined')
+  }, [])
+
+  const handleResolutionConsumed = useCallback(() => {
+    setLastResolution(null)
+  }, [])
+
+  if (proposalsLoading) {
+    return (
+      <div className="text-center py-20">
+        <p className="text-gray-500">Loading...</p>
+      </div>
+    )
+  }
 
   if (!proposal) {
     return (
@@ -254,43 +294,8 @@ export default function ProposalDetail() {
     regenerateSection(sectionKey, input)
   }
 
-  // Auto-trigger generation when navigated from wizard with ?generate=true
-  useEffect(() => {
-    if (searchParams.get('generate') === 'true' && proposal && !genState.isGenerating && genState.completedCount === 0) {
-      handleGenerate()
-      window.history.replaceState({}, '', window.location.pathname)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [proposal, searchParams])
-
-  const handleSuggestionAccepted = useCallback((commandKey: string) => {
-    const command = COMMAND_MAP[commandKey]
-    if (command) {
-      setAcceptedOverrides(prev => {
-        const next = { ...prev, [command.targetId]: command.acceptedBlocks }
-        try { sessionStorage.setItem(OVERRIDES_KEY, JSON.stringify(next)) } catch { /* ignore */ }
-        return next
-      })
-      setFlashSectionId(command.targetId)
-      setTimeout(() => setFlashSectionId(null), 1200)
-    }
-    setPendingSuggestion(null)
-    setLastResolution('accepted')
-    showToast('Draft updated')
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [OVERRIDES_KEY])
-
-  const handleSuggestionDeclined = useCallback(() => {
-    setPendingSuggestion(null)
-    setLastResolution('declined')
-  }, [])
-
-  const handleResolutionConsumed = useCallback(() => {
-    setLastResolution(null)
-  }, [])
-
   return (
-    <div className="flex gap-5 flex-1 min-h-0" style={{ height: 'calc(100vh - 4rem)' }}>
+    <div data-testid="proposal-detail" className="flex gap-5 flex-1 min-h-0" style={{ height: 'calc(100vh - 4rem)' }}>
 
       {/* ── Left: flex-col wrapper so header sits above the scroll area ── */}
       <div className="flex flex-col flex-1 min-w-0 min-h-0">
