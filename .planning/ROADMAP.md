@@ -362,7 +362,7 @@ Phase 13 (Dashboard)   ─── Depends on Phase 1 (Supabase data)
 
 **Goal:** Compliance flags (yellow indicator, placeholder notices) survive navigation. Currently in-memory React state — wiped on route change.
 **Requirements:** TBD
-**Plans:** 5/5 plans complete
+**Plans:** 6/5 plans complete
 
 Plans:
 - [ ] TBD (promote with /gsd:review-backlog when ready)
