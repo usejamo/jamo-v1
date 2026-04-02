@@ -355,3 +355,14 @@ Phase 11 (Export)      ─── Depends on Phase 8 (needs TipTap content)
 Phase 12 (Salesforce)  ─── Depends on Phase 1 (Vault), independent otherwise
 Phase 13 (Dashboard)   ─── Depends on Phase 1 (Supabase data)
 ```
+
+## Backlog
+
+### Phase 999.1: Persist compliance flags to DB (BACKLOG)
+
+**Goal:** Compliance flags (yellow indicator, placeholder notices) survive navigation. Currently in-memory React state — wiped on route change.
+**Requirements:** TBD
+**Plans:** 5/5 plans complete
+
+Plans:
+- [ ] TBD (promote with /gsd:review-backlog when ready)

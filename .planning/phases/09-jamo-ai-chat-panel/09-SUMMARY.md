@@ -42,7 +42,7 @@ metrics:
 
 | # | Task | Commit | Status |
 |---|------|--------|--------|
-| 1 | Activate 8 AIChatPanel test stubs | 3bd885f | Complete |
+| 1 | Activate 8 AIChatPanel test stubs | 1a8b6ab | Complete |
 | 2 | Full test suite green | (verification only — no code changes) | Complete |
 | 3 | Human browser verification | — | PENDING — checkpoint reached |
 
