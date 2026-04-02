@@ -4,13 +4,21 @@ import React, { useRef } from 'react'
 
 // ── Supabase mock ────────────────────────────────────────────────────────────
 const mockInsert = vi.fn(() => Promise.resolve({ error: null }))
-const mockFrom = vi.fn(() => ({ insert: mockInsert }))
+const mockSelectChain = {
+  eq: () => mockSelectChain,
+  order: () => mockSelectChain,
+  then: (resolve: (v: { data: null }) => void) => Promise.resolve({ data: null }).then(resolve),
+}
+const mockFrom = vi.fn(() => ({ insert: mockInsert, select: () => mockSelectChain }))
 
 vi.mock('../../lib/supabase', () => ({
   supabase: {
     from: (...args: any[]) => mockFrom(...args),
     functions: {
       invoke: vi.fn(),
+    },
+    auth: {
+      getSession: vi.fn().mockResolvedValue({ data: { session: null } }),
     },
   },
 }))
@@ -64,6 +72,7 @@ const defaultProps = {
 describe('AIChatPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.unstubAllGlobals()
   })
 
   it('renders gap badge count on rail when gapCount > 0', () => {
@@ -82,11 +91,11 @@ describe('AIChatPanel', () => {
     expect(screen.queryByText('0')).toBeNull()
   })
 
-  it('calls insertContentAt on accept of edit proposal', async () => {
-    const insertContentAt = vi.fn()
-    const editorRefs = makeEditorRefs({ insertContentAt })
+  it('calls setContent on accept of edit proposal', async () => {
+    const setContent = vi.fn()
+    const editorRefs = makeEditorRefs({ setContent })
 
-    // Mock supabase.functions.invoke to return a stream with edit intent
+    // Stub fetch to return a streaming response with edit intent
     const mockStream = new ReadableStream({
       start(controller) {
         controller.enqueue(new TextEncoder().encode('data: {"type":"intent","intent":"edit"}\n\n'))
@@ -95,7 +104,7 @@ describe('AIChatPanel', () => {
         controller.close()
       },
     })
-    vi.mocked(supabase.functions.invoke).mockResolvedValueOnce({ data: mockStream, error: null } as any)
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce({ ok: true, body: mockStream }))
 
     render(
       <AIChatPanel
@@ -123,7 +132,7 @@ describe('AIChatPanel', () => {
       fireEvent.click(screen.getByText('Accept'))
     })
 
-    expect(insertContentAt).toHaveBeenCalledWith(0, expect.any(String))
+    expect(setContent).toHaveBeenCalledWith(expect.any(String))
   })
 
   it('streams content into message bubble without layout thrash', async () => {
@@ -134,7 +143,7 @@ describe('AIChatPanel', () => {
         controllerRef = controller
       },
     })
-    vi.mocked(supabase.functions.invoke).mockResolvedValueOnce({ data: mockStream, error: null } as any)
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce({ ok: true, body: mockStream }))
 
     render(<AIChatPanel {...defaultProps} />)
 
