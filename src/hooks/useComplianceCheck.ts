@@ -2,9 +2,25 @@ import { useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { useSectionWorkspace } from '../context/SectionWorkspaceContext'
 import type { ComplianceFlag } from '../types/workspace'
+import type { Json } from '../types/database.types'
 
 export function useComplianceCheck(proposalId: string, _orgId: string) {
   const { dispatch } = useSectionWorkspace()
+
+  const persistFlags = useCallback(
+    async (sectionKey: string, flags: ComplianceFlag[]) => {
+      try {
+        await supabase
+          .from('proposal_sections')
+          .update({ compliance_flags: flags as unknown as Json })
+          .eq('proposal_id', proposalId)
+          .eq('section_key', sectionKey)
+      } catch {
+        // Silent fail per D-03 — compliance flags are non-blocking
+      }
+    },
+    [proposalId]
+  )
 
   const checkCompliance = useCallback(
     async (sectionKey: string, content: string): Promise<void> => {
@@ -76,6 +92,7 @@ export function useComplianceCheck(proposalId: string, _orgId: string) {
           type: 'SET_COMPLIANCE_FLAGS',
           payload: { section_key: sectionKey, flags: ruleFlags },
         })
+        await persistFlags(sectionKey, ruleFlags)
         return
       }
 
@@ -100,21 +117,20 @@ export function useComplianceCheck(proposalId: string, _orgId: string) {
         })
 
         if (error || !data) {
+          const errorFlags: ComplianceFlag[] = [
+            {
+              id: crypto.randomUUID(),
+              section_key: sectionKey,
+              type: 'warning',
+              message: 'Compliance check unavailable. Review manually before submitting.',
+              source: 'rule',
+            },
+          ]
           dispatch({
             type: 'SET_COMPLIANCE_FLAGS',
-            payload: {
-              section_key: sectionKey,
-              flags: [
-                {
-                  id: crypto.randomUUID(),
-                  section_key: sectionKey,
-                  type: 'warning',
-                  message: 'Compliance check unavailable. Review manually before submitting.',
-                  source: 'rule',
-                },
-              ],
-            },
+            payload: { section_key: sectionKey, flags: errorFlags },
           })
+          await persistFlags(sectionKey, errorFlags)
           return
         }
 
@@ -130,29 +146,29 @@ export function useComplianceCheck(proposalId: string, _orgId: string) {
           type: 'SET_COMPLIANCE_FLAGS',
           payload: { section_key: sectionKey, flags: haikuFlags },
         })
+        await persistFlags(sectionKey, haikuFlags)
       } catch {
         dispatch({
           type: 'SET_COMPLIANCE_CHECKING',
           payload: { section_key: sectionKey, checking: false },
         })
+        const catchFlags: ComplianceFlag[] = [
+          {
+            id: crypto.randomUUID(),
+            section_key: sectionKey,
+            type: 'warning',
+            message: 'Compliance check unavailable. Review manually before submitting.',
+            source: 'rule',
+          },
+        ]
         dispatch({
           type: 'SET_COMPLIANCE_FLAGS',
-          payload: {
-            section_key: sectionKey,
-            flags: [
-              {
-                id: crypto.randomUUID(),
-                section_key: sectionKey,
-                type: 'warning',
-                message: 'Compliance check unavailable. Review manually before submitting.',
-                source: 'rule',
-              },
-            ],
-          },
+          payload: { section_key: sectionKey, flags: catchFlags },
         })
+        await persistFlags(sectionKey, catchFlags)
       }
     },
-    [dispatch, proposalId]
+    [dispatch, persistFlags, proposalId]
   )
 
   return { checkCompliance }
