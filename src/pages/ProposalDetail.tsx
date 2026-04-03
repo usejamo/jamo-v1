@@ -17,7 +17,7 @@ import { useProposalGeneration } from '../hooks/useProposalGeneration'
 import { GenerationHeader } from '../components/GenerationHeader'
 import { GenerationControls } from '../components/GenerationControls'
 import type { GenerateSectionPayload } from '../types/generation'
-import type { SectionEditorHandle } from '../types/workspace'
+import type { SectionEditorHandle, ComplianceFlag } from '../types/workspace'
 import SectionWorkspace from '../components/editor/SectionWorkspace'
 import { supabase } from '../lib/supabase'
 import { detectGaps } from '../utils/chatContext'
@@ -154,13 +154,14 @@ export default function ProposalDetail() {
     is_locked: boolean
     status: string
     last_saved_content: string | null
+    compliance_flags: ComplianceFlag[] | null
   }>>([])
 
   useEffect(() => {
     if (!id) return
     supabase
       .from('proposal_sections')
-      .select('section_key, content, is_locked, status, last_saved_content')
+      .select('section_key, content, is_locked, status, last_saved_content, compliance_flags')
       .eq('proposal_id', id)
       .then(({ data }) => {
         if (data && data.length > 0) {
@@ -177,17 +178,22 @@ export default function ProposalDetail() {
 
   const { state: genState, dispatch: genDispatch, generateAll, regenerateSection } = useProposalGeneration(id ?? '')
 
-  // Re-fetch sections from Supabase after each section completes — keeps proposalSections fresh for gap analysis
-  useEffect(() => {
-    if (!id || genState?.isGenerating || genState?.completedCount === 0) return
+  const refetchSections = useCallback(() => {
+    if (!id) return
     supabase
       .from('proposal_sections')
-      .select('section_key, content, is_locked, status, last_saved_content')
+      .select('section_key, content, is_locked, status, last_saved_content, compliance_flags')
       .eq('proposal_id', id)
       .then(({ data }) => {
         if (data && data.length > 0) setProposalSections(data as any)
       })
-  }, [id, genState?.completedCount])
+  }, [id])
+
+  // Re-fetch sections from Supabase after each section completes — keeps proposalSections fresh for gap analysis
+  useEffect(() => {
+    if (!id || genState?.isGenerating || genState?.completedCount === 0) return
+    refetchSections()
+  }, [id, genState?.completedCount, genState?.isGenerating, refetchSections])
 
   // Gap analysis — fires whenever proposalSections updates (after load or after regen)
   useEffect(() => {
@@ -532,10 +538,12 @@ export default function ProposalDetail() {
                     is_locked: s.is_locked ?? false,
                     status: s.status ?? 'missing',
                     last_saved_content: s.last_saved_content ?? null,
+                    compliance_flags: s.compliance_flags ?? null,
                   }))}
                   orgId={profile?.org_id ?? user?.user_metadata?.org_id ?? ''}
                   editorRefsRef={editorRefsMap}
                   onActiveSectionChange={setActiveSectionKey}
+                  externalScrollRef={scrollRef}
                 />
               </div>
             )}
@@ -558,6 +566,7 @@ export default function ProposalDetail() {
         activeSectionKey={activeSectionKey}
         gapCount={gapCount}
         onGapsConsumed={() => setGapCount(0)}
+        onEditAccepted={refetchSections}
       />
 
     </div>

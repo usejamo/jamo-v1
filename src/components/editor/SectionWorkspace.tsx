@@ -5,7 +5,8 @@ import { VersionHistoryOverlay } from './VersionHistoryOverlay'
 import { ConsistencyCheckBanner } from './ConsistencyCheckBanner'
 import { SectionWorkspaceProvider, useSectionWorkspace } from '../../context/SectionWorkspaceContext'
 import { SECTION_NAMES, SECTION_WAVE_MAP } from '../../types/generation'
-import type { SectionEditorHandle, SectionEditorState } from '../../types/workspace'
+import type { SectionEditorHandle, SectionEditorState, ComplianceFlag } from '../../types/workspace'
+import { useComplianceCheck } from '../../hooks/useComplianceCheck'
 import { supabase } from '../../lib/supabase'
 
 interface SectionWorkspaceProps {
@@ -16,13 +17,15 @@ interface SectionWorkspaceProps {
     is_locked: boolean
     status: string
     last_saved_content: string | null
+    compliance_flags?: ComplianceFlag[] | null
   }>
   orgId: string
   editorRefsRef?: React.MutableRefObject<Map<string, SectionEditorHandle>>
   onActiveSectionChange?: (sectionKey: string | null) => void
+  externalScrollRef?: React.RefObject<HTMLDivElement>
 }
 
-function SectionWorkspaceInner({ proposalId, sections, orgId, editorRefsRef, onActiveSectionChange }: SectionWorkspaceProps) {
+function SectionWorkspaceInner({ proposalId, sections, orgId, editorRefsRef, onActiveSectionChange, externalScrollRef }: SectionWorkspaceProps) {
   const { state, dispatch } = useSectionWorkspace()
   const localEditorRefs = useRef<Map<string, SectionEditorHandle>>(new Map())
   const editorRefs = editorRefsRef ?? localEditorRefs
@@ -41,7 +44,7 @@ function SectionWorkspaceInner({ proposalId, sections, orgId, editorRefsRef, onA
         is_locked: s.is_locked ?? false,
         status: (s.status as SectionEditorState['status']) ?? 'missing',
         autosave_status: 'idle',
-        compliance_flags: [],
+        compliance_flags: Array.isArray(s.compliance_flags) ? s.compliance_flags : [],
         compliance_checking: false,
         ai_action: null,
       }
@@ -69,9 +72,25 @@ function SectionWorkspaceInner({ proposalId, sections, orgId, editorRefsRef, onA
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [proposalId])
 
+  // D-02: Background re-check — silently refresh flags after mount
+  const { checkCompliance } = useComplianceCheck(proposalId, orgId)
+  useEffect(() => {
+    const sectionEntries = Object.values(state.sections)
+    if (sectionEntries.length === 0) return
+    const timer = setTimeout(() => {
+      for (const s of sectionEntries) {
+        if (s.content && s.content.trim().length > 0) {
+          checkCompliance(s.section_key, s.content)
+        }
+      }
+    }, 500) // Small delay to let UI render with cached flags first
+    return () => clearTimeout(timer)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [proposalId])
+
   // Scroll listener for active section tracking
   useEffect(() => {
-    const container = scrollContainerRef.current
+    const container = externalScrollRef?.current ?? scrollContainerRef.current
     if (!container || Object.keys(state.sections).length === 0) return
 
     const handleScroll = () => {
@@ -198,6 +217,7 @@ function SectionWorkspaceInner({ proposalId, sections, orgId, editorRefsRef, onA
               proposalId={proposalId}
               orgId={orgId}
               editorState={editorState}
+              onFocus={() => dispatch({ type: 'SET_ACTIVE_SECTION', payload: key })}
             />
           )
         })}
@@ -219,10 +239,10 @@ function SectionWorkspaceInner({ proposalId, sections, orgId, editorRefsRef, onA
   )
 }
 
-export default function SectionWorkspace({ proposalId, sections, orgId, editorRefsRef, onActiveSectionChange }: SectionWorkspaceProps) {
+export default function SectionWorkspace({ proposalId, sections, orgId, editorRefsRef, onActiveSectionChange, externalScrollRef }: SectionWorkspaceProps) {
   return (
     <SectionWorkspaceProvider>
-      <SectionWorkspaceInner proposalId={proposalId} sections={sections} orgId={orgId} editorRefsRef={editorRefsRef} onActiveSectionChange={onActiveSectionChange} />
+      <SectionWorkspaceInner proposalId={proposalId} sections={sections} orgId={orgId} editorRefsRef={editorRefsRef} onActiveSectionChange={onActiveSectionChange} externalScrollRef={externalScrollRef} />
     </SectionWorkspaceProvider>
   )
 }
