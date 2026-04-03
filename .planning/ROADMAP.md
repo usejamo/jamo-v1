@@ -362,7 +362,7 @@ Phase 13 (Dashboard)   ─── Depends on Phase 1 (Supabase data)
 
 **Goal:** Compliance flags (yellow indicator, placeholder notices) survive navigation. Currently in-memory React state — wiped on route change.
 **Requirements:** TBD
-**Plans:** 6/5 plans complete
+**Plans:** 2/2 plans complete
 
 Plans:
 - [x] 999.1-01-PLAN.md — JSONB migration + ComplianceFlagDB type + persistFlags DB upsert at all 4 dispatch sites

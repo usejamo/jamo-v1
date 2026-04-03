@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 999.1-01 — compliance_flags JSONB migration + persistFlags upsert wired
-last_updated: "2026-04-02T18:36:00.000Z"
+stopped_at: "Completed 999.1-02 — read path wired: DB compliance_flags loaded on mount + D-02 background re-check"
+last_updated: "2026-04-03T00:40:13.937Z"
 progress:
   total_phases: 14
-  completed_phases: 9
-  total_plans: 51
-  completed_plans: 50
+  completed_phases: 10
+  total_plans: 50
+  completed_plans: 51
 ---
 
 ## Project Status
@@ -31,7 +31,7 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 
 ## Last Session
 
-**Stopped at:** Completed 09-04 — all tasks done, browser sign-off approved, Phase 9 complete
+**Stopped at:** Completed 999.1-02 — read path wired: DB compliance_flags loaded on mount + D-02 background re-check
 **Session date:** 2026-04-02
 
 ---
