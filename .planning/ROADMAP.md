@@ -365,4 +365,4 @@ Phase 13 (Dashboard)   ─── Depends on Phase 1 (Supabase data)
 **Plans:** 6/5 plans complete
 
 Plans:
-- [ ] TBD (promote with /gsd:review-backlog when ready)
+- [x] 999.1-01-PLAN.md — JSONB migration + ComplianceFlagDB type + persistFlags DB upsert at all 4 dispatch sites
