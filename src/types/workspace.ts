@@ -22,6 +22,9 @@ export interface ComplianceFlag {
   source: 'rule' | 'haiku'
 }
 
+/** Shape stored in proposal_sections.compliance_flags JSONB column. Same as ComplianceFlag. */
+export type ComplianceFlagDB = Pick<ComplianceFlag, 'id' | 'section_key' | 'type' | 'message' | 'source'>
+
 export interface ConsistencyFlag {
   id: string
   message: string
