@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: "Completed 999.1-02 — read path wired: DB compliance_flags loaded on mount + D-02 background re-check"
-last_updated: "2026-04-03T00:40:13.937Z"
+stopped_at: "Phase 999.1 COMPLETE — compliance flags persist to DB (write + read path) and verified"
+last_updated: "2026-04-02T12:00:00Z"
 progress:
   total_phases: 14
-  completed_phases: 10
+  completed_phases: 11
   total_plans: 50
-  completed_plans: 51
+  completed_plans: 53
 ---
 
 ## Project Status
@@ -18,7 +18,6 @@ progress:
 |------|--------|
 | PROJECT.md | Complete |
 | REQUIREMENTS.md | Complete |
-| ROADMAP.md | Complete (13 phases) |
 | Codebase map | Complete (.planning/codebase/) |
 | Research | Complete (.planning/research/) |
 | Phase execution | Phases 01–07 COMPLETE. Phase 08 (Section Workspace & Rich Text Editor) is next. |
@@ -31,7 +30,7 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 
 ## Last Session
 
-**Stopped at:** Completed 999.1-02 — read path wired: DB compliance_flags loaded on mount + D-02 background re-check
+**Stopped at:** Phase 999.1 COMPLETE — compliance flags persist to DB (write + read path) and verified
 **Session date:** 2026-04-02
 
 ---
@@ -78,8 +77,8 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 - **mapConfidence and parseClaudeResponse exported:** from extract-assumptions/index.ts to enable unit testing without live Supabase/Anthropic connections
 
 - **Login page layout:** Full-screen centered card (not floating modal) — provides clear focus on authentication flow
-- **ProtectedRoute pattern:** Uses React Router v7 Outlet pattern � clean separation of auth logic from route definitions
-- **Layout placement:** Nested inside ProtectedRoute � ensures Sidebar only renders for authenticated users
+- **ProtectedRoute pattern:** Uses React Router v7 Outlet pattern — clean separation of auth logic from route definitions
+- **Layout placement:** Nested inside ProtectedRoute — ensures Sidebar only renders for authenticated users
 
 - **TipTap immediatelyRender: false:** Required for React 19 hydration safety — prevents SSR/CSR mismatch on editor mount
 - **editorRefs as useRef<Map>:** Stores SectionEditorHandle per section for Phase 9 injection without triggering re-renders
@@ -101,6 +100,8 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 - **detectGaps order:** checks placeholder first, then error status, then thin content — continues to next section after first match
 - **buildSlidingWindow granularity:** stops on first message that exceeds char budget (no partial/mid-message truncation)
 - **AIChatPanel stubs:** use it.skip (not dynamic imports) — Vite resolves all imports at transform time; component implemented in Plan 01
+
+- **Compliance flags persistence (D-02/D-03):** persistFlags upserts to proposal_sections.compliance_flags after every SET_COMPLIANCE_FLAGS dispatch; silent-fail; DB flags loaded as optimistic cache on mount, background re-check at 500ms per D-02 staleness policy
 
 ## Critical Risks to Watch
 
@@ -182,3 +183,8 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 - **Plan 02** (2026-03-27): Per-section AI action toolbar & preview system — useSectionAIAction (SSE streaming, pre-action snapshot, version pruning), SectionActionToolbar (Generate/Regenerate/Expand/Condense/Rewrite, lock/history icons, 44px touch targets), AIActionPreview (inline Expand/Condense preview, Accept/Decline, dcfce7 flash), RewriteDiffView (two-column before/after diff, Apply Rewrite/Discard with confirm). SectionEditorBlock wired to render preview below editor; setContent injection (D-05). REQ-5.3 complete.
 - **Plan 04** (2026-03-27): Compliance flags & consistency check — useComplianceCheck (two-pass: rule-based word count/placeholder/keyword then Haiku-on-accept), ComplianceFlag/ComplianceFlagList (amber/red chips), ConsistencyCheckBanner (framer-motion, dismissible), consistency-check Deno edge function (Haiku cross-section review). Fires on accept (D-13), Haiku only if rules pass (D-14), consistency auto-triggers after all-complete (D-12). REQ-5.7 and REQ-5.8 complete.
 - **Plan 05** (2026-03-27): SectionWorkspace integration into ProposalDetail — replaces ProposalDraftRenderer for completed sections; ProposalDraftRenderer retained for streaming mode. Activated test stubs: SectionWorkspace.test.tsx (2 passing), SectionActionToolbar.test.tsx (5 passing). Total 18 editor tests passing. Awaiting human-verify checkpoint (Task 2).
+
+### Phase 999.1: Persist Compliance Flags to DB
+
+- **Plan 01** (2026-04-02): Migration + write path — `supabase/migrations/20260402000021_compliance_flags_jsonb.sql` adds `compliance_flags JSONB NOT NULL DEFAULT '[]'` to proposal_sections. `ComplianceFlagDB` type alias added to workspace.ts. `persistFlags` helper (useCallback, silent-fail) added to useComplianceCheck, called after all 4 SET_COMPLIANCE_FLAGS dispatch sites. 137 tests passing, 9 skipped.
+- **Plan 02** (2026-04-02): Read path — ProposalDetail selects `compliance_flags` in both fetch paths, state type extended, prop threaded to SectionWorkspace. SectionWorkspace init reads `Array.isArray(s.compliance_flags) ? s.compliance_flags : []` instead of hardcoded `[]`. D-02 background re-check useEffect (500ms delay, keyed on proposalId) fires checkCompliance for all sections with content. 137 tests passing, 9 skipped.
