@@ -3,6 +3,10 @@ import type { AIActionType } from '../../types/workspace'
 
 type InlineActionType = 'expand' | 'condense' | 'rewrite'
 
+function capitalize(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1)
+}
+
 const PLACEHOLDERS: Record<InlineActionType, string> = {
   expand: 'What should we go deeper on?',
   condense: 'Anything that must stay in?',
@@ -31,6 +35,7 @@ export function SectionActionToolbar({
   onToggleLock,
   onOpenHistory,
   forceNarrow,
+  // sectionKey intentionally omitted — kept in interface for parent callers
 }: SectionActionToolbarProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -116,7 +121,10 @@ export function SectionActionToolbar({
             <div className="relative" ref={dropdownRef}>
               <button
                 onClick={() => !actionButtonsDisabled && setDropdownOpen((o) => !o)}
+                onKeyDown={(e) => { if (e.key === 'Escape') setDropdownOpen(false) }}
                 disabled={actionButtonsDisabled}
+                aria-haspopup="true"
+                aria-expanded={dropdownOpen}
                 className={`text-sm font-medium text-gray-700 hover:bg-gray-100 px-3 py-1.5 rounded min-h-[44px] transition-colors flex items-center gap-1 ${
                   actionButtonsDisabled ? 'opacity-40 cursor-not-allowed pointer-events-none' : ''
                 }`}
@@ -127,14 +135,15 @@ export function SectionActionToolbar({
                 </svg>
               </button>
               {dropdownOpen && (
-                <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded shadow-md z-10 min-w-[120px]">
+                <div role="menu" className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded shadow-md z-10 min-w-[120px]">
                   {(['expand', 'condense', 'rewrite'] as InlineActionType[]).map((action) => (
                     <button
                       key={action}
+                      role="menuitem"
                       onClick={() => handleActionClick(action)}
                       className="w-full text-left text-sm text-gray-700 hover:bg-gray-50 px-3 py-2 first:rounded-t last:rounded-b transition-colors"
                     >
-                      {action.charAt(0).toUpperCase() + action.slice(1)}
+                      {capitalize(action)}
                     </button>
                   ))}
                 </div>
@@ -154,7 +163,7 @@ export function SectionActionToolbar({
                       : 'text-gray-700 hover:bg-gray-100'
                   } ${actionButtonsDisabled ? 'opacity-40 cursor-not-allowed pointer-events-none' : ''}`}
                 >
-                  {action.charAt(0).toUpperCase() + action.slice(1)}
+                  {capitalize(action)}
                 </button>
               ))}
             </>
@@ -195,6 +204,7 @@ export function SectionActionToolbar({
               : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
           }`}
           title={isLocked ? 'Unlock' : 'Lock'}
+          aria-label={isLocked ? 'Unlock' : 'Lock'}
         >
           {isLocked ? (
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -212,6 +222,7 @@ export function SectionActionToolbar({
           onClick={onOpenHistory}
           className="p-1.5 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
           title="History"
+          aria-label="History"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
