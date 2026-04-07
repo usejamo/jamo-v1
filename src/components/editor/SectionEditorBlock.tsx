@@ -9,6 +9,8 @@ import { AIActionPreview } from './AIActionPreview'
 import { RewriteDiffView } from './RewriteDiffView'
 import { ComplianceFlagList } from './ComplianceFlag'
 import { useComplianceCheck } from '../../hooks/useComplianceCheck'
+import { SectionActionToolbar } from './SectionActionToolbar'
+import { useSectionAIAction } from '../../hooks/useSectionAIAction'
 
 interface SectionEditorBlockProps {
   sectionKey: string
@@ -22,6 +24,7 @@ export const SectionEditorBlock = forwardRef<SectionEditorHandle, SectionEditorB
   function SectionEditorBlock({ sectionKey, sectionTitle, proposalId, orgId = '', editorState }, ref) {
     const { dispatch } = useSectionWorkspace()
     const { checkCompliance } = useComplianceCheck(proposalId, orgId)
+    const { triggerAction } = useSectionAIAction(proposalId, sectionKey, orgId)
 
     const onStatusChange = useCallback(
       (status: 'idle' | 'saving' | 'saved') => {
@@ -101,41 +104,21 @@ export const SectionEditorBlock = forwardRef<SectionEditorHandle, SectionEditorB
         className="bg-white border border-gray-200 rounded-lg mb-4 scroll-mt-4"
       >
         {/* Header bar */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-          <span className="text-base font-semibold text-gray-900">{sectionTitle}</span>
-          <div className="flex items-center gap-3">
-            {/* Autosave status */}
-            <span className="text-xs text-gray-400">
-              {editorState.autosave_status === 'saving' && 'Saving...'}
-              {editorState.autosave_status === 'saved' && 'Saved'}
-            </span>
-            {/* Lock icon */}
-            <button
-              onClick={() =>
-                dispatch({
-                  type: 'SET_LOCKED',
-                  payload: { section_key: sectionKey, is_locked: !editorState.is_locked },
-                })
-              }
-              className={`p-1.5 rounded-md transition-colors ${
-                editorState.is_locked
-                  ? 'text-amber-600 bg-amber-50 hover:bg-amber-100'
-                  : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
-              }`}
-              title={editorState.is_locked ? 'Unlock section' : 'Lock section'}
-            >
-              {editorState.is_locked ? (
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
-                </svg>
-              ) : (
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 10.5V6.75a4.5 4.5 0 0 1 9 0v3.75M3.75 21.75h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H3.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
-                </svg>
-              )}
-            </button>
-          </div>
-        </div>
+        <SectionActionToolbar
+          sectionKey={sectionKey}
+          sectionTitle={sectionTitle}
+          hasContent={!isEmpty}
+          isLocked={editorState.is_locked}
+          isStreaming={editorState.ai_action?.streaming ?? false}
+          onAction={(actionType, userInstructions) => triggerAction(actionType, editor?.getHTML() ?? editorState.content, userInstructions)}
+          onToggleLock={() =>
+            dispatch({
+              type: 'SET_LOCKED',
+              payload: { section_key: sectionKey, is_locked: !editorState.is_locked },
+            })
+          }
+          onOpenHistory={() => {}}
+        />
 
         {/* Editor or empty state */}
         {isEmpty ? (
