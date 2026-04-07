@@ -19,9 +19,8 @@ describe('SectionActionToolbar', () => {
     expect(screen.getByText('Generate Section')).toBeTruthy()
   })
 
-  it('renders Regenerate/Expand/Condense/Rewrite when section has content', () => {
+  it('renders Expand/Condense/Rewrite when section has content', () => {
     render(<SectionActionToolbar {...defaultProps} hasContent={true} />)
-    expect(screen.getByText('Regenerate')).toBeTruthy()
     expect(screen.getByText('Expand')).toBeTruthy()
     expect(screen.getByText('Condense')).toBeTruthy()
     expect(screen.getByText('Rewrite')).toBeTruthy()
@@ -29,9 +28,9 @@ describe('SectionActionToolbar', () => {
 
   it('disables all action buttons when section is locked', () => {
     render(<SectionActionToolbar {...defaultProps} hasContent={true} isLocked={true} />)
-    const regenerateBtn = screen.getByText('Regenerate').closest('button')
-    expect(regenerateBtn).not.toBeNull()
-    expect(regenerateBtn!.disabled).toBe(true)
+    const expandBtn = screen.getByText('Expand').closest('button')
+    expect(expandBtn).not.toBeNull()
+    expect(expandBtn!.disabled).toBe(true)
   })
 
   it('lock toggle remains active even when section is locked', () => {

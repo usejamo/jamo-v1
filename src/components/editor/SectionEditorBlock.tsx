@@ -169,7 +169,7 @@ export const SectionEditorBlock = forwardRef<SectionEditorHandle, SectionEditorB
               <AIActionPreview
                 previewContent={editorState.ai_action.preview_content}
                 isStreaming={editorState.ai_action.streaming}
-                actionType={editorState.ai_action.type as 'expand' | 'condense' | 'generate' | 'regenerate'}
+                actionType={editorState.ai_action.type as 'expand' | 'condense' | 'generate' | 'rewrite'}
                 onAccept={handleAcceptAIAction}
                 onDecline={handleDeclineAIAction}
               />

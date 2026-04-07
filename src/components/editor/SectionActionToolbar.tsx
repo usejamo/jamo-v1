@@ -42,15 +42,6 @@ export function SectionActionToolbar({
         ) : (
           <>
             <button
-              onClick={() => !actionButtonsDisabled && onAction('regenerate')}
-              disabled={actionButtonsDisabled}
-              className={`text-sm font-medium text-gray-700 hover:bg-gray-100 px-3 py-1.5 rounded min-h-[44px] transition-colors ${
-                actionButtonsDisabled ? 'opacity-40 cursor-not-allowed pointer-events-none' : ''
-              }`}
-            >
-              Regenerate
-            </button>
-            <button
               onClick={() => !actionButtonsDisabled && onAction('expand')}
               disabled={actionButtonsDisabled}
               className={`text-sm font-medium text-gray-700 hover:bg-gray-100 px-3 py-1.5 rounded min-h-[44px] transition-colors ${

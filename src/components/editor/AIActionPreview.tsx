@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 interface AIActionPreviewProps {
   previewContent: string
   isStreaming: boolean
-  actionType: 'expand' | 'condense' | 'generate' | 'regenerate'
+  actionType: 'expand' | 'condense' | 'generate' | 'rewrite'
   onAccept: () => void
   onDecline: () => void
 }

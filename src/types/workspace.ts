@@ -2,7 +2,7 @@ import type { SectionStatus } from './generation'
 
 export type EditorMode = 'editing' | 'streaming' | 'preview' | 'locked'
 
-export type AIActionType = 'generate' | 'regenerate' | 'expand' | 'condense' | 'rewrite'
+export type AIActionType = 'generate' | 'expand' | 'condense' | 'rewrite'
 
 export interface VersionEntry {
   id: string
