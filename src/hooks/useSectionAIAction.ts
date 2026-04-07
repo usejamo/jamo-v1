@@ -8,7 +8,7 @@ export function useSectionAIAction(proposalId: string, sectionKey: string, orgId
   const { dispatch } = useSectionWorkspace()
 
   const triggerAction = useCallback(
-    async (actionType: AIActionType, currentContent: string): Promise<void> => {
+    async (actionType: AIActionType, currentContent: string, userInstructions?: string): Promise<void> => {
       // D-02: Take snapshot before action
       await supabase.from('proposal_section_versions').insert({
         proposal_id: proposalId,
@@ -57,6 +57,7 @@ export function useSectionAIAction(proposalId: string, sectionKey: string, orgId
             section_key: sectionKey,
             action: actionType,
             existing_content: actionType !== 'generate' ? currentContent : undefined,
+            user_instructions: userInstructions || undefined,
           }),
         })
       } catch (err) {
