@@ -15,7 +15,7 @@ export function useAutosave(
         onStatusChange('saving')
         const { error } = await supabase
           .from('proposal_sections')
-          .update({ last_saved_content: html, updated_at: new Date().toISOString() })
+          .update({ content: html, updated_at: new Date().toISOString() })
           .eq('proposal_id', proposalId)
           .eq('section_key', sectionKey)
         onStatusChange(error ? 'idle' : 'saved')

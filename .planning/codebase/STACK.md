@@ -45,7 +45,7 @@
 - framer-motion 12.34.3 - Powers animations for panels, modals, and transitions
 
 **Infrastructure:**
-- None detected - No backend/API client libraries present
+- `cro-proposal-generator.js` - Anthropic API integration module for CRO proposal generation (uses native `fetch`)
 
 ## Build & Development Tools
 
@@ -66,8 +66,8 @@
 ## Configuration
 
 **Environment:**
-- No `.env` files required - Application uses in-memory data only
-- No environment variables configured
+- `.env` present - Anthropic API key required for proposal generation feature
+- `ANTHROPIC_API_KEY` (or passed via options) required by `cro-proposal-generator.js`
 
 **Build:**
 - `vite.config.js` - Vite configuration with React and Tailwind plugins
@@ -106,7 +106,7 @@ npm run lint     # Run ESLint
 - **Frontend-Only**: Pure client-side React application
 - **No Backend**: Data stored in memory via React Context (loaded from JSON)
 - **No Database Integration**: Demo data persists in-memory only
-- **No External APIs**: No axios, fetch, or API client integration
+- **Anthropic API Integration**: `cro-proposal-generator.js` calls `https://api.anthropic.com/v1/messages` via native fetch
 - **Modern React**: Uses React 19 with latest hooks patterns
 - **Type Safe**: Full TypeScript strict mode enabled
 - **CSS-in-Tailwind**: All styling via Tailwind utility classes

@@ -9,7 +9,7 @@ const corsHeaders = {
 // Intent detection (D-15) — keyword matching, no AI call needed for clear cases
 const RAG_KEYWORDS = ['protocol', 'rfp', 'sow', 'according to', 'based on', 'what does the']
 const EXPLAIN_KEYWORDS = ['explain', 'where did this', 'source', 'citation', 'where does']
-const EDIT_KEYWORDS = ['expand', 'condense', 'rewrite', 'add ', 'remove', 'change', 'make it', 'shorten', 'update']
+const EDIT_KEYWORDS = ['expand', 'condense', 'rewrite', 'add ', 'remove', 'change', 'make it', 'make me', 'write me', 'write a', 'draft', 'shorten', 'update', 'create', 'generate']
 
 function detectIntent(message: string, intentHint?: string | null): 'rag' | 'explain' | 'edit' | 'general' {
   if (intentHint && ['rag', 'explain', 'edit', 'general'].includes(intentHint)) {
@@ -46,7 +46,7 @@ function buildSystemPrompt(
 
   lines.push('')
   if (intent === 'edit') {
-    lines.push('[INSTRUCTIONS] The user wants to edit the target section. Produce a complete revised version of the section content only — no preamble, no explanation. Output HTML suitable for a rich text editor.')
+    lines.push('[INSTRUCTIONS] The user wants to edit the target section. Output the revised section as raw HTML only. Do NOT include any preamble, explanation, section title announcement, or markdown code fences (no ```html or ```). Start your response directly with the first HTML tag (e.g. <p> or <h2>). End with the last closing HTML tag.')
   } else if (intent === 'explain') {
     lines.push('[INSTRUCTIONS] The user wants to understand where the section content came from. Trace content back to source documents when possible. Include inline citations in format: (Source: <document name>, <section/chunk>). Keep your response concise — 2-4 sentences plus citations.')
   } else if (intent === 'rag') {
@@ -112,8 +112,8 @@ Deno.serve(async (req) => {
     const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY') ?? '' })
 
     const stream = await anthropic.messages.stream({
-      model: 'claude-sonnet-4-6-20251001',
-      max_tokens: 2000,
+      model: 'claude-sonnet-4-6',
+      max_tokens: 4096,
       system: systemPrompt,
       messages: [
         ...chat_history.map((m: { role: string; content: string }) => ({

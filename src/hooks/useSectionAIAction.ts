@@ -9,14 +9,16 @@ export function useSectionAIAction(proposalId: string, sectionKey: string, orgId
 
   const triggerAction = useCallback(
     async (actionType: AIActionType, currentContent: string, userInstructions?: string): Promise<void> => {
-      // D-02: Take snapshot before action
-      await supabase.from('proposal_section_versions').insert({
-        proposal_id: proposalId,
-        org_id: orgId,
-        section_key: sectionKey,
-        content: currentContent,
-        action_label: `Before ${actionType.charAt(0).toUpperCase() + actionType.slice(1)}`,
-      })
+      // D-02: Take snapshot before action (skip if orgId not yet available)
+      if (orgId) {
+        await supabase.from('proposal_section_versions').insert({
+          proposal_id: proposalId,
+          org_id: orgId,
+          section_key: sectionKey,
+          content: currentContent,
+          action_label: `Before ${actionType.charAt(0).toUpperCase() + actionType.slice(1)}`,
+        })
+      }
 
       // Prune old versions: keep at most 20
       const { data: versions } = await supabase
@@ -44,7 +46,7 @@ export function useSectionAIAction(proposalId: string, sectionKey: string, orgId
       let response: Response
       try {
         const { data: { session } } = await supabase.auth.getSession()
-        const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-proposal-section`
+        const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/section-ai-action`
         response = await fetch(url, {
           method: 'POST',
           headers: {

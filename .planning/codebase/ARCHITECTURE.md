@@ -43,6 +43,13 @@
 - Depends on: Type definitions
 - Used by: Pages and components for data initialization
 
+**AI Integration Layer:**
+- Purpose: Generates CRO proposals via Anthropic API
+- Location: `cro-proposal-generator.js` (root-level, outside `src/`)
+- Contains: System prompt, `buildUserMessage()` builder, `generateProposal()` wrapper, `generateProposalBySection()` for large proposals, domain constants (AVAILABLE_SERVICES, THERAPEUTIC_AREAS, STUDY_PHASES)
+- Depends on: Anthropic API (external), native `fetch`
+- Used by: Frontend form UI (not yet wired) or server-side backend caller
+
 ## Data Flow
 
 **Proposal Lifecycle:**

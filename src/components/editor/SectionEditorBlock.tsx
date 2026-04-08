@@ -8,8 +8,8 @@ import { supabase } from '../../lib/supabase'
 import { AIActionPreview } from './AIActionPreview'
 import { RewriteDiffView } from './RewriteDiffView'
 import { ComplianceFlagList } from './ComplianceFlag'
-import { useComplianceCheck } from '../../hooks/useComplianceCheck'
 import { SectionActionToolbar } from './SectionActionToolbar'
+import { useComplianceCheck } from '../../hooks/useComplianceCheck'
 import { useSectionAIAction } from '../../hooks/useSectionAIAction'
 
 interface SectionEditorBlockProps {
@@ -18,10 +18,11 @@ interface SectionEditorBlockProps {
   proposalId: string
   orgId?: string
   editorState: SectionEditorState
+  onFocus?: () => void
 }
 
 export const SectionEditorBlock = forwardRef<SectionEditorHandle, SectionEditorBlockProps>(
-  function SectionEditorBlock({ sectionKey, sectionTitle, proposalId, orgId = '', editorState }, ref) {
+  function SectionEditorBlock({ sectionKey, sectionTitle, proposalId, orgId = '', editorState, onFocus }, ref) {
     const { dispatch } = useSectionWorkspace()
     const { checkCompliance } = useComplianceCheck(proposalId, orgId)
     const { triggerAction } = useSectionAIAction(proposalId, sectionKey, orgId)
@@ -45,6 +46,7 @@ export const SectionEditorBlock = forwardRef<SectionEditorHandle, SectionEditorB
         dispatch({ type: 'UPDATE_CONTENT', payload: { section_key: sectionKey, content: html } })
         triggerAutosave(html)
       },
+      onFocus: () => onFocus?.(),
     })
 
     // Sync editable state when lock changes
@@ -65,15 +67,17 @@ export const SectionEditorBlock = forwardRef<SectionEditorHandle, SectionEditorB
       if (!aiAction) return
       dispatch({ type: 'ACCEPT_AI_ACTION', payload: { section_key: sectionKey } })
       editor?.commands.setContent(aiAction.preview_content, true)
-      // Write post-accept version
-      const actionLabel = `After ${aiAction.type.charAt(0).toUpperCase() + aiAction.type.slice(1)}`
-      await supabase.from('proposal_section_versions').insert({
-        proposal_id: proposalId,
-        org_id: orgId,
-        section_key: sectionKey,
-        content: aiAction.preview_content,
-        action_label: actionLabel,
-      })
+      // Write post-accept version (skip if orgId not yet available)
+      if (orgId) {
+        const actionLabel = `After ${aiAction.type.charAt(0).toUpperCase() + aiAction.type.slice(1)}`
+        await supabase.from('proposal_section_versions').insert({
+          proposal_id: proposalId,
+          org_id: orgId,
+          section_key: sectionKey,
+          content: aiAction.preview_content,
+          action_label: actionLabel,
+        })
+      }
       // Fire compliance check on accept (D-13)
       checkCompliance(sectionKey, aiAction.preview_content)
     }, [editorState.ai_action, dispatch, sectionKey, editor, proposalId, orgId, checkCompliance])
@@ -94,8 +98,6 @@ export const SectionEditorBlock = forwardRef<SectionEditorHandle, SectionEditorB
       },
     }))
 
-    if (!editor) return null
-
     const isEmpty = !editorState.content && !editorState.ai_action?.streaming
 
     return (
@@ -103,11 +105,22 @@ export const SectionEditorBlock = forwardRef<SectionEditorHandle, SectionEditorB
         id={sectionKey}
         className="bg-white border border-gray-200 rounded-lg mb-4 scroll-mt-4"
       >
-        {/* Header bar */}
+        {!editor ? null : <>
+        {/* Autosave status */}
+        {editorState.autosave_status !== 'idle' && (
+          <div className="px-4 pt-2 text-right">
+            <span className="text-xs text-gray-400">
+              {editorState.autosave_status === 'saving' && 'Saving...'}
+              {editorState.autosave_status === 'saved' && 'Saved'}
+            </span>
+          </div>
+        )}
+
+        {/* Action toolbar */}
         <SectionActionToolbar
           sectionKey={sectionKey}
           sectionTitle={sectionTitle}
-          hasContent={!isEmpty}
+          hasContent={!!editorState.content}
           isLocked={editorState.is_locked}
           isStreaming={editorState.ai_action?.streaming ?? false}
           onAction={(actionType, userInstructions) => triggerAction(actionType, editor?.getHTML() ?? editorState.content, userInstructions)}
@@ -117,7 +130,9 @@ export const SectionEditorBlock = forwardRef<SectionEditorHandle, SectionEditorB
               payload: { section_key: sectionKey, is_locked: !editorState.is_locked },
             })
           }
-          onOpenHistory={() => {}}
+          onOpenHistory={() =>
+            dispatch({ type: 'OPEN_VERSION_HISTORY', payload: sectionKey })
+          }
         />
 
         {/* Editor or empty state */}
@@ -159,6 +174,7 @@ export const SectionEditorBlock = forwardRef<SectionEditorHandle, SectionEditorB
             )}
           </div>
         )}
+        </>}
       </div>
     )
   }

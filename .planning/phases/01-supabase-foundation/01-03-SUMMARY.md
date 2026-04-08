@@ -115,6 +115,15 @@ Task 1 was a human-action checkpoint. The private 'documents' Storage bucket was
 - Plan 04 can now perform the single atomic `supabase db push` to push all 14 migrations in numeric order
 - Risk watch: pgvector version — if HNSW unavailable (pgvector < 0.5.0), migration 010 will fail; verify in Plan 04 and fall back to IVFFlat if needed
 
+## Self-Check: PASSED
+
+- FOUND: supabase/migrations/20260305000010_regulatory_chunks.sql
+- FOUND: supabase/migrations/20260305000011_usage_events.sql
+- FOUND: supabase/migrations/20260305000014_storage_policies.sql
+- FOUND: .planning/phases/01-supabase-foundation/01-03-SUMMARY.md
+- FOUND: commit bb6d617 (task commit)
+- FOUND: commit a33155d (metadata commit)
+
 ---
 *Phase: 01-supabase-foundation*
 *Completed: 2026-03-06*

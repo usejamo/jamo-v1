@@ -14,6 +14,7 @@ interface Props {
   activeSectionKey?: string | null
   gapCount: number
   onGapsConsumed: () => void
+  onEditAccepted?: () => void
 }
 
 // ── ChatEditPreview sub-component ──────────────────────────────────────────────
@@ -159,6 +160,7 @@ export default function AIChatPanel({
   activeSectionKey,
   gapCount,
   onGapsConsumed,
+  onEditAccepted,
 }: Props) {
   const [expanded, setExpanded] = useState(true)
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -167,7 +169,7 @@ export default function AIChatPanel({
   const [isStreaming, setIsStreaming] = useState(false)
   const [currentIntent, setCurrentIntent] = useState<string>('general')
   const [gapMessagesInjected, setGapMessagesInjected] = useState(false)
-  const prevGapCountRef = useRef(0)
+  const injectedGapCountRef = useRef(0)
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -218,12 +220,14 @@ export default function AIChatPanel({
     if (expanded) setTimeout(() => inputRef.current?.focus(), 320)
   }, [expanded])
 
-  // Reset injection flag when gapCount increases (new gaps after re-generation)
+  // Reset injection flag only when gap count genuinely changes from what was last injected.
+  // Do NOT track gapCount resets to 0 (from onGapsConsumed) — those are cosmetic badge clears,
+  // not new gaps. Comparing against injectedGapCountRef (set at injection time) prevents
+  // re-injection when repeated re-fetches bring gapCount back from 0 to the same N.
   useEffect(() => {
-    if (gapCount > 0 && gapCount !== prevGapCountRef.current) {
+    if (gapCount > 0 && gapCount !== injectedGapCountRef.current) {
       setGapMessagesInjected(false)
     }
-    prevGapCountRef.current = gapCount
   }, [gapCount])
 
   // Inject gap messages immediately if panel is already open when gaps are detected
@@ -255,9 +259,10 @@ export default function AIChatPanel({
 
     const capped = gaps.slice(0, 2)
     const hasMore = gaps.length > 2
+    const stamp = Date.now()
 
     const gapMsgs: ChatMessage[] = capped.map((gap, i) => ({
-      id: `gap-${i}`,
+      id: `gap-${i}-${stamp}`,
       role: 'assistant' as const,
       content: formatGapMessage(gap),
       messageType: 'gap' as const,
@@ -266,7 +271,7 @@ export default function AIChatPanel({
     if (hasMore) {
       const remainCount = gaps.length - 2
       gapMsgs.push({
-        id: 'gap-consolidate',
+        id: `gap-consolidate-${stamp}`,
         role: 'assistant' as const,
         content: `There ${remainCount === 1 ? 'is' : 'are'} also ${remainCount} smaller gap${remainCount === 1 ? '' : 's'} — want me to walk through those next?`,
         messageType: 'gap' as const,
@@ -274,12 +279,13 @@ export default function AIChatPanel({
     }
 
     const openingMessage: ChatMessage = {
-      id: 'gap-intro',
+      id: `gap-intro-${stamp}`,
       role: 'assistant' as const,
       content: `I found ${gaps.length} thing${gaps.length === 1 ? '' : 's'} worth addressing before you finalize this.`,
       messageType: 'gap' as const,
     }
 
+    injectedGapCountRef.current = gaps.length
     setMessages(prev => [...prev, openingMessage, ...gapMsgs])
     onGapsConsumed()
   }
@@ -324,7 +330,8 @@ export default function AIChatPanel({
     setMessages(prev => prev.map(m =>
       m.id === messageId ? { ...m, messageType: 'chat' as const } : m
     ))
-  }, [activeSectionKey, editorRefs])
+    onEditAccepted?.()
+  }, [activeSectionKey, editorRefs, onEditAccepted])
 
   // ── Live streaming handleSubmit ────────────────────────────────────────────
 
@@ -355,7 +362,7 @@ export default function AIChatPanel({
     setStreamingContent('')
 
     // Persist user message
-    await supabase.from('proposal_chats').insert({
+    const { error: userInsertError } = await supabase.from('proposal_chats').insert({
       proposal_id: proposalId,
       org_id: orgId,
       role: 'user',
@@ -363,6 +370,7 @@ export default function AIChatPanel({
       section_target_id: activeSectionKey ?? null,
       message_type: 'chat',
     })
+    if (userInsertError) console.error('[AIChatPanel] Failed to persist user message:', userInsertError)
 
     // Build context payload
     const payload = buildContextPayload({
@@ -429,6 +437,12 @@ export default function AIChatPanel({
       fullContent = 'Sorry, something went wrong. Please try again.'
     }
 
+    // Strip markdown code fences if model wrapped the HTML (e.g. ```html ... ```)
+    if (intent === 'edit') {
+      const fenceMatch = fullContent.match(/^```(?:html)?\s*([\s\S]*?)```\s*$/i)
+      if (fenceMatch) fullContent = fenceMatch[1].trim()
+    }
+
     // Merge streamed content into messages
     const assistantMsg: ChatMessage = {
       id: crypto.randomUUID(),
@@ -441,14 +455,17 @@ export default function AIChatPanel({
     setIsStreaming(false)
 
     // Persist assistant message — edit-proposal stored as 'chat' so history never re-shows Accept/Reject
-    await supabase.from('proposal_chats').insert({
-      proposal_id: proposalId,
-      org_id: orgId,
-      role: 'assistant',
-      content: fullContent,
-      section_target_id: activeSectionKey ?? null,
-      message_type: 'chat',
-    })
+    if (fullContent) {
+      const { error: assistantInsertError } = await supabase.from('proposal_chats').insert({
+        proposal_id: proposalId,
+        org_id: orgId,
+        role: 'assistant',
+        content: fullContent,
+        section_target_id: activeSectionKey ?? null,
+        message_type: 'chat',
+      })
+      if (assistantInsertError) console.error('[AIChatPanel] Failed to persist assistant message:', assistantInsertError)
+    }
   }, [input, isStreaming, draftGenerated, proposalId, orgId, activeSectionKey, sections, messages])
 
   // currentIntent used in rendering to determine streaming bubble style

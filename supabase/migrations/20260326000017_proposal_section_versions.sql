@@ -14,12 +14,12 @@ ALTER TABLE proposal_section_versions ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Org members can read own versions"
   ON proposal_section_versions FOR SELECT
-  USING (org_id = get_user_org_id(auth.uid()));
+  USING (org_id = (SELECT org_id FROM user_profiles WHERE user_id = auth.uid()));
 
 CREATE POLICY "Org members can insert own versions"
   ON proposal_section_versions FOR INSERT
-  WITH CHECK (org_id = get_user_org_id(auth.uid()));
+  WITH CHECK (org_id = (SELECT org_id FROM user_profiles WHERE user_id = auth.uid()));
 
 CREATE POLICY "Org members can delete own versions"
   ON proposal_section_versions FOR DELETE
-  USING (org_id = get_user_org_id(auth.uid()));
+  USING (org_id = (SELECT org_id FROM user_profiles WHERE user_id = auth.uid()));

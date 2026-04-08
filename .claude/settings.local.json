@@ -1,0 +1,41 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(wc -l .planning/codebase/*.md)",
+      "Bash(grep -E '\\(sk-[a-zA-Z0-9]{20,}|sk_live_[a-zA-Z0-9]+|sk_test_[a-zA-Z0-9]+|ghp_[a-zA-Z0-9]{36}|gho_[a-zA-Z0-9]{36}|glpat-[a-zA-Z0-9_-]+|AKIA[A-Z0-9]{16}|xox[baprs]-[a-zA-Z0-9-]+|-----BEGIN.*PRIVATE KEY|eyJ[a-zA-Z0-9_-]+\\\\.eyJ[a-zA-Z0-9_-]+\\\\.\\)' .planning/codebase/*.md)",
+      "Bash(node \"$HOME/.claude/get-shit-done/bin/gsd-tools.cjs\" commit \"docs: map existing codebase\" --files .planning/codebase/*.md)",
+      "Skill(gsd:plan-phase)",
+      "Skill(gsd:plan-phase:*)",
+      "Bash(node \"$HOME/.claude/get-shit-done/bin/gsd-tools.cjs\" frontmatter validate \".planning/phases/01-supabase-foundation/01-01-PLAN.md\" --schema plan)",
+      "Bash(node \"$HOME/.claude/get-shit-done/bin/gsd-tools.cjs\" frontmatter validate \".planning/phases/01-supabase-foundation/01-02-PLAN.md\" --schema plan)",
+      "Bash(node \"$HOME/.claude/get-shit-done/bin/gsd-tools.cjs\" frontmatter validate \".planning/phases/01-supabase-foundation/01-03-PLAN.md\" --schema plan)",
+      "Bash(node \"$HOME/.claude/get-shit-done/bin/gsd-tools.cjs\" frontmatter validate \".planning/phases/01-supabase-foundation/01-04-PLAN.md\" --schema plan)",
+      "Bash(node \"$HOME/.claude/get-shit-done/bin/gsd-tools.cjs\" frontmatter validate \".planning/phases/01-supabase-foundation/01-05-PLAN.md\" --schema plan)",
+      "Bash(for plan in 01-01 01-02 01-03 01-04 01-05)",
+      "Bash(do echo \"=== $plan ===\")",
+      "Bash(node \"$HOME/.claude/get-shit-done/bin/gsd-tools.cjs\" verify plan-structure \".planning/phases/01-supabase-foundation/$plan-PLAN.md\")",
+      "Bash(done)",
+      "Bash(node \"$HOME/.claude/get-shit-done/bin/gsd-tools.cjs\" commit \"docs\\(01-supabase-foundation\\): create phase plan — 5 plans across 2 waves\" --files \".planning/phases/01-supabase-foundation/01-01-PLAN.md\" \".planning/phases/01-supabase-foundation/01-02-PLAN.md\" \".planning/phases/01-supabase-foundation/01-03-PLAN.md\" \".planning/phases/01-supabase-foundation/01-04-PLAN.md\" \".planning/phases/01-supabase-foundation/01-05-PLAN.md\" \".planning/ROADMAP.md\")",
+      "Bash(npm run test:run)",
+      "Bash(npx tsc --noEmit)",
+      "Bash(node \"$HOME/.claude/get-shit-done/bin/gsd-tools.cjs\" state advance-plan)",
+      "Bash(node \"$HOME/.claude/get-shit-done/bin/gsd-tools.cjs\" state update-progress)",
+      "Bash(node \"$HOME/.claude/get-shit-done/bin/gsd-tools.cjs\" roadmap update-plan-progress 1)",
+      "Bash(node \"$HOME/.claude/get-shit-done/bin/gsd-tools.cjs\" requirements mark-complete REQ-7.1)",
+      "Bash(node \"$HOME/.claude/get-shit-done/bin/gsd-tools.cjs\" state record-metric --phase \"01-supabase-foundation\" --plan \"01\" --duration \"20\" --tasks \"1\" --files \"7\")",
+      "Bash(node \"$HOME/.claude/get-shit-done/bin/gsd-tools.cjs\" state add-decision --phase \"01-supabase-foundation\" --summary \"Env vars live in .env not .env.local — both gitignored, project already used .env convention\")",
+      "Bash(node \"$HOME/.claude/get-shit-done/bin/gsd-tools.cjs\" state add-decision --phase \"01-supabase-foundation\" --summary \"VITE_SUPABASE_PUBLISHABLE_KEY naming used \\(post-Nov 2025 Supabase projects\\)\")",
+      "Bash(node \"$HOME/.claude/get-shit-done/bin/gsd-tools.cjs\" roadmap update-plan-progress \"01\" \"01-02\" \"complete\")",
+      "Bash(node \"$HOME/.claude/get-shit-done/bin/gsd-tools.cjs\" state record-metric --phase \"01-supabase-foundation\" --plan \"03\" --duration \"10\" --tasks \"2\" --files \"3\")",
+      "Bash(node \"$HOME/.claude/get-shit-done/bin/gsd-tools.cjs\" requirements mark-complete REQ-7.5 REQ-7.6 REQ-7.7 REQ-7.8 REQ-7.9 REQ-7.10)",
+      "Bash(SUPABASE_ACCESS_TOKEN=sbp_c8b850f4456bd20a89e23d07ead1d3136a7fb1e3 npx supabase db push)",
+      "Bash(SUPABASE_ACCESS_TOKEN=sbp_c8b850f4456bd20a89e23d07ead1d3136a7fb1e3 npm run db:types)",
+      "Bash(NODE_OPTIONS=\"--max-old-space-size=4096\" npx vitest run)",
+      "Bash(NODE_OPTIONS=\"--max-old-space-size=4096\" npx vitest run src/lib/__tests__/supabase-client.test.ts)",
+      "Bash(NODE_OPTIONS=\"--max-old-space-size=4096\" npx vitest run src/context/__tests__/proposals-context.test.ts)",
+      "Bash(npx vitest run src/context/__tests__/proposals-context.test.ts)",
+      "Bash(npm ls happy-dom)",
+      "Bash(npm ls @vitest/browser)"
+    ]
+  }
+}

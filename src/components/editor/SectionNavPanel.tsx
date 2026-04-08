@@ -34,7 +34,7 @@ export function SectionNavPanel({ sections, activeSectionKey, onSelectSection }:
   const sectionKeys = Object.keys(SECTION_WAVE_MAP)
 
   return (
-    <nav className="w-56 shrink-0 border-r border-gray-200 overflow-y-auto bg-white">
+    <nav className="w-56 shrink-0 border-r border-gray-200 overflow-y-auto bg-white sticky top-0 self-start max-h-screen">
       <p className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">
         Sections
       </p>

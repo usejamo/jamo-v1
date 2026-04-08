@@ -171,7 +171,7 @@ export function SectionActionToolbar({
         </div>
 
         {activeAction && (
-          <div className="flex items-center gap-2 w-full max-w-sm">
+          <div className="flex items-center gap-2 w-full min-w-[26rem]">
             <input
               autoFocus
               value={inputValue}
@@ -182,9 +182,11 @@ export function SectionActionToolbar({
                 if (e.key === 'Enter') handleRun()
                 if (e.key === 'Escape') handleCancel()
               }}
+              onBlur={handleCancel}
             />
             <button
               onClick={handleRun}
+              onMouseDown={(e) => e.preventDefault()}
               className="text-sm font-medium bg-jamo-500 hover:bg-jamo-600 text-white px-3 py-1 rounded transition-colors"
             >
               Run

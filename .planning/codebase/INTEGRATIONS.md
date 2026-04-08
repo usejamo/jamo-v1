@@ -4,14 +4,20 @@
 
 ## APIs & External Services
 
-**None Detected** - Application contains no external API integrations
+### Anthropic API
+- **Purpose:** AI-powered CRO (Contract Research Organization) proposal generation
+- **Module:** `cro-proposal-generator.js` (root-level, ESM module)
+- **Endpoint:** `https://api.anthropic.com/v1/messages`
+- **Auth:** `x-api-key` header — API key passed via `options.apiKey` at call time
+- **Default model:** `claude-sonnet-4-5-20250929` (overridable)
+- **Max tokens:** 32,000 (full proposals); 8,000 per section (section-by-section mode)
+- **Prompt template:** `cro_proposal_prompt_template.md` — Handlebars-style template doc for frontend variable substitution
+- **Exports:** `generateProposal()`, `generateProposalBySection()`, `buildUserMessage()`, `CRO_PROPOSAL_SYSTEM_PROMPT`, `AVAILABLE_SERVICES`, `THERAPEUTIC_AREAS`, `STUDY_PHASES`
 
-No third-party APIs, SDKs, or external services are integrated:
-- No fetch() or axios calls in codebase
+**No other external APIs detected:**
 - No authentication service clients
 - No payment processing (Stripe, etc.)
 - No analytics services
-- No third-party embeddings
 
 ## Data Storage
 
@@ -64,10 +70,10 @@ No third-party APIs, SDKs, or external services are integrated:
 ## Environment Configuration
 
 **Required env vars:**
-- None - Application has no external dependencies requiring secrets
+- `ANTHROPIC_API_KEY` - Required for CRO proposal generation via `cro-proposal-generator.js`
 
 **Secrets location:**
-- Not applicable - No API keys, credentials, or secrets needed
+- `.env` at project root (present, gitignored)
 
 ## Data Persistence
 

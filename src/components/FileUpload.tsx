@@ -111,7 +111,7 @@ export function FileUpload({ proposalId, onUploadComplete }: FileUploadProps) {
         .insert({
           org_id: profile.org_id,
           proposal_id: proposalId,
-          uploaded_by: user.id,
+          uploaded_by: profile.id,
           name: file.name,
           storage_path: uploadData.path,
           mime_type: file.type,

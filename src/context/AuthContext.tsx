@@ -13,7 +13,7 @@ interface AuthContextValue {
   loading: boolean
   signIn: (email: string, password: string) => Promise<{ data: any; error: any }>
   signOut: () => Promise<{ error: any }>
-  signUp: (email: string, password: string, metadata?: { full_name?: string }) => Promise<{ data: any; error: any }>
+  signUp: (email: string, password: string, metadata?: { full_name?: string; org_id?: string; role?: string }) => Promise<{ data: any; error: any }>
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
