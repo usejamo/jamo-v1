@@ -33,3 +33,9 @@ supabase/.temp
 *.sln
 *.sw?
 .worktrees/
+
+# Claude Code agent worktrees
+.claude/worktrees/
+
+# Playwright test results
+test-results/
