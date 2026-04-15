@@ -353,6 +353,8 @@ export type Database = {
       proposals: {
         Row: {
           client_name: string | null
+          consistency_check_ran: boolean
+          consistency_flags: Json | null
           created_at: string
           created_by: string
           currency: string
@@ -374,6 +376,8 @@ export type Database = {
         }
         Insert: {
           client_name?: string | null
+          consistency_check_ran?: boolean
+          consistency_flags?: Json | null
           created_at?: string
           created_by: string
           currency?: string
@@ -395,6 +399,8 @@ export type Database = {
         }
         Update: {
           client_name?: string | null
+          consistency_check_ran?: boolean
+          consistency_flags?: Json | null
           created_at?: string
           created_by?: string
           currency?: string

@@ -5,7 +5,7 @@ import { VersionHistoryOverlay } from './VersionHistoryOverlay'
 import { ConsistencyCheckBanner } from './ConsistencyCheckBanner'
 import { SectionWorkspaceProvider, useSectionWorkspace } from '../../context/SectionWorkspaceContext'
 import { SECTION_NAMES, SECTION_WAVE_MAP } from '../../types/generation'
-import type { SectionEditorHandle, SectionEditorState, ComplianceFlag } from '../../types/workspace'
+import type { SectionEditorHandle, SectionEditorState, ComplianceFlag, ConsistencyFlag } from '../../types/workspace'
 import { useComplianceCheck } from '../../hooks/useComplianceCheck'
 import { supabase } from '../../lib/supabase'
 
@@ -23,16 +23,15 @@ interface SectionWorkspaceProps {
   editorRefsRef?: React.MutableRefObject<Map<string, SectionEditorHandle>>
   onActiveSectionChange?: (sectionKey: string | null) => void
   externalScrollRef?: React.RefObject<HTMLDivElement>
+  consistencyCheckRef?: React.MutableRefObject<(() => void) | null>
 }
 
-function SectionWorkspaceInner({ proposalId, sections, orgId, editorRefsRef, onActiveSectionChange, externalScrollRef }: SectionWorkspaceProps) {
+function SectionWorkspaceInner({ proposalId, sections, orgId, editorRefsRef, onActiveSectionChange, externalScrollRef, consistencyCheckRef }: SectionWorkspaceProps) {
   const { state, dispatch } = useSectionWorkspace()
   const localEditorRefs = useRef<Map<string, SectionEditorHandle>>(new Map())
   const editorRefs = editorRefsRef ?? localEditorRefs
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const sectionKeys = Object.keys(SECTION_WAVE_MAP)
-  const consistencyChecked = useRef(false)
-
   // Populate workspace state from sections prop on mount
   useEffect(() => {
     const sectionsMap: Record<string, SectionEditorState> = {}
@@ -70,6 +69,31 @@ function SectionWorkspaceInner({ proposalId, sections, orgId, editorRefsRef, onA
       dispatch({ type: 'SET_ACTIVE_SECTION', payload: sectionKeys[0] })
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [proposalId])
+
+  // Load persisted consistency flags and consistency_check_ran from DB on mount
+  useEffect(() => {
+    if (!proposalId) return
+    supabase
+      .from('proposals')
+      .select('consistency_flags, consistency_check_ran')
+      .eq('id', proposalId)
+      .single()
+      .then(({ data }) => {
+        if (!data) return
+        if (Array.isArray(data.consistency_flags) && data.consistency_flags.length > 0) {
+          dispatch({
+            type: 'SET_CONSISTENCY_FLAGS',
+            payload: (data.consistency_flags as Array<{ message: string; sections_involved: string[] }>).map((f) => ({
+              ...f,
+              id: crypto.randomUUID(),
+            })),
+          })
+        }
+        if (data.consistency_check_ran) {
+          dispatch({ type: 'SET_CONSISTENCY_CHECK_RAN', payload: true })
+        }
+      })
   }, [proposalId])
 
   // D-02: Background re-check — silently refresh flags after mount
@@ -113,35 +137,55 @@ function SectionWorkspaceInner({ proposalId, sections, orgId, editorRefsRef, onA
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sectionKeys.join(','), Object.keys(state.sections).length])
 
+  // Named callback for consistency check — used by auto-trigger and parent ref (D-12)
+  const runConsistencyCheck = useCallback(() => {
+    const sectionInputs = Object.entries(state.sections).map(([key, s]) => ({
+      section_key: key,
+      content: s.content,
+    }))
+    dispatch({ type: 'SET_CONSISTENCY_CHECK_RAN', payload: true })
+    supabase.from('proposals').update({ consistency_check_ran: true }).eq('id', proposalId).then()
+
+    supabase.functions
+      .invoke('consistency-check', { body: { sections: sectionInputs } })
+      .then(({ data }) => {
+        const flags: ConsistencyFlag[] = (data?.flags ?? []).map(
+          (f: { message: string; sections_involved: string[] }) => ({
+            ...f,
+            id: crypto.randomUUID(),
+          })
+        )
+        dispatch({ type: 'SET_CONSISTENCY_FLAGS', payload: flags })
+        supabase
+          .from('proposals')
+          .update({ consistency_flags: data?.flags ?? [] })
+          .eq('id', proposalId)
+          .then()
+      })
+      .catch(() => {
+        // Non-blocking
+      })
+  }, [state.sections, proposalId, dispatch])
+
   // Auto-trigger consistency check after all sections reach 'complete' status (D-12)
   useEffect(() => {
     const sectionValues = Object.values(state.sections)
     if (sectionValues.length === 0) return
     const allComplete = sectionValues.every((s) => s.status === 'complete')
-    if (allComplete && !consistencyChecked.current) {
-      consistencyChecked.current = true
-      const sectionInputs = Object.entries(state.sections).map(([key, s]) => ({
-        section_key: key,
-        content: s.content,
-      }))
-      supabase.functions
-        .invoke('consistency-check', { body: { sections: sectionInputs } })
-        .then(({ data }) => {
-          if (data?.flags?.length) {
-            dispatch({
-              type: 'SET_CONSISTENCY_FLAGS',
-              payload: data.flags.map((f: { message: string; sections_involved: string[] }) => ({
-                ...f,
-                id: crypto.randomUUID(),
-              })),
-            })
-          }
-        })
-        .catch(() => {
-          // Non-blocking — consistency check failure does not surface to user
-        })
+    if (allComplete && !state.consistency_check_ran) {
+      runConsistencyCheck()
     }
-  }, [state.sections, dispatch])
+  }, [state.sections, state.consistency_check_ran, runConsistencyCheck])
+
+  // Wire consistencyCheckRef so parent can trigger a manual run
+  useEffect(() => {
+    if (consistencyCheckRef) {
+      consistencyCheckRef.current = runConsistencyCheck
+    }
+    return () => {
+      if (consistencyCheckRef) consistencyCheckRef.current = null
+    }
+  }, [consistencyCheckRef, runConsistencyCheck])
 
   // Notify parent when active section changes (for AIChatPanel activeSectionKey)
   useEffect(() => {
@@ -239,10 +283,10 @@ function SectionWorkspaceInner({ proposalId, sections, orgId, editorRefsRef, onA
   )
 }
 
-export default function SectionWorkspace({ proposalId, sections, orgId, editorRefsRef, onActiveSectionChange, externalScrollRef }: SectionWorkspaceProps) {
+export default function SectionWorkspace({ proposalId, sections, orgId, editorRefsRef, onActiveSectionChange, externalScrollRef, consistencyCheckRef }: SectionWorkspaceProps) {
   return (
     <SectionWorkspaceProvider>
-      <SectionWorkspaceInner proposalId={proposalId} sections={sections} orgId={orgId} editorRefsRef={editorRefsRef} onActiveSectionChange={onActiveSectionChange} externalScrollRef={externalScrollRef} />
+      <SectionWorkspaceInner proposalId={proposalId} sections={sections} orgId={orgId} editorRefsRef={editorRefsRef} onActiveSectionChange={onActiveSectionChange} externalScrollRef={externalScrollRef} consistencyCheckRef={consistencyCheckRef} />
     </SectionWorkspaceProvider>
   )
 }
