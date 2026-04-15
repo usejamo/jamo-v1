@@ -39,7 +39,7 @@ export const SectionEditorBlock = forwardRef<SectionEditorHandle, SectionEditorB
       [dispatch, sectionKey]
     )
 
-    const { triggerAutosave, cancel } = useAutosave(proposalId, sectionKey, onStatusChange)
+    const { triggerAutosave, cancel, saveNow } = useAutosave(proposalId, sectionKey, onStatusChange)
 
     const editor = useEditor({
       extensions: [
@@ -77,7 +77,10 @@ export const SectionEditorBlock = forwardRef<SectionEditorHandle, SectionEditorB
       const aiAction = editorState.ai_action
       if (!aiAction) return
       dispatch({ type: 'ACCEPT_AI_ACTION', payload: { section_key: sectionKey } })
-      editor?.commands.setContent(markdownToHtml(aiAction.preview_content), { emitUpdate: true })
+      const acceptedHtml = markdownToHtml(aiAction.preview_content)
+      editor?.commands.setContent(acceptedHtml, { emitUpdate: true })
+      // Immediately persist accepted content so a quick refresh doesn't lose it
+      await saveNow(acceptedHtml)
       // Write post-accept version (skip if orgId not yet available)
       if (orgId) {
         const actionLabel = `After ${aiAction.type.charAt(0).toUpperCase() + aiAction.type.slice(1)}`
@@ -91,7 +94,7 @@ export const SectionEditorBlock = forwardRef<SectionEditorHandle, SectionEditorB
       }
       // Fire compliance check on accept (D-13)
       checkCompliance(sectionKey, aiAction.preview_content)
-    }, [editorState.ai_action, dispatch, sectionKey, editor, proposalId, orgId, checkCompliance])
+    }, [editorState.ai_action, dispatch, sectionKey, editor, proposalId, orgId, checkCompliance, saveNow])
 
     const handleDeclineAIAction = useCallback(() => {
       dispatch({ type: 'REJECT_AI_ACTION', payload: { section_key: sectionKey } })

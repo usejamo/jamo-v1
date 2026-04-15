@@ -28,5 +28,19 @@ export function useAutosave(
     if (timerRef.current) clearTimeout(timerRef.current)
   }, [])
 
-  return { triggerAutosave, cancel }
+  const saveNow = useCallback(
+    async (html: string) => {
+      if (timerRef.current) clearTimeout(timerRef.current)
+      onStatusChange('saving')
+      const { error } = await supabase
+        .from('proposal_sections')
+        .update({ content: html, updated_at: new Date().toISOString() })
+        .eq('proposal_id', proposalId)
+        .eq('section_key', sectionKey)
+      onStatusChange(error ? 'idle' : 'saved')
+    },
+    [proposalId, sectionKey, onStatusChange]
+  )
+
+  return { triggerAutosave, cancel, saveNow }
 }
