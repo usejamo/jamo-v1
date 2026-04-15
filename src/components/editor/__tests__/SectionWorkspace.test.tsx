@@ -14,12 +14,16 @@ vi.mock('../../../lib/supabase', () => ({
           order: vi.fn(() => ({
             limit: vi.fn(() => Promise.resolve({ data: [], error: null })),
           })),
+          single: vi.fn(() => Promise.resolve({ data: null, error: null })),
         })),
         order: vi.fn(() => ({
           limit: vi.fn(() => Promise.resolve({ data: [], error: null })),
         })),
       })),
       upsert: vi.fn(() => Promise.resolve({ error: null })),
+      update: vi.fn(() => ({
+        eq: vi.fn(() => Promise.resolve({ error: null })),
+      })),
     })),
     functions: {
       invoke: vi.fn(() => Promise.resolve({ data: null, error: null })),
@@ -50,6 +54,10 @@ vi.mock('../../../hooks/useAutosave', () => ({
 
 vi.mock('../../../hooks/useComplianceCheck', () => ({
   useComplianceCheck: vi.fn(() => ({ checkCompliance: vi.fn() })),
+}))
+
+vi.mock('../../../context/AuthContext', () => ({
+  useAuth: vi.fn(() => ({ user: null, profile: null, loading: false })),
 }))
 
 import SectionWorkspace from '../SectionWorkspace'
