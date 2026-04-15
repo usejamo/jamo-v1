@@ -159,9 +159,9 @@ function SectionWorkspaceInner({ proposalId, sections, orgId, editorRefsRef, onA
       .invoke('consistency-check', { body: { sections: sectionInputs } })
       .then(({ data }) => {
         const flags: ConsistencyFlag[] = (data?.flags ?? []).map(
-          (f: { message: string; sections_involved: string[] }) => ({
+          (f: { id?: string; message: string; sections_involved: string[] }) => ({
             ...f,
-            id: crypto.randomUUID(),
+            id: f.id ?? crypto.randomUUID(),
           })
         )
         dispatch({ type: 'SET_CONSISTENCY_FLAGS', payload: flags })
