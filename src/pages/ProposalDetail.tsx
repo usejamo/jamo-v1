@@ -173,6 +173,7 @@ export default function ProposalDetail() {
 
   // Phase 9: editor refs for chat injection
   const editorRefsMap = useRef<Map<string, SectionEditorHandle>>(new Map())
+  const consistencyCheckRef = useRef<(() => void) | null>(null)
   const [gapCount, setGapCount] = useState(0)
   const [activeSectionKey, setActiveSectionKey] = useState<string | null>(null)
 
@@ -474,6 +475,12 @@ export default function ProposalDetail() {
                     Generated
                   </span>
                   <ExportDropdown />
+                  <button
+                    onClick={() => consistencyCheckRef.current?.()}
+                    className="text-sm font-medium text-gray-600 hover:text-gray-800 bg-white border border-gray-200 hover:border-gray-300 hover:shadow-sm px-3 py-1.5 rounded-lg transition-colors"
+                  >
+                    Run consistency check
+                  </button>
                 </div>
               )}
             </div>
@@ -544,6 +551,7 @@ export default function ProposalDetail() {
                   editorRefsRef={editorRefsMap}
                   onActiveSectionChange={setActiveSectionKey}
                   externalScrollRef={scrollRef}
+                  consistencyCheckRef={consistencyCheckRef}
                 />
               </div>
             )}
