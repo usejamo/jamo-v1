@@ -98,6 +98,8 @@ function SectionWorkspaceInner({ proposalId, sections, orgId, editorRefsRef, onA
           dispatch({ type: 'SET_CONSISTENCY_CHECK_RAN', payload: true })
         }
         setDbLoaded(true)
+      }, () => {
+        setDbLoaded(true)  // unblock auto-trigger even if DB load fails
       })
   }, [proposalId])
 
