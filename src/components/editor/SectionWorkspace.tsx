@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useCallback } from 'react'
+import React, { useRef, useEffect, useCallback, useState } from 'react'
 import { SectionEditorBlock } from './SectionEditorBlock'
 import { SectionNavPanel } from './SectionNavPanel'
 import { VersionHistoryOverlay } from './VersionHistoryOverlay'
@@ -31,6 +31,7 @@ function SectionWorkspaceInner({ proposalId, sections, orgId, editorRefsRef, onA
   const localEditorRefs = useRef<Map<string, SectionEditorHandle>>(new Map())
   const editorRefs = editorRefsRef ?? localEditorRefs
   const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const [dbLoaded, setDbLoaded] = useState(false)
   const sectionKeys = Object.keys(SECTION_WAVE_MAP)
   // Populate workspace state from sections prop on mount
   useEffect(() => {
@@ -80,7 +81,10 @@ function SectionWorkspaceInner({ proposalId, sections, orgId, editorRefsRef, onA
       .eq('id', proposalId)
       .single()
       .then(({ data }) => {
-        if (!data) return
+        if (!data) {
+          setDbLoaded(true)
+          return
+        }
         if (Array.isArray(data.consistency_flags) && data.consistency_flags.length > 0) {
           dispatch({
             type: 'SET_CONSISTENCY_FLAGS',
@@ -93,6 +97,7 @@ function SectionWorkspaceInner({ proposalId, sections, orgId, editorRefsRef, onA
         if (data.consistency_check_ran) {
           dispatch({ type: 'SET_CONSISTENCY_CHECK_RAN', payload: true })
         }
+        setDbLoaded(true)
       })
   }, [proposalId])
 
@@ -169,13 +174,14 @@ function SectionWorkspaceInner({ proposalId, sections, orgId, editorRefsRef, onA
 
   // Auto-trigger consistency check after all sections reach 'complete' status (D-12)
   useEffect(() => {
+    if (!dbLoaded) return
     const sectionValues = Object.values(state.sections)
     if (sectionValues.length === 0) return
     const allComplete = sectionValues.every((s) => s.status === 'complete')
     if (allComplete && !state.consistency_check_ran) {
       runConsistencyCheck()
     }
-  }, [state.sections, state.consistency_check_ran, runConsistencyCheck])
+  }, [dbLoaded, state.sections, state.consistency_check_ran, runConsistencyCheck])
 
   // Wire consistencyCheckRef so parent can trigger a manual run
   useEffect(() => {
