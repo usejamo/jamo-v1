@@ -74,7 +74,10 @@ function SectionWorkspaceInner({ proposalId, sections, orgId, editorRefsRef, onA
 
   // Load persisted consistency flags and consistency_check_ran from DB on mount
   useEffect(() => {
-    if (!proposalId) return
+    if (!proposalId) {
+      setDbLoaded(true)
+      return
+    }
     supabase
       .from('proposals')
       .select('consistency_flags, consistency_check_ran')
