@@ -63,6 +63,7 @@ export type WorkspaceAction =
   | { type: 'SET_COMPLIANCE_CHECKING'; payload: { section_key: string; checking: boolean } }
   | { type: 'SET_CONSISTENCY_FLAGS'; payload: ConsistencyFlag[] }
   | { type: 'DISMISS_CONSISTENCY' }
+  | { type: 'SET_CONSISTENCY_CHECK_RAN'; payload: boolean }
   | { type: 'OPEN_VERSION_HISTORY'; payload: string }
   | { type: 'CLOSE_VERSION_HISTORY' }
 
@@ -72,6 +73,7 @@ export interface WorkspaceState {
   version_history_open: string | null
   consistency_flags: ConsistencyFlag[]
   consistency_dismissed: boolean
+  consistency_check_ran: boolean
 }
 
 export interface SectionEditorHandle {
@@ -86,4 +88,5 @@ export const DEFAULT_WORKSPACE_STATE: WorkspaceState = {
   version_history_open: null,
   consistency_flags: [],
   consistency_dismissed: false,
+  consistency_check_ran: false,
 }

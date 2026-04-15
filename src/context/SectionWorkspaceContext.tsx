@@ -163,6 +163,9 @@ function workspaceReducer(state: WorkspaceState, action: WorkspaceAction): Works
     case 'DISMISS_CONSISTENCY':
       return { ...state, consistency_dismissed: true }
 
+    case 'SET_CONSISTENCY_CHECK_RAN':
+      return { ...state, consistency_check_ran: action.payload }
+
     case 'OPEN_VERSION_HISTORY':
       return { ...state, version_history_open: action.payload }
 
