@@ -91,9 +91,9 @@ function SectionWorkspaceInner({ proposalId, sections, orgId, editorRefsRef, onA
         if (Array.isArray(data.consistency_flags) && data.consistency_flags.length > 0) {
           dispatch({
             type: 'SET_CONSISTENCY_FLAGS',
-            payload: (data.consistency_flags as Array<{ message: string; sections_involved: string[] }>).map((f) => ({
+            payload: (data.consistency_flags as Array<{ id?: string; message: string; sections_involved: string[] }>).map((f) => ({
               ...f,
-              id: crypto.randomUUID(),
+              id: f.id ?? crypto.randomUUID(),
             })),
           })
         }
@@ -154,7 +154,6 @@ function SectionWorkspaceInner({ proposalId, sections, orgId, editorRefsRef, onA
       content: s.content,
     }))
     dispatch({ type: 'SET_CONSISTENCY_CHECK_RAN', payload: true })
-    supabase.from('proposals').update({ consistency_check_ran: true }).eq('id', proposalId).then()
 
     supabase.functions
       .invoke('consistency-check', { body: { sections: sectionInputs } })
@@ -166,14 +165,17 @@ function SectionWorkspaceInner({ proposalId, sections, orgId, editorRefsRef, onA
           })
         )
         dispatch({ type: 'SET_CONSISTENCY_FLAGS', payload: flags })
+        // Persist both flags and ran=true together, only on success
         supabase
           .from('proposals')
-          .update({ consistency_flags: data?.flags ?? [] })
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .update({ consistency_flags: flags as any, consistency_check_ran: true })
           .eq('id', proposalId)
           .then()
       })
       .catch(() => {
-        // Non-blocking
+        // Edge function failed — reset ran flag in state so auto-trigger can retry
+        dispatch({ type: 'SET_CONSISTENCY_CHECK_RAN', payload: false })
       })
   }, [state.sections, proposalId, dispatch])
 
