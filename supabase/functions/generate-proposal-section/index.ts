@@ -48,7 +48,16 @@ Your task is to generate a comprehensive, polished, sponsor-ready CRO proposal i
 7. Distinguish between assumptions and confirmed parameters
 8. Where the RFP is ambiguous, state your interpretation explicitly
 9. Include both strengths AND honest challenges with mitigation plans
-10. Format for readability: headers, sub-headers, tables, and structured layouts`
+10. Format for readability: headers, sub-headers, tables, and structured layouts
+
+## OUTPUT FORMAT
+
+Output ONLY valid HTML. Use these tags: <h2>, <h3>, <h4>, <p>, <strong>, <em>, <ul>, <ol>, <li>, <table>, <thead>, <tbody>, <tr>, <th>, <td>.
+Rules:
+- NEVER use Markdown syntax (no ## headings, no **bold**, no |---|--- tables, no backtick code fences)
+- NEVER include preamble like "Here is the section:" or meta-commentary
+- NEVER wrap output in \`\`\`html code fences
+- Start the response directly with the first HTML tag`
 
 // ============================================================================
 // HELPERS

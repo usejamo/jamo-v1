@@ -1,11 +1,13 @@
 import { useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { useSectionWorkspace } from '../context/SectionWorkspaceContext'
+import { useAuth } from '../context/AuthContext'
 import { readSSEStream } from './useProposalGeneration'
 import type { AIActionType } from '../types/workspace'
 
 export function useSectionAIAction(proposalId: string, sectionKey: string, orgId: string) {
   const { dispatch } = useSectionWorkspace()
+  const { session } = useAuth()
 
   const triggerAction = useCallback(
     async (actionType: AIActionType, currentContent: string, userInstructions?: string): Promise<void> => {
@@ -45,7 +47,6 @@ export function useSectionAIAction(proposalId: string, sectionKey: string, orgId
       // SSE streaming via raw fetch
       let response: Response
       try {
-        const { data: { session } } = await supabase.auth.getSession()
         const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/section-ai-action`
         response = await fetch(url, {
           method: 'POST',
@@ -94,7 +95,7 @@ export function useSectionAIAction(proposalId: string, sectionKey: string, orgId
       // Stream complete
       dispatch({ type: 'COMPLETE_AI_STREAM', payload: { section_key: sectionKey } })
     },
-    [proposalId, sectionKey, orgId, dispatch]
+    [proposalId, sectionKey, orgId, session, dispatch]
   )
 
   return { triggerAction }

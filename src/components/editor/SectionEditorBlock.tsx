@@ -1,6 +1,11 @@
 import { forwardRef, useImperativeHandle, useCallback, useEffect } from 'react'
+import { markdownToHtml } from '../../lib/markdownToHtml'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
+import { Table } from '@tiptap/extension-table'
+import { TableRow } from '@tiptap/extension-table-row'
+import { TableHeader } from '@tiptap/extension-table-header'
+import { TableCell } from '@tiptap/extension-table-cell'
 import type { SectionEditorHandle, SectionEditorState } from '../../types/workspace'
 import { useAutosave } from '../../hooks/useAutosave'
 import { useSectionWorkspace } from '../../context/SectionWorkspaceContext'
@@ -37,8 +42,14 @@ export const SectionEditorBlock = forwardRef<SectionEditorHandle, SectionEditorB
     const { triggerAutosave, cancel } = useAutosave(proposalId, sectionKey, onStatusChange)
 
     const editor = useEditor({
-      extensions: [StarterKit],
-      content: editorState.content || '',
+      extensions: [
+        StarterKit,
+        Table.configure({ resizable: false }),
+        TableRow,
+        TableHeader,
+        TableCell,
+      ],
+      content: markdownToHtml(editorState.content || ''),
       immediatelyRender: false,
       editable: !editorState.is_locked,
       onUpdate: ({ editor }) => {
@@ -66,7 +77,7 @@ export const SectionEditorBlock = forwardRef<SectionEditorHandle, SectionEditorB
       const aiAction = editorState.ai_action
       if (!aiAction) return
       dispatch({ type: 'ACCEPT_AI_ACTION', payload: { section_key: sectionKey } })
-      editor?.commands.setContent(aiAction.preview_content, true)
+      editor?.commands.setContent(markdownToHtml(aiAction.preview_content), { emitUpdate: true })
       // Write post-accept version (skip if orgId not yet available)
       if (orgId) {
         const actionLabel = `After ${aiAction.type.charAt(0).toUpperCase() + aiAction.type.slice(1)}`
@@ -91,7 +102,7 @@ export const SectionEditorBlock = forwardRef<SectionEditorHandle, SectionEditorB
         editor?.commands.insertContentAt(pos, content)
       },
       setContent: (html: string) => {
-        editor?.commands.setContent(html, true)
+        editor?.commands.setContent(html, { emitUpdate: true })
       },
       getContent: () => {
         return editor?.getHTML() ?? ''

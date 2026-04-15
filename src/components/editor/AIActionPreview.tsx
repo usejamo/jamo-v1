@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { markdownToHtml } from '../../lib/markdownToHtml'
 
 interface AIActionPreviewProps {
   previewContent: string
@@ -45,7 +46,7 @@ export function AIActionPreview({
 
         {/* Preview content */}
         <div className="text-sm text-gray-700 leading-relaxed">
-          <span dangerouslySetInnerHTML={{ __html: previewContent }} />
+          <span dangerouslySetInnerHTML={{ __html: markdownToHtml(previewContent) }} />
           {isStreaming && (
             <span className="inline-block w-0.5 h-4 bg-blue-500 animate-pulse ml-0.5 align-text-bottom" />
           )}

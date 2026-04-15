@@ -1,4 +1,5 @@
 import type { SectionState, WaveNumber } from '../types/generation'
+import { markdownToHtml } from '../lib/markdownToHtml'
 import { StatusBadge, STATUS_CONFIG } from './StatusBadge'
 
 interface SectionStreamCardProps {
@@ -78,9 +79,15 @@ export function SectionStreamCard({ section, onRegenerate, onRetry }: SectionStr
 
       {/* Final content — visible when complete */}
       {status === 'complete' && finalContent && (
-        <div className="font-sans text-sm text-gray-700 leading-relaxed bg-white p-3 mt-3 transition-opacity duration-150">
-          {highlightPlaceholders(finalContent)}
-        </div>
+        <div
+          className="prose prose-sm max-w-none font-sans text-sm text-gray-700 leading-relaxed bg-white p-3 mt-3 transition-opacity duration-150"
+          dangerouslySetInnerHTML={{
+            __html: markdownToHtml(finalContent).replace(
+              /\[PLACEHOLDER:\s*([^\]]+)\]/g,
+              '<mark class="bg-amber-100 text-amber-800 rounded px-0.5">[$1]</mark>'
+            ),
+          }}
+        />
       )}
 
       {/* Error state */}
