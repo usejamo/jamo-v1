@@ -156,9 +156,11 @@ export default function ProposalDetail() {
     last_saved_content: string | null
     compliance_flags: ComplianceFlag[] | null
   }>>([])
+  const [sectionsLoaded, setSectionsLoaded] = useState(false)
 
   useEffect(() => {
     if (!id) return
+    setSectionsLoaded(false)
     supabase
       .from('proposal_sections')
       .select('section_key, content, is_locked, status, last_saved_content, compliance_flags')
@@ -168,6 +170,7 @@ export default function ProposalDetail() {
           setProposalSections(data as any)
           setGenerated(true)
         }
+        setSectionsLoaded(true)
       })
   }, [id])
 
@@ -535,7 +538,7 @@ export default function ProposalDetail() {
               </div>
             )}
 
-            {!isStreamingMode && generated && (
+            {!isStreamingMode && generated && sectionsLoaded && (
               <div className="border border-gray-100 rounded-lg bg-white">
                 <SectionWorkspace
                   proposalId={id ?? ''}
