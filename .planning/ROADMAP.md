@@ -268,6 +268,13 @@ Plans:
 
 **Requirements covered:** REQ-9.1 through REQ-9.5
 
+**Plans:** 3 plans
+
+Plans:
+- [ ] 10-01-PLAN.md — DB schema (templates + template_sections), RLS policies, 3 pre-built template seeds, schema push
+- [ ] 10-02-PLAN.md — Settings TemplatesTab (admin upload, status, section disclosure, delete) + template-extract Edge Function
+- [ ] 10-03-PLAN.md — Wizard Step 4 TemplateSelector cards + generation prompt [TEMPLATE CONTEXT] injection
+
 ---
 
 ### Phase 11: DOCX Export
