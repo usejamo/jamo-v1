@@ -99,6 +99,9 @@ export function buildSectionPrompt(params: {
     assumptions?: Array<{ category: string; content: string }>
     services?: string[]
   }
+  templateContext?: {
+    sections: Array<{ name: string; role: string | null; description?: string | null }>
+  }
 }): { system: string; userMessage: string } {
   const { sectionId, tone, ragChunks, anchor, proposalInput } = params
   const sectionName = SECTION_NAMES[sectionId] || sectionId
@@ -113,6 +116,13 @@ export function buildSectionPrompt(params: {
 
   if (ragChunks && ragChunks.length > 0) {
     system += `\n\n[REGULATORY CONTEXT]\n${ragChunks.map((c) => c.content).join('\n---\n')}\n[/REGULATORY CONTEXT]`
+  }
+
+  if (params.templateContext?.sections?.length) {
+    const sectionList = params.templateContext.sections
+      .map((s, i) => `${i + 1}. ${s.name}${s.description ? ` — ${s.description}` : ''}`)
+      .join('\n')
+    system += `\n\n[TEMPLATE CONTEXT]\nThe organization uses the following proposal template. Adapt your tone, structure, and section naming to match this format:\n${sectionList}\n[/TEMPLATE CONTEXT]`
   }
 
   // Build user message from proposalInput
@@ -250,7 +260,7 @@ serve(async (req) => {
     // ------------------------------------------------------------------
     // Streaming generation mode
     // ------------------------------------------------------------------
-    const { proposalId, sectionId, proposalInput, ragChunks, consistencyAnchor, tone } = body
+    const { proposalId, sectionId, proposalInput, ragChunks, consistencyAnchor, tone, templateContext } = body
 
     if (!proposalId || !sectionId || !proposalInput) {
       return new Response(JSON.stringify({ error: 'Missing required fields' }), {
@@ -289,6 +299,7 @@ serve(async (req) => {
       ragChunks: ragChunks || [],
       anchor: consistencyAnchor || '',
       proposalInput,
+      templateContext,
     })
 
     // Call Anthropic with streaming

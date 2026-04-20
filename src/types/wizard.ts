@@ -45,7 +45,8 @@ export interface WizardState {
   missingFields: MissingField[]
   extractionStatus: ExtractionStatus
   documentCount: number
-  stateVersion: 6
+  selectedTemplateId: string | null  // null = no template selected (D-02)
+  stateVersion: 7
 }
 
 export type WizardAction =
@@ -64,6 +65,7 @@ export type WizardAction =
   | { type: 'REMOVE_ASSUMPTION'; id: string }
   | { type: 'FILL_MISSING'; field: string; value: string }
   | { type: 'SET_EXTRACTION_STATUS'; status: ExtractionStatus }
+  | { type: 'SET_TEMPLATE'; templateId: string | null }
 
 export const DEFAULT_WIZARD_STATE: WizardState = {
   step: 0,
@@ -83,7 +85,8 @@ export const DEFAULT_WIZARD_STATE: WizardState = {
   missingFields: [],
   extractionStatus: 'idle',
   documentCount: 0,
-  stateVersion: 6,
+  selectedTemplateId: null,
+  stateVersion: 7,
 }
 
 export const WIZARD_STEPS = ['Study Info', 'Document Upload', 'Assumption Review', 'Template & Generate'] as const

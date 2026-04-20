@@ -239,7 +239,8 @@ export default function ProposalDetail() {
   useEffect(() => {
     if (searchParams.get('generate') === 'true' && proposal && !genState.isGenerating && genState.completedCount === 0) {
       const input = buildProposalInput()
-      generateAll(input)
+      const selectedTemplateId = (proposal as any)?.selected_template_id ?? null
+      generateAll(input, selectedTemplateId)
       window.history.replaceState({}, '', window.location.pathname)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -308,7 +309,8 @@ export default function ProposalDetail() {
 
   function handleGenerate() {
     const input = buildProposalInput()
-    generateAll(input)
+    const selectedTemplateId = (proposal as any)?.selected_template_id ?? null
+    generateAll(input, selectedTemplateId)
   }
 
   function handleRegenerate(sectionKey: string) {
