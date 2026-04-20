@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
+import { TemplatesTab } from '../components/settings/TemplatesTab'
 
 // ── Shared constants ──────────────────────────────────────────────────────────
 
@@ -123,7 +124,7 @@ const NOTIF_GROUPS: { group: string; items: { key: NotifKey; label: string; sub:
 
 // ── Sub-tabs ──────────────────────────────────────────────────────────────────
 
-const SUB_TABS = ['Profile', 'Integrations', 'General', 'Notifications'] as const
+const SUB_TABS = ['Profile', 'Integrations', 'General', 'Notifications', 'Templates'] as const
 type SubTab = (typeof SUB_TABS)[number]
 
 // ── Primitives ────────────────────────────────────────────────────────────────
@@ -456,7 +457,12 @@ function NotificationsTab() {
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export default function Settings() {
+  const { profile } = useAuth()
   const [activeTab, setActiveTab] = useState<SubTab>('Profile')
+
+  const visibleTabs = SUB_TABS.filter(tab =>
+    tab !== 'Templates' || profile?.role === 'admin' || profile?.role === 'super_admin'
+  )
 
   return (
     <div className="space-y-6">
@@ -469,7 +475,7 @@ export default function Settings() {
 
       {/* Sub-tab navigation */}
       <div className="flex gap-1 border-b border-gray-200 pb-0">
-        {SUB_TABS.map(tab => (
+        {visibleTabs.map(tab => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -509,6 +515,9 @@ export default function Settings() {
 
       {/* Notifications */}
       {activeTab === 'Notifications' && <NotificationsTab />}
+
+      {/* Templates (admin only) */}
+      {activeTab === 'Templates' && <TemplatesTab />}
 
     </div>
   )
