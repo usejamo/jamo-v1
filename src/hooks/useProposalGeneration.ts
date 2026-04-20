@@ -298,7 +298,8 @@ export function useProposalGeneration(proposalId: string) {
       sectionKey: string,
       proposalInput: GenerateSectionPayload['proposalInput'],
       ragChunks: GenerateSectionPayload['ragChunks'],
-      anchor: string
+      anchor: string,
+      templateContext?: GenerateSectionPayload['templateContext']
     ): Promise<string> => {
       dispatch({ type: 'SECTION_GENERATING', sectionKey })
 
@@ -323,6 +324,7 @@ export function useProposalGeneration(proposalId: string) {
         ragChunks,
         consistencyAnchor: anchor,
         tone: state.tone,
+        templateContext,
       }
 
       let response: Response
@@ -369,13 +371,37 @@ export function useProposalGeneration(proposalId: string) {
 
   // generateAll: three-wave orchestration per D-01/D-02 (REQ-4.2)
   const generateAll = useCallback(
-    async (proposalInput: GenerateSectionPayload['proposalInput']) => {
+    async (
+      proposalInput: GenerateSectionPayload['proposalInput'],
+      selectedTemplateId?: string | null
+    ) => {
       dispatch({ type: 'START_GENERATION' })
 
       try {
         // Fetch approved assumptions for enriched input
         const assumptions = await fetchAssumptions(proposalId)
         const enrichedInput = { ...proposalInput, assumptions }
+
+        // Fetch template sections if a template is selected (REQ-9.3)
+        let templateContext: GenerateSectionPayload['templateContext'] | undefined
+
+        if (selectedTemplateId) {
+          const { data: sections } = await supabase
+            .from('template_sections')
+            .select('name, role, description')
+            .eq('template_id', selectedTemplateId)
+            .order('position', { ascending: true })
+
+          if (sections && sections.length > 0) {
+            templateContext = { sections }
+          }
+
+          // Save selected_template_id to proposal for audit (REQ-10.4)
+          await supabase
+            .from('proposals')
+            .update({ selected_template_id: selectedTemplateId })
+            .eq('id', proposalId)
+        }
 
         // Wave 1: Understanding (serial)
         const wave1Keys = getWaveSections(1)  // ['understanding']
@@ -384,7 +410,7 @@ export function useProposalGeneration(proposalId: string) {
           wave1Keys[0],
           proposalInput.studyInfo.therapeuticArea
         )
-        const wave1Text = await streamSection(wave1Keys[0], enrichedInput, ragChunks1, '')
+        const wave1Text = await streamSection(wave1Keys[0], enrichedInput, ragChunks1, '', templateContext)
 
         // Extract anchor after Wave 1 (REQ-4.3)
         const anchor1 = await extractAnchor(wave1Text, session!)
@@ -400,7 +426,7 @@ export function useProposalGeneration(proposalId: string) {
             key,
             proposalInput.studyInfo.therapeuticArea
           )
-          const result = await streamSection(key, enrichedInput, ragChunks, anchor1)
+          const result = await streamSection(key, enrichedInput, ragChunks, anchor1, templateContext)
           wave2Results.push(result)
         }
         dispatch({ type: 'WAVE_COMPLETE', wave: 2 })
@@ -418,7 +444,7 @@ export function useProposalGeneration(proposalId: string) {
             key,
             proposalInput.studyInfo.therapeuticArea
           )
-          await streamSection(key, enrichedInput, ragChunks, fullAnchor)
+          await streamSection(key, enrichedInput, ragChunks, fullAnchor, templateContext)
         }
         dispatch({ type: 'WAVE_COMPLETE', wave: 3 })
         dispatch({ type: 'GENERATION_COMPLETE' })

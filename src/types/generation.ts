@@ -80,6 +80,9 @@ export interface GenerateSectionPayload {
   ragChunks: Array<{ content: string; doc_type: string; agency: string }>
   consistencyAnchor: string
   tone: ToneOption
+  templateContext?: {
+    sections: Array<{ name: string; role: string | null; description: string | null }>
+  }
 }
 
 /** Payload for anchor-only mode */

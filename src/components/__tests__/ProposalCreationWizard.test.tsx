@@ -7,15 +7,31 @@ const mockCreateProposal = vi.fn()
 const mockNavigate = vi.fn()
 
 vi.mock('../../lib/supabase', () => {
-  const mockChain = {
+  const mockChain: any = {
     select: vi.fn().mockReturnThis(),
     eq: vi.fn().mockReturnThis(),
-    order: vi.fn().mockResolvedValue({ data: [], error: null }),
+    order: vi.fn().mockReturnThis(),
     upsert: vi.fn().mockResolvedValue({ data: null, error: null }),
+    then: vi.fn((resolve: (value: { data: any[]; error: null }) => void) => {
+      resolve({ data: [], error: null })
+      return Promise.resolve({ data: [], error: null })
+    }),
   }
+  // Make the chain thenable so async callers get { data: [], error: null }
+  Object.defineProperty(mockChain, Symbol.toStringTag, { value: 'Promise' })
+  const thenableChain = new Proxy(mockChain, {
+    get(target, prop) {
+      if (prop === 'then' || prop === 'catch' || prop === 'finally') {
+        return Promise.resolve({ data: [], error: null })[prop as 'then'].bind(
+          Promise.resolve({ data: [], error: null })
+        )
+      }
+      return target[prop]
+    },
+  })
   return {
     supabase: {
-      from: vi.fn().mockReturnValue(mockChain),
+      from: vi.fn().mockReturnValue(thenableChain),
       functions: {
         invoke: vi.fn().mockResolvedValue({ data: { assumptions: [], missing: [] }, error: null }),
       },
@@ -117,7 +133,7 @@ describe('ProposalCreationWizard', () => {
   })
 
   it('REQ-1.6: wizard state hydrated from sessionStorage on mount when stateVersion matches', () => {
-    // Pre-load step 3 into sessionStorage with stateVersion:6
+    // Pre-load step 3 into sessionStorage with stateVersion:7
     sessionStorage.setItem('jamo-wizard-state', JSON.stringify({
       step: 3,
       proposalId: null,
@@ -127,7 +143,8 @@ describe('ProposalCreationWizard', () => {
       assumptions: [],
       missingFields: [],
       extractionStatus: 'idle',
-      stateVersion: 6,
+      selectedTemplateId: null,
+      stateVersion: 7,
     }))
     render(<ProposalCreationWizard />)
     // Should start on step 3 (hydrated) — skip button not visible, step-generate visible
@@ -170,7 +187,8 @@ describe('ProposalCreationWizard', () => {
       assumptions: [],
       missingFields: [],
       extractionStatus: 'idle',
-      stateVersion: 6,
+      selectedTemplateId: null,
+      stateVersion: 7,
     }))
     render(<ProposalCreationWizard />)
     // Step3AssumptionReview has data-testid="step-assumption-review"
@@ -181,7 +199,7 @@ describe('ProposalCreationWizard', () => {
 
   it('REQ-9.4: Step 4 renders Generate button and calls createProposal on click', async () => {
     mockCreateProposal.mockResolvedValueOnce('proposal-123')
-    // Pre-load step 3 into sessionStorage with stateVersion:6
+    // Pre-load step 3 into sessionStorage with stateVersion:7
     sessionStorage.setItem('jamo-wizard-state', JSON.stringify({
       step: 3,
       proposalId: null,
@@ -199,7 +217,8 @@ describe('ProposalCreationWizard', () => {
       assumptions: [],
       missingFields: [],
       extractionStatus: 'idle',
-      stateVersion: 6,
+      selectedTemplateId: null,
+      stateVersion: 7,
     }))
     render(<ProposalCreationWizard />)
     const generateBtn = screen.getByTestId('generate-button')
