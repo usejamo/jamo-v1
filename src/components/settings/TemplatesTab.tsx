@@ -1,7 +1,41 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
-import { Trash2, ChevronDown, ChevronUp, Upload, AlertTriangle } from 'lucide-react'
+function IconTrash({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /><path d="M9 6V4h6v2" />
+    </svg>
+  )
+}
+function IconChevronDown({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="6 9 12 15 18 9" />
+    </svg>
+  )
+}
+function IconChevronUp({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="18 15 12 9 6 15" />
+    </svg>
+  )
+}
+function IconUpload({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="16 16 12 12 8 16" /><line x1="12" y1="12" x2="12" y2="21" /><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3" />
+    </svg>
+  )
+}
+function IconAlertTriangle({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
+    </svg>
+  )
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -83,9 +117,9 @@ function SectionDisclosure({
         className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
       >
         {expanded ? (
-          <>Hide sections <ChevronUp className="w-3.5 h-3.5" /></>
+          <>Hide sections <IconChevronUp className="w-3.5 h-3.5" /></>
         ) : (
-          <>View detected sections ({sections.length > 0 ? sections.length : '…'}) <ChevronDown className="w-3.5 h-3.5" /></>
+          <>View detected sections ({sections.length > 0 ? sections.length : '…'}) <IconChevronDown className="w-3.5 h-3.5" /></>
         )}
       </button>
 
@@ -96,7 +130,7 @@ function SectionDisclosure({
               role="alert"
               className="bg-amber-50 border border-amber-200 rounded-md px-3 py-2 text-sm text-amber-700 mb-2 flex items-start gap-2"
             >
-              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+              <IconAlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
               Fewer sections than expected were detected — review before using this template.
             </div>
           )}
@@ -325,7 +359,7 @@ export function TemplatesTab() {
             </div>
           ) : (
             <div className="flex flex-col items-center gap-2 py-6">
-              <Upload className="w-6 h-6 text-gray-400" />
+              <IconUpload className="w-6 h-6 text-gray-400" />
               <p className="text-sm text-gray-500">
                 Drag a file here, or{' '}
                 <span className="text-jamo-600 font-medium">browse</span>
@@ -455,7 +489,7 @@ function TemplateRow({
               className="flex items-center justify-center text-gray-400 hover:text-red-600 transition-colors"
               style={{ width: 44, height: 44 }}
             >
-              <Trash2 className="w-4 h-4" />
+              <IconTrash className="w-4 h-4" />
             </button>
           )}
         </div>
