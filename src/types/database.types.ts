@@ -12,33 +12,61 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.1"
   }
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
+      chunks: {
+        Row: {
+          agency: string | null
+          content: string
+          created_at: string
+          doc_type: string
+          embedding: string | null
+          guideline_type: string | null
+          id: string
+          metadata: Json
+          org_id: string
+          search_vector: unknown
+          source: string
+          therapeutic_area: string | null
+        }
+        Insert: {
+          agency?: string | null
+          content: string
+          created_at?: string
+          doc_type: string
+          embedding?: string | null
+          guideline_type?: string | null
+          id?: string
+          metadata?: Json
+          org_id: string
+          search_vector?: unknown
+          source: string
+          therapeutic_area?: string | null
+        }
+        Update: {
+          agency?: string | null
+          content?: string
+          created_at?: string
+          doc_type?: string
+          embedding?: string | null
+          guideline_type?: string | null
+          id?: string
+          metadata?: Json
+          org_id?: string
+          search_vector?: unknown
+          source?: string
+          therapeutic_area?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chunks_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       document_extracts: {
         Row: {
           content: string
@@ -189,25 +217,31 @@ export type Database = {
           content: string
           created_at: string
           id: string
+          message_type: string | null
           org_id: string
           proposal_id: string
           role: string
+          section_target_id: string | null
         }
         Insert: {
           content: string
           created_at?: string
           id?: string
+          message_type?: string | null
           org_id: string
           proposal_id: string
           role: string
+          section_target_id?: string | null
         }
         Update: {
           content?: string
           created_at?: string
           id?: string
+          message_type?: string | null
           org_id?: string
           proposal_id?: string
           role?: string
+          section_target_id?: string | null
         }
         Relationships: [
           {
@@ -290,13 +324,53 @@ export type Database = {
           },
         ]
       }
+      proposal_section_versions: {
+        Row: {
+          action_label: string
+          content: string
+          created_at: string | null
+          id: string
+          org_id: string
+          proposal_id: string
+          section_key: string
+        }
+        Insert: {
+          action_label: string
+          content: string
+          created_at?: string | null
+          id?: string
+          org_id: string
+          proposal_id: string
+          section_key: string
+        }
+        Update: {
+          action_label?: string
+          content?: string
+          created_at?: string | null
+          id?: string
+          org_id?: string
+          proposal_id?: string
+          section_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "proposal_section_versions_proposal_id_fkey"
+            columns: ["proposal_id"]
+            isOneToOne: false
+            referencedRelation: "proposals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       proposal_sections: {
         Row: {
+          compliance_flags: Json
           content: string | null
           created_at: string
           generated_at: string | null
           id: string
           is_locked: boolean
+          last_saved_content: string | null
           org_id: string
           proposal_id: string
           section_key: string
@@ -306,11 +380,13 @@ export type Database = {
           version: number
         }
         Insert: {
+          compliance_flags?: Json
           content?: string | null
           created_at?: string
           generated_at?: string | null
           id?: string
           is_locked?: boolean
+          last_saved_content?: string | null
           org_id: string
           proposal_id: string
           section_key: string
@@ -320,11 +396,13 @@ export type Database = {
           version?: number
         }
         Update: {
+          compliance_flags?: Json
           content?: string | null
           created_at?: string
           generated_at?: string | null
           id?: string
           is_locked?: boolean
+          last_saved_content?: string | null
           org_id?: string
           proposal_id?: string
           section_key?: string
@@ -354,7 +432,7 @@ export type Database = {
         Row: {
           client_name: string | null
           consistency_check_ran: boolean
-          consistency_flags: Json | null
+          consistency_flags: Json
           created_at: string
           created_by: string
           currency: string
@@ -366,6 +444,7 @@ export type Database = {
           indication: string | null
           is_archived: boolean
           org_id: string
+          selected_template_id: string | null
           services_requested: string[] | null
           status: string
           study_phase: string | null
@@ -377,7 +456,7 @@ export type Database = {
         Insert: {
           client_name?: string | null
           consistency_check_ran?: boolean
-          consistency_flags?: Json | null
+          consistency_flags?: Json
           created_at?: string
           created_by: string
           currency?: string
@@ -389,6 +468,7 @@ export type Database = {
           indication?: string | null
           is_archived?: boolean
           org_id: string
+          selected_template_id?: string | null
           services_requested?: string[] | null
           status?: string
           study_phase?: string | null
@@ -400,7 +480,7 @@ export type Database = {
         Update: {
           client_name?: string | null
           consistency_check_ran?: boolean
-          consistency_flags?: Json | null
+          consistency_flags?: Json
           created_at?: string
           created_by?: string
           currency?: string
@@ -412,6 +492,7 @@ export type Database = {
           indication?: string | null
           is_archived?: boolean
           org_id?: string
+          selected_template_id?: string | null
           services_requested?: string[] | null
           status?: string
           study_phase?: string | null
@@ -435,40 +516,106 @@ export type Database = {
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "proposals_selected_template_id_fkey"
+            columns: ["selected_template_id"]
+            isOneToOne: false
+            referencedRelation: "templates"
+            referencedColumns: ["id"]
+          },
         ]
       }
-      regulatory_chunks: {
+      template_sections: {
         Row: {
-          content: string
           created_at: string
-          document_name: string
-          document_type: string
-          embedding: string | null
+          description: string | null
           id: string
-          metadata: Json
-          section_ref: string | null
+          name: string
+          org_id: string | null
+          position: number
+          role: string | null
+          template_id: string
         }
         Insert: {
-          content: string
           created_at?: string
-          document_name: string
-          document_type: string
-          embedding?: string | null
+          description?: string | null
           id?: string
-          metadata?: Json
-          section_ref?: string | null
+          name: string
+          org_id?: string | null
+          position: number
+          role?: string | null
+          template_id: string
         }
         Update: {
-          content?: string
           created_at?: string
-          document_name?: string
-          document_type?: string
-          embedding?: string | null
+          description?: string | null
           id?: string
-          metadata?: Json
-          section_ref?: string | null
+          name?: string
+          org_id?: string | null
+          position?: number
+          role?: string | null
+          template_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "template_sections_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "template_sections_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      templates: {
+        Row: {
+          created_at: string
+          description: string | null
+          file_path: string | null
+          id: string
+          low_confidence: boolean
+          name: string
+          org_id: string | null
+          parse_status: string
+          source: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          file_path?: string | null
+          id?: string
+          low_confidence?: boolean
+          name: string
+          org_id?: string | null
+          parse_status?: string
+          source: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          file_path?: string | null
+          id?: string
+          low_confidence?: boolean
+          name?: string
+          org_id?: string | null
+          parse_status?: string
+          source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "templates_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       usage_events: {
         Row: {
@@ -568,7 +715,72 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      match_chunks_fts: {
+        Args: {
+          agencies_filter: string[]
+          match_count: number
+          org_id_filter: string
+          query_text: string
+          therapeutic_areas_filter: string[]
+        }
+        Returns: {
+          agency: string
+          content: string
+          doc_type: string
+          id: string
+          source: string
+          text_score: number
+          therapeutic_area: string
+        }[]
+      }
+      match_chunks_fts_proposals: {
+        Args: { match_count: number; org_id_filter: string; query_text: string }
+        Returns: {
+          agency: string
+          content: string
+          doc_type: string
+          id: string
+          source: string
+          text_score: number
+          therapeutic_area: string
+        }[]
+      }
+      match_chunks_vector: {
+        Args: {
+          agencies_filter: string[]
+          match_count: number
+          org_id_filter: string
+          query_embedding: string
+          similarity_threshold: number
+          therapeutic_areas_filter: string[]
+        }
+        Returns: {
+          agency: string
+          content: string
+          doc_type: string
+          id: string
+          source: string
+          therapeutic_area: string
+          vector_score: number
+        }[]
+      }
+      match_chunks_vector_proposals: {
+        Args: {
+          match_count: number
+          org_id_filter: string
+          query_embedding: string
+          similarity_threshold: number
+        }
+        Returns: {
+          agency: string
+          content: string
+          doc_type: string
+          id: string
+          source: string
+          therapeutic_area: string
+          vector_score: number
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never
@@ -697,9 +909,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {},
   },
