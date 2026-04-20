@@ -91,6 +91,8 @@ function wizardReducer(state: WizardState, action: WizardAction): WizardState {
     }
     case 'SET_EXTRACTION_STATUS':
       return { ...state, extractionStatus: action.status }
+    case 'SET_TEMPLATE':
+      return { ...state, selectedTemplateId: action.templateId }
     default:
       return state
   }
@@ -101,7 +103,7 @@ function getInitialState(): WizardState {
     const stored = sessionStorage.getItem(SESSION_KEY)
     if (stored) {
       const parsed = JSON.parse(stored) as WizardState
-      if (parsed.stateVersion === 6) return parsed
+      if (parsed.stateVersion === 7) return parsed
     }
   } catch {
     // ignore

@@ -1,3 +1,5 @@
+import { useState, useEffect } from 'react'
+import { supabase } from '../../lib/supabase'
 import type { WizardState, WizardAction } from '../../types/wizard'
 
 interface Step4GenerateProps {
@@ -6,13 +8,103 @@ interface Step4GenerateProps {
   onGenerate: () => Promise<void>
 }
 
+interface Template {
+  id: string
+  name: string
+  description: string | null
+  source: 'prebuilt' | 'uploaded'
+  parse_status: string
+}
+
 function getOutputQuality(hasStudyInfo: boolean, documentCount: number): 'full' | 'reduced' | 'limited' {
   if (hasStudyInfo && documentCount > 0) return 'full'
   if (hasStudyInfo || documentCount > 0) return 'reduced'
   return 'limited'
 }
 
-function ContextSummary({ state }: { state: WizardState }) {
+function TemplateSelector({
+  selectedTemplateId,
+  templates,
+  loading,
+  onSelect,
+}: {
+  selectedTemplateId: string | null
+  templates: Template[]
+  loading: boolean
+  onSelect: (id: string | null) => void
+}) {
+  const prebuilt = templates.filter((t) => t.source === 'prebuilt')
+  const uploaded = templates.filter((t) => t.source === 'uploaded')
+
+  if (loading) {
+    return (
+      <div className="text-sm text-gray-400 py-2">Loading templates...</div>
+    )
+  }
+
+  if (templates.length === 0) {
+    return (
+      <div className="text-sm text-gray-400 italic py-2">No templates available.</div>
+    )
+  }
+
+  function renderCard(t: Template) {
+    const isSelected = selectedTemplateId === t.id
+    const cardClass = isSelected
+      ? 'bg-jamo-50 border-jamo-300 ring-2 ring-jamo-200 rounded-lg p-4 cursor-pointer transition-colors'
+      : 'bg-white border border-gray-200 hover:border-jamo-200 rounded-lg p-4 cursor-pointer transition-colors'
+
+    return (
+      <div
+        key={t.id}
+        role="radio"
+        aria-checked={isSelected}
+        onClick={() => onSelect(isSelected ? null : t.id)}
+        className={cardClass}
+      >
+        <div className="flex items-start justify-between gap-2">
+          <span className="text-sm font-semibold text-gray-900">{t.name}</span>
+          {t.source === 'prebuilt' ? (
+            <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full whitespace-nowrap">Pre-built</span>
+          ) : (
+            <span className="text-xs text-jamo-600 bg-jamo-50 px-2 py-0.5 rounded-full whitespace-nowrap">Your template</span>
+          )}
+        </div>
+        {t.description && (
+          <p className="text-sm text-gray-500 mt-1 line-clamp-2">{t.description}</p>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <div role="radiogroup" aria-label="Template selection">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {prebuilt.map(renderCard)}
+      </div>
+      {prebuilt.length > 0 && uploaded.length > 0 && (
+        <div className="my-2 flex items-center gap-2">
+          <hr className="flex-1 border-gray-200" />
+          <span className="text-xs text-gray-400">Your organization's templates</span>
+          <hr className="flex-1 border-gray-200" />
+        </div>
+      )}
+      {uploaded.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {uploaded.map(renderCard)}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ContextSummary({
+  state,
+  templates,
+}: {
+  state: WizardState
+  templates: Template[]
+}) {
   const { studyInfo } = state
   const hasStudyInfo = Boolean(studyInfo.sponsorName && studyInfo.therapeuticArea)
   const documentCount = state.documentCount
@@ -35,6 +127,10 @@ function ContextSummary({ state }: { state: WizardState }) {
     ? `${approvedCount} assumption${approvedCount === 1 ? '' : 's'} approved`
     : 'No assumptions (fast draft)'
 
+  const templateLabel = state.selectedTemplateId
+    ? templates.find((t) => t.id === state.selectedTemplateId)?.name ?? 'Selected'
+    : null
+
   return (
     <div className="rounded-lg bg-gray-50 px-4 py-3 space-y-2" data-testid="context-summary">
       <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Context Summary</p>
@@ -55,12 +151,31 @@ function ContextSummary({ state }: { state: WizardState }) {
           {assumptionLabel}
         </span>
       </div>
+      <p className={state.selectedTemplateId ? 'text-xs text-gray-700' : 'text-xs text-gray-400 italic'}>
+        Template: {state.selectedTemplateId ? templateLabel : 'No template — using standard structure'}
+      </p>
       <p className={`text-xs ${qualityColor[quality]}`}>{qualityLabel[quality]}</p>
     </div>
   )
 }
 
 export function Step4Generate({ state, dispatch, onGenerate }: Step4GenerateProps) {
+  const [templates, setTemplates] = useState<Template[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    supabase
+      .from('templates')
+      .select('id, name, description, source, parse_status')
+      .eq('parse_status', 'ready')
+      .order('source', { ascending: true })
+      .order('name', { ascending: true })
+      .then(({ data }) => {
+        setTemplates((data as Template[]) || [])
+        setLoading(false)
+      })
+  }, [])
+
   return (
     <div className="space-y-5" data-testid="step-generate">
       <div>
@@ -70,7 +185,17 @@ export function Step4Generate({ state, dispatch, onGenerate }: Step4GenerateProp
         </p>
       </div>
 
-      <ContextSummary state={state} />
+      <div>
+        <p className="text-sm font-semibold text-gray-700 mb-2">Choose a template (optional)</p>
+        <TemplateSelector
+          selectedTemplateId={state.selectedTemplateId}
+          templates={templates}
+          loading={loading}
+          onSelect={(id) => dispatch({ type: 'SET_TEMPLATE', templateId: id })}
+        />
+      </div>
+
+      <ContextSummary state={state} templates={templates} />
 
       <div className="flex justify-between pt-2">
         <button
