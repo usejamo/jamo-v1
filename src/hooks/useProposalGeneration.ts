@@ -4,14 +4,11 @@ import { useAuth } from '../context/AuthContext'
 import {
   GenerationState,
   GenerationAction,
+  SectionState,
+  SectionStatus,
   ToneOption,
-  WaveNumber,
-  GenerateSectionPayload,
+  GenerateSectionPayloadV2,
   AnchorPayload,
-  SECTION_NAMES,
-  TOTAL_SECTIONS,
-  getWaveSections,
-  createInitialSections,
 } from '../types/generation'
 
 // ---------------------------------------------------------------------------
@@ -20,12 +17,11 @@ import {
 
 const initialState: GenerationState = {
   isGenerating: false,
-  currentWave: null,
   tone: 'formal',
   consistencyAnchor: '',
-  sections: createInitialSections(),
+  sections: {},
   completedCount: 0,
-  totalCount: TOTAL_SECTIONS,
+  totalCount: 0,
 }
 
 export function generationReducer(
@@ -36,22 +32,27 @@ export function generationReducer(
     case 'SET_TONE':
       return { ...state, tone: action.tone }
 
-    case 'START_GENERATION':
+    case 'START_GENERATION': {
+      const sections = action.sections.reduce<Record<string, SectionState>>(
+        (acc, s) => ({ ...acc, [s.id]: s }),
+        {}
+      )
       return {
         ...state,
         isGenerating: true,
-        currentWave: 1,
         completedCount: 0,
-        sections: createInitialSections(),
+        totalCount: action.sections.length,
+        sections,
       }
+    }
 
     case 'SECTION_GENERATING':
       return {
         ...state,
         sections: {
           ...state.sections,
-          [action.sectionKey]: {
-            ...state.sections[action.sectionKey],
+          [action.sectionId]: {
+            ...state.sections[action.sectionId],
             status: 'generating',
             liveText: '',
           },
@@ -63,9 +64,9 @@ export function generationReducer(
         ...state,
         sections: {
           ...state.sections,
-          [action.sectionKey]: {
-            ...state.sections[action.sectionKey],
-            liveText: state.sections[action.sectionKey].liveText + action.token,
+          [action.sectionId]: {
+            ...state.sections[action.sectionId],
+            liveText: (state.sections[action.sectionId]?.liveText ?? '') + action.token,
           },
         },
       }
@@ -76,8 +77,8 @@ export function generationReducer(
         completedCount: state.completedCount + 1,
         sections: {
           ...state.sections,
-          [action.sectionKey]: {
-            ...state.sections[action.sectionKey],
+          [action.sectionId]: {
+            ...state.sections[action.sectionId],
             status: 'complete',
             finalContent: action.content,
           },
@@ -89,8 +90,8 @@ export function generationReducer(
         ...state,
         sections: {
           ...state.sections,
-          [action.sectionKey]: {
-            ...state.sections[action.sectionKey],
+          [action.sectionId]: {
+            ...state.sections[action.sectionId],
             status: 'error',
             error: action.error,
           },
@@ -100,17 +101,11 @@ export function generationReducer(
     case 'SET_ANCHOR':
       return { ...state, consistencyAnchor: action.anchor }
 
-    case 'WAVE_COMPLETE':
-      return {
-        ...state,
-        currentWave: action.wave < 3 ? ((action.wave + 1) as WaveNumber) : state.currentWave,
-      }
-
     case 'GENERATION_COMPLETE':
-      return { ...state, isGenerating: false, currentWave: null }
+      return { ...state, isGenerating: false }
 
     case 'RESET':
-      return { ...initialState, sections: createInitialSections() }
+      return { ...initialState, sections: {}, totalCount: 0 }
 
     default:
       return state
@@ -166,11 +161,11 @@ export async function readSSEStream(
 
 export async function fetchRagChunks(
   orgId: string,
-  sectionKey: string,
+  sectionName: string,
   therapeuticArea: string
 ): Promise<Array<{ content: string; doc_type: string; agency: string }>> {
   try {
-    const query = SECTION_NAMES[sectionKey] || sectionKey
+    const query = sectionName
     const { data, error } = await supabase.functions.invoke('retrieve-context', {
       body: { orgId, query, therapeuticArea },
     })
@@ -244,21 +239,32 @@ export function useProposalGeneration(proposalId: string) {
   const [state, dispatch] = useReducer(generationReducer, initialState)
   const { session, profile } = useAuth()
 
-  // Hydrate completed sections from DB on mount (so navigating back restores progress)
+  // Hydrate all sections from DB on mount (builds nav, restores completed state)
   useEffect(() => {
     if (!proposalId) return
     supabase
       .from('proposal_sections')
-      .select('section_key, content, status')
+      .select('id, content, status, name, position, role, section_key')
       .eq('proposal_id', proposalId)
-      .eq('status', 'complete')
+      .order('position', { ascending: true })
       .then(({ data }) => {
         if (!data || data.length === 0) return
-        for (const row of data) {
-          if (row.section_key && row.content) {
-            dispatch({ type: 'SECTION_COMPLETE', sectionKey: row.section_key, content: row.content })
-          }
-        }
+        const sections: SectionState[] = data.map((row: any) => ({
+          id: row.id,
+          name: row.name ?? row.section_key ?? 'Section',
+          position: row.position ?? 99,
+          role: row.role ?? null,
+          status: (
+            row.status === 'complete' ? 'complete' :
+            row.status === 'generating' ? 'generating' : 'pending'
+          ) as SectionStatus,
+          liveText: '',
+          finalContent: row.status === 'complete' ? (row.content ?? null) : null,
+          error: null,
+        }))
+        dispatch({ type: 'START_GENERATION', sections })
+        // After building nav, mark as not generating (hydration only)
+        dispatch({ type: 'GENERATION_COMPLETE' })
       })
   }, [proposalId])
 
@@ -280,7 +286,7 @@ export function useProposalGeneration(proposalId: string) {
           if (section?.status === 'complete' && section?.content) {
             dispatch({
               type: 'SECTION_COMPLETE',
-              sectionKey: section.section_key,
+              sectionId: section.id,
               content: section.content,
             })
           }
@@ -295,36 +301,35 @@ export function useProposalGeneration(proposalId: string) {
   // streamSection: fire one section generation, read SSE, dispatch tokens
   const streamSection = useCallback(
     async (
-      sectionKey: string,
-      proposalInput: GenerateSectionPayload['proposalInput'],
-      ragChunks: GenerateSectionPayload['ragChunks'],
+      section: SectionState,
+      sectionDescription: string | null,
+      priorSections: Array<{ id: string; name: string; content: string }>,
       anchor: string,
-      templateContext?: GenerateSectionPayload['templateContext']
+      proposalContext: GenerateSectionPayloadV2['proposalContext'],
+      ragChunks: GenerateSectionPayloadV2['ragChunks'],
+      debug?: boolean
     ): Promise<string> => {
-      dispatch({ type: 'SECTION_GENERATING', sectionKey })
+      dispatch({ type: 'SECTION_GENERATING', sectionId: section.id })
 
       // Optimistic status update in DB
-      if (session) {
-        await supabase.from('proposal_sections').upsert(
-          {
-            proposal_id: proposalId,
-            org_id: profile?.org_id,
-            section_key: sectionKey,
-            section_name: SECTION_NAMES[sectionKey],
-            status: 'generating',
-          },
-          { onConflict: 'proposal_id,section_key' }
-        )
-      }
+      await supabase
+        .from('proposal_sections')
+        .update({ status: 'generating' })
+        .eq('id', section.id)
 
-      const payload: GenerateSectionPayload = {
+      const payload: GenerateSectionPayloadV2 = {
+        version: 2,
         proposalId,
-        sectionId: sectionKey,
-        proposalInput,
+        sectionId: section.id,
+        sectionName: section.name,
+        sectionDescription,
+        sectionRole: section.role,
+        priorSections,
+        proposalContext,
         ragChunks,
-        consistencyAnchor: anchor,
         tone: state.tone,
-        templateContext,
+        consistencyAnchor: anchor,
+        debug,
       }
 
       let response: Response
@@ -343,25 +348,25 @@ export function useProposalGeneration(proposalId: string) {
         )
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : String(err)
-        dispatch({ type: 'SECTION_ERROR', sectionKey, error: errMsg })
+        dispatch({ type: 'SECTION_ERROR', sectionId: section.id, error: errMsg })
         return ''
       }
 
       if (!response.ok || !response.body) {
         const errText = await response.text()
-        dispatch({ type: 'SECTION_ERROR', sectionKey, error: errText })
+        dispatch({ type: 'SECTION_ERROR', sectionId: section.id, error: errText })
         return ''
       }
 
       let fullText = ''
       await readSSEStream(response, (token) => {
         fullText += token
-        dispatch({ type: 'SECTION_TOKEN', sectionKey, token })
+        dispatch({ type: 'SECTION_TOKEN', sectionId: section.id, token })
       })
 
       // Fallback: if Realtime hasn't confirmed within 10s, dispatch complete from local text
       setTimeout(() => {
-        dispatch({ type: 'SECTION_COMPLETE', sectionKey, content: fullText })
+        dispatch({ type: 'SECTION_COMPLETE', sectionId: section.id, content: fullText })
       }, 10000)
 
       return fullText
@@ -369,84 +374,74 @@ export function useProposalGeneration(proposalId: string) {
     [proposalId, session, state.tone]
   )
 
-  // generateAll: three-wave orchestration per D-01/D-02 (REQ-4.2)
+  // generateAll: position-ordered sequential loop (replaces wave-based orchestration)
   const generateAll = useCallback(
     async (
-      proposalInput: GenerateSectionPayload['proposalInput'],
-      selectedTemplateId?: string | null
+      proposalContext: GenerateSectionPayloadV2['proposalContext'],
+      debug?: boolean
     ) => {
-      dispatch({ type: 'START_GENERATION' })
-
       try {
-        // Fetch approved assumptions for enriched input
+        // Fetch approved assumptions for enriched context
         const assumptions = await fetchAssumptions(proposalId)
-        const enrichedInput = { ...proposalInput, assumptions }
-
-        // Fetch template sections if a template is selected (REQ-9.3)
-        let templateContext: GenerateSectionPayload['templateContext'] | undefined
-
-        if (selectedTemplateId) {
-          const { data: sections } = await supabase
-            .from('template_sections')
-            .select('name, role, description')
-            .eq('template_id', selectedTemplateId)
-            .order('position', { ascending: true })
-
-          if (sections && sections.length > 0) {
-            templateContext = { sections }
-          }
-
-          // Save selected_template_id to proposal for audit (REQ-10.4)
-          await supabase
-            .from('proposals')
-            .update({ selected_template_id: selectedTemplateId })
-            .eq('id', proposalId)
+        const enrichedContext: GenerateSectionPayloadV2['proposalContext'] = {
+          ...proposalContext,
+          assumptions,
         }
 
-        // Wave 1: Understanding (serial)
-        const wave1Keys = getWaveSections(1)  // ['understanding']
-        const ragChunks1 = await fetchRagChunks(
-          profile?.org_id ?? '',
-          wave1Keys[0],
-          proposalInput.studyInfo.therapeuticArea
-        )
-        const wave1Text = await streamSection(wave1Keys[0], enrichedInput, ragChunks1, '', templateContext)
+        // Fetch sections ordered by position
+        const { data: sectionRows } = await supabase
+          .from('proposal_sections')
+          .select('id, name, description, position, role, status, section_key')
+          .eq('proposal_id', proposalId)
+          .order('position', { ascending: true })
 
-        // Extract anchor after Wave 1 (REQ-4.3)
-        const anchor1 = await extractAnchor(wave1Text, session!)
-        dispatch({ type: 'SET_ANCHOR', anchor: anchor1 })
-        dispatch({ type: 'WAVE_COMPLETE', wave: 1 })
+        if (!sectionRows || sectionRows.length === 0) {
+          console.error('[useProposalGeneration] No sections found for proposal')
+          dispatch({ type: 'GENERATION_COMPLETE' })
+          return
+        }
 
-        // Wave 2: Body sections serial (rate limit: 8k output tokens/min)
-        const wave2Keys = getWaveSections(2)
-        const wave2Results: string[] = []
-        for (const key of wave2Keys) {
+        const sections: SectionState[] = sectionRows.map((row: any) => ({
+          id: row.id,
+          name: row.name ?? row.section_key ?? 'Section',
+          position: row.position ?? 99,
+          role: row.role ?? null,
+          status: 'pending' as SectionStatus,
+          liveText: '',
+          finalContent: null,
+          error: null,
+        }))
+        dispatch({ type: 'START_GENERATION', sections })
+
+        const completedSections: Array<{ id: string; name: string; content: string }> = []
+        let anchor = ''
+
+        for (const section of sections) {
           const ragChunks = await fetchRagChunks(
             profile?.org_id ?? '',
-            key,
-            proposalInput.studyInfo.therapeuticArea
+            section.name,
+            enrichedContext.studyInfo.therapeuticArea
           )
-          const result = await streamSection(key, enrichedInput, ragChunks, anchor1, templateContext)
-          wave2Results.push(result)
-        }
-        dispatch({ type: 'WAVE_COMPLETE', wave: 2 })
-
-        // Extract full anchor after Wave 2 (REQ-4.3)
-        const allText = [wave1Text, ...wave2Results].join('\n\n')
-        const fullAnchor = await extractAnchor(allText, session!)
-        dispatch({ type: 'SET_ANCHOR', anchor: fullAnchor })
-
-        // Wave 3: Summary sections (serial)
-        const wave3Keys = getWaveSections(3)
-        for (const key of wave3Keys) {
-          const ragChunks = await fetchRagChunks(
-            proposalId,
-            key,
-            proposalInput.studyInfo.therapeuticArea
+          const sectionDescription = (sectionRows.find((r: any) => r.id === section.id) as any)?.description ?? null
+          const content = await streamSection(
+            section,
+            sectionDescription,
+            completedSections,
+            anchor,
+            enrichedContext,
+            ragChunks,
+            debug
           )
-          await streamSection(key, enrichedInput, ragChunks, fullAnchor, templateContext)
+          if (content) {
+            completedSections.push({ id: section.id, name: section.name, content })
+            // Update anchor with latest content (after every section)
+            if (session) {
+              const newAnchor = await extractAnchor(content, session)
+              if (newAnchor) anchor = newAnchor
+              dispatch({ type: 'SET_ANCHOR', anchor })
+            }
+          }
         }
-        dispatch({ type: 'WAVE_COMPLETE', wave: 3 })
         dispatch({ type: 'GENERATION_COMPLETE' })
       } catch (err) {
         console.error('[useProposalGeneration] generateAll error:', err)
@@ -456,33 +451,67 @@ export function useProposalGeneration(proposalId: string) {
     [proposalId, session, profile, streamSection]
   )
 
-  // generateSection: single section independently (REQ-4.7)
+  // generateSection: single section by UUID (REQ-4.7)
   const generateSection = useCallback(
     async (
-      sectionKey: string,
-      proposalInput: GenerateSectionPayload['proposalInput']
+      sectionId: string,
+      proposalContext: GenerateSectionPayloadV2['proposalContext']
     ): Promise<string> => {
+      // Fetch the section row by id
+      const { data: row } = await supabase
+        .from('proposal_sections')
+        .select('id, name, description, position, role, section_key')
+        .eq('id', sectionId)
+        .single()
+
+      if (!row) {
+        console.error('[useProposalGeneration] Section not found:', sectionId)
+        return ''
+      }
+
+      const section: SectionState = {
+        id: row.id,
+        name: row.name ?? row.section_key ?? 'Section',
+        position: row.position ?? 99,
+        role: row.role ?? null,
+        status: 'pending',
+        liveText: '',
+        finalContent: null,
+        error: null,
+      }
+
       const ragChunks = await fetchRagChunks(
-        proposalId,
-        sectionKey,
-        proposalInput.studyInfo.therapeuticArea
+        profile?.org_id ?? '',
+        section.name,
+        proposalContext.studyInfo.therapeuticArea
       )
-      return streamSection(sectionKey, proposalInput, ragChunks, state.consistencyAnchor)
+
+      return streamSection(
+        section,
+        row.description ?? null,
+        [],
+        state.consistencyAnchor,
+        proposalContext,
+        ragChunks
+      )
     },
-    [proposalId, streamSection, state.consistencyAnchor]
+    [proposalId, profile, streamSection, state.consistencyAnchor]
   )
 
   // regenerateSection: reset + generate (REQ-4.7)
   const regenerateSection = useCallback(
     async (
-      sectionKey: string,
-      proposalInput: GenerateSectionPayload['proposalInput']
+      sectionId: string,
+      proposalContext: GenerateSectionPayloadV2['proposalContext']
     ): Promise<string> => {
-      dispatch({ type: 'SECTION_GENERATING', sectionKey })
-      return generateSection(sectionKey, proposalInput)
+      dispatch({ type: 'SECTION_GENERATING', sectionId })
+      return generateSection(sectionId, proposalContext)
     },
     [generateSection]
   )
 
-  return { state, dispatch, generateAll, generateSection, regenerateSection }
+  // Sorted sections array for consumers (D-12)
+  const sortedSections = Object.values(state.sections).sort((a, b) => a.position - b.position)
+
+  return { state, dispatch, generateAll, generateSection, regenerateSection, sortedSections }
 }
