@@ -5,6 +5,7 @@ import { useArchived } from '../context/ArchivedContext'
 import { useProposals } from '../context/ProposalsContext'
 import { useDeleted, isWithin30Days } from '../context/DeletedContext'
 import { useProposalModal } from '../context/ProposalModalContext'
+import { supabase } from '../lib/supabase'
 
 const DEMO_NOW = new Date('2026-02-26T12:00:00')
 
@@ -69,6 +70,28 @@ export default function ProposalsList() {
   const { proposals, permanentlyDelete } = useProposals()
   const { deletedAt, deletedIds, deleteProposal, restoreFromTrash, purgeFromTrash } = useDeleted()
   const { openModal, showToast } = useProposalModal()
+
+  const [templateNames, setTemplateNames] = useState<Record<string, string>>({})
+
+  useEffect(() => {
+    const templateIds = [...new Set(
+      proposals
+        .map(p => (p as any).selected_template_id)
+        .filter(Boolean)
+    )]
+    if (templateIds.length === 0) return
+
+    supabase
+      .from('templates')
+      .select('id, name')
+      .in('id', templateIds)
+      .then(({ data }) => {
+        if (!data) return
+        const names: Record<string, string> = {}
+        for (const t of data) names[t.id] = t.name
+        setTemplateNames(names)
+      })
+  }, [proposals])
 
   // Escape closes the permanent-delete confirmation
   useEffect(() => {
@@ -252,6 +275,11 @@ export default function ProposalsList() {
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-gray-900 text-sm truncate">{p.title}</p>
                     <p className="text-xs text-gray-400 mt-0.5 truncate">{p.therapeuticArea} · {p.studyType}</p>
+                    {(p as any).selected_template_id && templateNames[(p as any).selected_template_id] && (
+                      <span className="text-xs text-gray-400">
+                        {templateNames[(p as any).selected_template_id]}
+                      </span>
+                    )}
                   </div>
                   <div className="w-[140px] shrink-0">
                     <span className="block truncate text-sm text-gray-700">{p.client}</span>
