@@ -11,32 +11,109 @@ function isValidUUID(str: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str)
 }
 
-function parseSectionsFromHtml(html: string): string[] {
-  const matches: string[] = []
-  const regex = /<h[1-3][^>]*>(.*?)<\/h[1-3]>/gi
-  let match
-  while ((match = regex.exec(html)) !== null) {
-    // Strip inner HTML tags (e.g. <strong>, <em>)
-    const name = match[1].replace(/<[^>]+>/g, '').trim()
-    if (name) matches.push(name)
+function parseSectionsFromHtml(html: string): Array<{ name: string; description: string | null }> {
+  const results: Array<{ name: string; description: string | null }> = []
+  // Split on heading tags to pair headings with following content
+  const parts = html.split(/(<h[1-3][^>]*>.*?<\/h[1-3]>)/gi)
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i]
+    if (/<h[1-3][^>]*>/i.test(part)) {
+      const name = part.replace(/<[^>]+>/g, '').trim()
+      if (!name) continue
+      // The next part (if exists) is the content between this heading and the next
+      const descRaw = i + 1 < parts.length ? parts[i + 1] : ''
+      const desc = descRaw.replace(/<[^>]+>/g, '').trim().slice(0, 300) || null
+      results.push({ name, description: desc || null })
+    }
   }
-  return matches
+  return results
 }
 
-function parseSectionsFromText(text: string): string[] {
+function parseSectionsFromText(text: string): Array<{ name: string; description: string | null }> {
   const lines = text.split('\n')
-  const sections: string[] = []
-  for (const line of lines) {
-    const trimmed = line.trim()
+  const results: Array<{ name: string; description: string | null }> = []
+  for (let i = 0; i < lines.length; i++) {
+    const trimmed = lines[i].trim()
     if (!trimmed) continue
-    // Heading heuristic: ALL CAPS or short line without trailing punctuation
     const isAllCaps = trimmed === trimmed.toUpperCase() && /[A-Z]/.test(trimmed)
     const isShortNoPunct = trimmed.length < 80 && !/[.!?,;]$/.test(trimmed)
     if (isAllCaps || isShortNoPunct) {
-      sections.push(trimmed)
+      // Grab following lines as description (up to 3 non-empty lines or 300 chars)
+      const descLines: string[] = []
+      for (let j = i + 1; j < Math.min(i + 5, lines.length) && descLines.join(' ').length < 300; j++) {
+        const next = lines[j].trim()
+        if (!next) break
+        // Stop if we hit another heading
+        if (next === next.toUpperCase() && /[A-Z]/.test(next) && next.length < 80) break
+        descLines.push(next)
+      }
+      results.push({
+        name: trimmed,
+        description: descLines.length > 0 ? descLines.join(' ').slice(0, 300) : null
+      })
     }
   }
-  return sections
+  return results
+}
+
+const KNOWN_ROLES = [
+  'understanding', 'scope_of_work', 'proposed_team', 'timeline',
+  'budget', 'regulatory_strategy', 'quality_management',
+  'executive_summary', 'cover_letter'
+] as const
+
+async function classifyRoles(
+  sections: Array<{ name: string }>,
+  anthropicApiKey: string
+): Promise<Record<string, string | null>> {
+  const sectionList = sections.map((s, i) => `${i + 1}. ${s.name}`).join('\n')
+  const prompt = `You are classifying proposal section names into known CRO proposal section types.
+
+Known types: ${KNOWN_ROLES.join(', ')}
+
+For each section name below, return its type from the known list, or "null" if it does not match any known type.
+Return ONLY a JSON object mapping section number to type string (or null).
+Example: {"1": "understanding", "2": "scope_of_work", "3": null}
+
+Sections:
+${sectionList}`
+
+  try {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': anthropicApiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 200,
+        messages: [{ role: 'user', content: prompt }],
+      }),
+    })
+    if (!resp.ok) return {}
+    const data = await resp.json()
+    const text = data?.content?.[0]?.text ?? '{}'
+    // Extract JSON from response
+    const match = text.match(/\{[\s\S]*\}/)
+    if (!match) return {}
+    const parsed = JSON.parse(match[0])
+    // Map index (1-based string) to null or valid role
+    const result: Record<string, string | null> = {}
+    for (const [idx, role] of Object.entries(parsed)) {
+      const sectionIdx = parseInt(idx, 10) - 1
+      if (sectionIdx >= 0 && sectionIdx < sections.length) {
+        const sectionName = sections[sectionIdx].name
+        result[sectionName] = (KNOWN_ROLES as readonly string[]).includes(role as string)
+          ? (role as string)
+          : null
+      }
+    }
+    return result
+  } catch {
+    return {}
+  }
 }
 
 serve(async (req) => {
@@ -103,7 +180,7 @@ serve(async (req) => {
     // 5. Determine file type
     const ext = template.file_path.split('.').pop()?.toLowerCase()
 
-    let sectionNames: string[] = []
+    let sections: Array<{ name: string; description: string | null }> = []
     let wordCount = 0
 
     if (ext === 'docx') {
@@ -112,7 +189,7 @@ serve(async (req) => {
       const buffer = await fileData.arrayBuffer()
       const result = await mammoth.convertToHtml({ buffer })
       const html = result.value
-      sectionNames = parseSectionsFromHtml(html)
+      sections = parseSectionsFromHtml(html)
       // Estimate word count from plain text
       const text = html.replace(/<[^>]+>/g, ' ')
       wordCount = text.trim().split(/\s+/).length
@@ -129,38 +206,44 @@ serve(async (req) => {
       }
       const fullText = textParts.join('\n')
       wordCount = fullText.trim().split(/\s+/).length
-      sectionNames = parseSectionsFromText(fullText)
+      sections = parseSectionsFromText(fullText)
     }
 
-    // 6. Low-confidence detection
-    const isLowConfidence = sectionNames.length < 3 || wordCount < 200
+    // 6. LLM role classification via Claude Haiku
+    const anthropicApiKey = Deno.env.get('ANTHROPIC_API_KEY') ?? ''
+    const roleMap = anthropicApiKey && sections.length > 0
+      ? await classifyRoles(sections, anthropicApiKey)
+      : {}
 
-    // 7. Bulk-insert template_sections
-    if (sectionNames.length > 0) {
-      const sectionRows = sectionNames.map((name, i) => ({
+    // 7. Low-confidence detection
+    const isLowConfidence = sections.length < 3 || wordCount < 200
+
+    // 8. Bulk-insert template_sections
+    if (sections.length > 0) {
+      const sectionInserts = sections.map((s, idx) => ({
         template_id: templateId,
-        name,
-        role: null,
-        description: null,
-        position: i + 1,
         org_id: template.org_id,
+        name: s.name,
+        description: s.description,
+        role: roleMap[s.name] ?? null,
+        position: idx + 1,
       }))
 
       const { error: insertError } = await supabase
         .from('template_sections')
-        .insert(sectionRows)
+        .insert(sectionInserts)
 
       if (insertError) throw new Error(`Section insert failed: ${insertError.message}`)
     }
 
-    // 8. Update template to ready
+    // 9. Update template to ready
     await supabase
       .from('templates')
       .update({ parse_status: 'ready', low_confidence: isLowConfidence })
       .eq('id', templateId)
 
     return new Response(
-      JSON.stringify({ success: true, sectionCount: sectionNames.length }),
+      JSON.stringify({ success: true, sectionCount: sections.length }),
       { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
     )
   } catch (err) {

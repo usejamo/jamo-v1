@@ -14,6 +14,7 @@ interface Template {
   description: string | null
   source: 'prebuilt' | 'uploaded'
   parse_status: string
+  is_default: boolean
 }
 
 function getOutputQuality(hasStudyInfo: boolean, documentCount: number): 'full' | 'reduced' | 'limited' {
@@ -151,8 +152,8 @@ function ContextSummary({
           {assumptionLabel}
         </span>
       </div>
-      <p className={state.selectedTemplateId ? 'text-xs text-gray-700' : 'text-xs text-gray-400 italic'}>
-        Template: {state.selectedTemplateId ? templateLabel : 'No template — using standard structure'}
+      <p className="text-xs text-gray-700">
+        Template: {templateLabel ?? 'Standard Proposal'}
       </p>
       <p className={`text-xs ${qualityColor[quality]}`}>{qualityLabel[quality]}</p>
     </div>
@@ -166,14 +167,24 @@ export function Step4Generate({ state, dispatch, onGenerate }: Step4GenerateProp
   useEffect(() => {
     supabase
       .from('templates')
-      .select('id, name, description, source, parse_status')
+      .select('id, name, description, source, parse_status, is_default')
       .eq('parse_status', 'ready')
       .order('source', { ascending: true })
       .order('name', { ascending: true })
       .then(({ data }) => {
-        setTemplates((data as Template[]) || [])
+        const loaded = (data as Template[]) || []
+        setTemplates(loaded)
         setLoading(false)
+
+        // D-16: Pre-select default template if nothing is selected yet
+        if (!state.selectedTemplateId) {
+          const defaultTemplate = loaded.find((t) => t.is_default === true)
+          if (defaultTemplate) {
+            dispatch({ type: 'SET_TEMPLATE', templateId: defaultTemplate.id })
+          }
+        }
       })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   return (

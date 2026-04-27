@@ -91,6 +91,14 @@ function SectionDisclosure({
   const [sections, setSections] = useState<TemplateSection[]>([])
   const [loading, setLoading] = useState(false)
 
+  async function handleRoleChange(sectionId: string, newRole: string | null) {
+    await supabase
+      .from('template_sections')
+      .update({ role: newRole })
+      .eq('id', sectionId)
+    setSections(prev => prev.map(s => s.id === sectionId ? { ...s, role: newRole } : s))
+  }
+
   async function loadSections() {
     if (sections.length > 0) return
     setLoading(true)
@@ -141,7 +149,28 @@ function SectionDisclosure({
           ) : (
             <ol className="mt-2 ml-4 space-y-1 list-decimal text-sm text-gray-600">
               {sections.map(s => (
-                <li key={s.id}>{s.name}</li>
+                <li key={s.id}>
+                  <div className="flex items-center justify-between py-1">
+                    <span className="text-sm text-gray-700">{s.name}</span>
+                    <select
+                      value={s.role ?? ''}
+                      onChange={(e) => handleRoleChange(s.id, e.target.value || null)}
+                      className="text-xs text-gray-500 border border-gray-200 rounded px-1 py-0.5 ml-2 bg-white"
+                      aria-label={`Role for ${s.name}`}
+                    >
+                      <option value="">None</option>
+                      <option value="understanding">Understanding</option>
+                      <option value="scope_of_work">Scope of Work</option>
+                      <option value="proposed_team">Proposed Team</option>
+                      <option value="timeline">Timeline</option>
+                      <option value="budget">Budget</option>
+                      <option value="regulatory_strategy">Regulatory Strategy</option>
+                      <option value="quality_management">Quality Management</option>
+                      <option value="executive_summary">Executive Summary</option>
+                      <option value="cover_letter">Cover Letter</option>
+                    </select>
+                  </div>
+                </li>
               ))}
             </ol>
           )}
