@@ -1,11 +1,11 @@
-export type SectionStatus = 'queued' | 'generating' | 'waiting' | 'complete' | 'error'
+export type SectionStatus = 'pending' | 'generating' | 'complete' | 'error'
 export type ToneOption = 'formal' | 'regulatory' | 'persuasive'
-export type WaveNumber = 1 | 2 | 3
 
 export interface SectionState {
-  sectionKey: string
-  sectionName: string
-  wave: WaveNumber
+  id: string            // proposal_sections UUID — primary identifier (D-03)
+  name: string          // display name from template
+  position: number
+  role: string | null   // nullable generation hint (D-03)
   status: SectionStatus
   liveText: string
   finalContent: string | null
@@ -14,57 +14,38 @@ export interface SectionState {
 
 export interface GenerationState {
   isGenerating: boolean
-  currentWave: WaveNumber | null
   tone: ToneOption
-  consistencyAnchor: string
-  sections: Record<string, SectionState>
+  consistencyAnchor: string     // retained alongside priorSections as safety net (per discretion)
+  sections: Record<string, SectionState>  // keyed by UUID
   completedCount: number
   totalCount: number
 }
 
 export type GenerationAction =
   | { type: 'SET_TONE'; tone: ToneOption }
-  | { type: 'START_GENERATION' }
-  | { type: 'SECTION_GENERATING'; sectionKey: string }
-  | { type: 'SECTION_TOKEN'; sectionKey: string; token: string }
-  | { type: 'SECTION_COMPLETE'; sectionKey: string; content: string }
-  | { type: 'SECTION_ERROR'; sectionKey: string; error: string }
+  | { type: 'START_GENERATION'; sections: SectionState[] }
+  | { type: 'SECTION_GENERATING'; sectionId: string }
+  | { type: 'SECTION_TOKEN'; sectionId: string; token: string }
+  | { type: 'SECTION_COMPLETE'; sectionId: string; content: string }
+  | { type: 'SECTION_ERROR'; sectionId: string; error: string }
   | { type: 'SET_ANCHOR'; anchor: string }
-  | { type: 'WAVE_COMPLETE'; wave: WaveNumber }
   | { type: 'GENERATION_COMPLETE' }
   | { type: 'RESET' }
 
-export const SECTION_WAVE_MAP: Record<string, WaveNumber> = {
-  understanding:       1,
-  scope_of_work:       2,
-  proposed_team:       2,
-  timeline:            2,
-  budget:              2,
-  regulatory_strategy: 2,
-  quality_management:  2,
-  executive_summary:   3,
-  cover_letter:        3,
-} as const
-
-export const SECTION_NAMES: Record<string, string> = {
-  understanding:       'Understanding of the Study',
-  scope_of_work:       'Scope of Work & Service Delivery',
-  proposed_team:       'Proposed Team & Organizational Structure',
-  timeline:            'Timeline & Milestones',
-  budget:              'Budget & Pricing',
-  regulatory_strategy: 'Regulatory Strategy',
-  quality_management:  'Quality Management',
-  executive_summary:   'Executive Summary',
-  cover_letter:        'Cover Letter',
-} as const
-
-export const TOTAL_SECTIONS = Object.keys(SECTION_WAVE_MAP).length  // 9
-
-/** Payload sent to generate-proposal-section Edge Function (per D-07) */
-export interface GenerateSectionPayload {
+/** V2 payload for generate-proposal-section Edge Function (D-09) */
+export interface GenerateSectionPayloadV2 {
+  version: 2
   proposalId: string
-  sectionId: string
-  proposalInput: {
+  sectionId: string                      // proposal_sections UUID
+  sectionName: string                    // display name from template section
+  sectionDescription: string | null      // from template section — content scope for uploaded templates
+  sectionRole: string | null             // soft prompt strategy hint (D-03)
+  priorSections: Array<{
+    id: string
+    name: string
+    content: string
+  }>
+  proposalContext: {
     studyInfo: {
       sponsorName: string
       therapeuticArea: string
@@ -78,37 +59,13 @@ export interface GenerateSectionPayload {
     services: string[]
   }
   ragChunks: Array<{ content: string; doc_type: string; agency: string }>
-  consistencyAnchor: string
   tone: ToneOption
-  templateContext?: {
-    sections: Array<{ name: string; role: string | null; description: string | null }>
-  }
+  consistencyAnchor?: string             // retained as safety net alongside priorSections
+  debug?: boolean
 }
 
-/** Payload for anchor-only mode */
+/** Payload for anchor-only mode (unchanged) */
 export interface AnchorPayload {
   _anchorMode: true
   text: string
-}
-
-export function getWaveSections(wave: WaveNumber): string[] {
-  return Object.entries(SECTION_WAVE_MAP)
-    .filter(([, w]) => w === wave)
-    .map(([key]) => key)
-}
-
-export function createInitialSections(): Record<string, SectionState> {
-  const sections: Record<string, SectionState> = {}
-  for (const [key, wave] of Object.entries(SECTION_WAVE_MAP)) {
-    sections[key] = {
-      sectionKey: key,
-      sectionName: SECTION_NAMES[key],
-      wave,
-      status: 'queued',
-      liveText: '',
-      finalContent: null,
-      error: null,
-    }
-  }
-  return sections
 }

@@ -4,7 +4,6 @@ import { SectionNavPanel } from './SectionNavPanel'
 import { VersionHistoryOverlay } from './VersionHistoryOverlay'
 import { ConsistencyCheckBanner } from './ConsistencyCheckBanner'
 import { SectionWorkspaceProvider, useSectionWorkspace } from '../../context/SectionWorkspaceContext'
-import { SECTION_NAMES, SECTION_WAVE_MAP } from '../../types/generation'
 import type { SectionEditorHandle, SectionEditorState, ComplianceFlag, ConsistencyFlag } from '../../types/workspace'
 import { useComplianceCheck } from '../../hooks/useComplianceCheck'
 import { supabase } from '../../lib/supabase'
@@ -32,7 +31,8 @@ function SectionWorkspaceInner({ proposalId, sections, orgId, editorRefsRef, onA
   const editorRefs = editorRefsRef ?? localEditorRefs
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const [dbLoaded, setDbLoaded] = useState(false)
-  const sectionKeys = Object.keys(SECTION_WAVE_MAP)
+  // Section keys derived from prop (position-ordered by caller via proposal_sections ORDER BY position)
+  const sectionKeys = sections.map(s => s.section_key)
   // Populate workspace state from sections prop on mount
   useEffect(() => {
     const sectionsMap: Record<string, SectionEditorState> = {}
@@ -47,22 +47,6 @@ function SectionWorkspaceInner({ proposalId, sections, orgId, editorRefsRef, onA
         compliance_flags: Array.isArray(s.compliance_flags) ? s.compliance_flags : [],
         compliance_checking: false,
         ai_action: null,
-      }
-    }
-    // Fill any section keys not in the prop with empty state
-    for (const key of sectionKeys) {
-      if (!sectionsMap[key]) {
-        sectionsMap[key] = {
-          section_key: key,
-          content: '',
-          last_saved_content: null,
-          is_locked: false,
-          status: 'missing',
-          autosave_status: 'idle',
-          compliance_flags: [],
-          compliance_checking: false,
-          ai_action: null,
-        }
       }
     }
     dispatch({ type: 'SET_SECTIONS', payload: sectionsMap })
@@ -270,7 +254,7 @@ function SectionWorkspaceInner({ proposalId, sections, orgId, editorRefsRef, onA
                 }
               }}
               sectionKey={key}
-              sectionTitle={SECTION_NAMES[key] ?? key}
+              sectionTitle={state.sections[key]?.section_key ?? key}
               proposalId={proposalId}
               orgId={orgId}
               editorState={editorState}
