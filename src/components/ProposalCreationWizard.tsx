@@ -214,6 +214,48 @@ export function ProposalCreationWizard() {
           description: JSON.stringify({ services: studyInfo.services, regions: studyInfo.regions }),
         })
       }
+
+      // D-04: Save selected template and pre-create proposal_sections before generation
+      const templateId = state.selectedTemplateId ?? '00000000-0000-0000-0000-000000000001'
+
+      // Save selected_template_id to proposal row
+      await supabase
+        .from('proposals')
+        .update({ selected_template_id: templateId })
+        .eq('id', id)
+
+      // Fetch template sections ordered by position
+      const { data: templateSections, error: tsError } = await supabase
+        .from('template_sections')
+        .select('id, name, description, role, position')
+        .eq('template_id', templateId)
+        .order('position', { ascending: true })
+
+      if (tsError || !templateSections || templateSections.length === 0) {
+        console.error('[ProposalCreationWizard] Failed to fetch template sections:', tsError)
+        // Fall through — ProposalDetail will handle missing sections gracefully
+      } else {
+        // Insert proposal_sections rows (all status = 'pending')
+        const sectionInserts = templateSections.map((ts) => ({
+          proposal_id: id,
+          org_id: profile?.org_id ?? null,
+          name: ts.name,
+          description: ts.description ?? null,
+          role: ts.role ?? null,
+          position: ts.position,
+          section_key: ts.role ?? `section-${ts.position}`,
+          section_name: ts.name,
+          status: 'pending',
+          content: '',
+        }))
+        const { error: insertError } = await supabase
+          .from('proposal_sections')
+          .upsert(sectionInserts, { onConflict: 'proposal_id,section_key' })
+        if (insertError) {
+          console.error('[ProposalCreationWizard] Failed to create proposal sections:', insertError)
+        }
+      }
+
       sessionStorage.removeItem(SESSION_KEY)
       closeModal()
       navigate(`/proposals/${id}?generate=true`)
