@@ -6,10 +6,11 @@ import type { SectionState } from '../types/generation'
 
 function makeSection(overrides: Partial<SectionState> = {}): SectionState {
   return {
-    sectionKey: 'understanding',
-    sectionName: 'Understanding of the Study',
-    wave: 1,
-    status: 'queued',
+    id: 'sec-uuid-1',
+    name: 'Understanding of the Study',
+    position: 1,
+    role: 'understanding',
+    status: 'pending',
     liveText: '',
     finalContent: null,
     error: null,
@@ -18,15 +19,14 @@ function makeSection(overrides: Partial<SectionState> = {}): SectionState {
 }
 
 describe('SectionStreamCard', () => {
-  it('renders section name and wave badge', () => {
+  it('renders section name', () => {
     render(<SectionStreamCard section={makeSection()} />)
     expect(screen.getByText('Understanding of the Study')).toBeTruthy()
-    expect(screen.getByText('Wave 1')).toBeTruthy()
   })
 
-  it('shows "Queued" status badge when status is queued', () => {
-    render(<SectionStreamCard section={makeSection({ status: 'queued' })} />)
-    expect(screen.getByText('Queued')).toBeTruthy()
+  it('shows "Pending" status badge when status is pending', () => {
+    render(<SectionStreamCard section={makeSection({ status: 'pending' })} />)
+    expect(screen.getByText('Pending')).toBeTruthy()
     // No live text area, no Regenerate button
     expect(screen.queryByText('Regenerate')).toBeNull()
   })
@@ -69,7 +69,6 @@ describe('SectionStreamCard', () => {
       />
     )
     expect(screen.getAllByText(/Generation failed/).length).toBeGreaterThan(0)
-    expect(screen.getByText(/temporary issue/)).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Retry' })).toBeTruthy()
   })
 
@@ -87,8 +86,8 @@ describe('SectionStreamCard', () => {
     expect(onRegenerate).toHaveBeenCalledOnce()
   })
 
-  it('does not show live text area or Regenerate button when status is queued', () => {
-    render(<SectionStreamCard section={makeSection({ status: 'queued' })} />)
+  it('does not show live text area or Regenerate button when status is pending', () => {
+    render(<SectionStreamCard section={makeSection({ status: 'pending' })} />)
     // No blinking cursor — live text area hidden
     expect(screen.queryByText('|')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Regenerate' })).toBeNull()

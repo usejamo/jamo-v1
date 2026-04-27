@@ -169,7 +169,7 @@ export function ProposalCreationWizard() {
           .from('proposal_assumptions')
           .upsert(
             approvedAssumptions.map((a) => ({
-              proposal_id: state.proposalId,
+              proposal_id: state.proposalId as string,
               org_id: profile.org_id,
               category: a.category,
               content: a.value,
@@ -181,7 +181,6 @@ export function ProposalCreationWizard() {
           .then(({ error }) => {
             if (error) console.error('Failed to save assumptions:', error)
           })
-          .catch((err) => console.error('Failed to save assumptions:', err))
       }
     }
   }, [state.step])
@@ -250,7 +249,8 @@ export function ProposalCreationWizard() {
         }))
         const { error: insertError } = await supabase
           .from('proposal_sections')
-          .upsert(sectionInserts, { onConflict: 'proposal_id,section_key' })
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .upsert(sectionInserts as any[], { onConflict: 'proposal_id,section_key' })
         if (insertError) {
           console.error('[ProposalCreationWizard] Failed to create proposal sections:', insertError)
         }

@@ -1,4 +1,3 @@
-import { SECTION_NAMES } from '../types/generation'
 import type { GapResult, ChatWithJamoRequest, ChatMessage } from '../types/chat'
 
 /**
@@ -18,7 +17,7 @@ export function detectGaps(
   const gaps: GapResult[] = []
 
   for (const section of sections) {
-    const sectionTitle = SECTION_NAMES[section.section_key] ?? section.section_key
+    const sectionTitle = section.section_key
 
     // Check for placeholder text
     const placeholderIdx = section.content.indexOf('[PLACEHOLDER')
@@ -89,13 +88,13 @@ export function buildContextPayload(args: {
 
   const targetSection = sections.find(s => s.section_key === targetSectionKey)
   const targetPlainText = targetSection ? stripHtml(targetSection.content) : ''
-  const targetTitle = SECTION_NAMES[targetSectionKey] ?? targetSectionKey
+  const targetTitle = targetSectionKey
 
   const otherSections = sections
     .filter(s => s.section_key !== targetSectionKey)
     .map(s => ({
       key: s.section_key,
-      title: SECTION_NAMES[s.section_key] ?? s.section_key,
+      title: s.section_key,
       summary: stripHtml(s.content).slice(0, 200),
     }))
 
@@ -112,6 +111,6 @@ export function buildContextPayload(args: {
       content: targetPlainText,
     },
     other_sections: otherSections,
-    chat_history: slidingHistory,
+    chat_history: slidingHistory as Array<{ role: 'user' | 'assistant'; content: string }>,
   }
 }

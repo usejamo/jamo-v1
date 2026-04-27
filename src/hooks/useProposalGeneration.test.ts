@@ -1,15 +1,10 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import {
   generationReducer,
   readSSEStream,
   fetchRagChunks,
 } from './useProposalGeneration'
-import {
-  GenerationState,
-  createInitialSections,
-  getWaveSections,
-  TOTAL_SECTIONS,
-} from '../types/generation'
+import type { GenerationState, SectionState } from '../types/generation'
 
 // ---------------------------------------------------------------------------
 // Mock supabase
@@ -40,15 +35,32 @@ vi.mock('../context/AuthContext', () => ({
 // Helpers
 // ---------------------------------------------------------------------------
 
-function makeInitialState(): GenerationState {
+function makeSectionState(overrides?: Partial<SectionState>): SectionState {
+  return {
+    id: 'sec-uuid-1',
+    name: 'Understanding of the Study',
+    position: 1,
+    role: 'understanding',
+    status: 'pending',
+    liveText: '',
+    finalContent: null,
+    error: null,
+    ...overrides,
+  }
+}
+
+function makeInitialState(sections: SectionState[] = []): GenerationState {
+  const sectionsMap = sections.reduce<Record<string, SectionState>>(
+    (acc, s) => ({ ...acc, [s.id]: s }),
+    {}
+  )
   return {
     isGenerating: false,
-    currentWave: null,
     tone: 'formal',
     consistencyAnchor: '',
-    sections: createInitialSections(),
+    sections: sectionsMap,
     completedCount: 0,
-    totalCount: TOTAL_SECTIONS,
+    totalCount: sections.length,
   }
 }
 
@@ -63,75 +75,81 @@ describe('generationReducer', () => {
     expect(next.tone).toBe('regulatory')
   })
 
-  it('START_GENERATION sets isGenerating=true and currentWave=1', () => {
+  it('START_GENERATION sets isGenerating=true and builds sections map from array', () => {
     const state = makeInitialState()
-    const next = generationReducer(state, { type: 'START_GENERATION' })
+    const sections = [makeSectionState()]
+    const next = generationReducer(state, { type: 'START_GENERATION', sections })
     expect(next.isGenerating).toBe(true)
-    expect(next.currentWave).toBe(1)
+    expect(next.sections['sec-uuid-1']).toBeDefined()
+    expect(next.totalCount).toBe(1)
   })
 
   it('START_GENERATION resets completedCount to 0', () => {
     const state = { ...makeInitialState(), completedCount: 5 }
-    const next = generationReducer(state, { type: 'START_GENERATION' })
+    const sections = [makeSectionState()]
+    const next = generationReducer(state, { type: 'START_GENERATION', sections })
     expect(next.completedCount).toBe(0)
   })
 
   it('SECTION_GENERATING sets section status to generating', () => {
-    const state = makeInitialState()
+    const section = makeSectionState()
+    const state = makeInitialState([section])
     const next = generationReducer(state, {
       type: 'SECTION_GENERATING',
-      sectionKey: 'understanding',
+      sectionId: 'sec-uuid-1',
     })
-    expect(next.sections['understanding'].status).toBe('generating')
+    expect(next.sections['sec-uuid-1'].status).toBe('generating')
   })
 
   it('SECTION_GENERATING clears liveText', () => {
-    const state = makeInitialState()
-    // Pre-populate liveText
-    state.sections['understanding'].liveText = 'existing text'
+    const section = makeSectionState({ liveText: 'existing text' })
+    const state = makeInitialState([section])
     const next = generationReducer(state, {
       type: 'SECTION_GENERATING',
-      sectionKey: 'understanding',
+      sectionId: 'sec-uuid-1',
     })
-    expect(next.sections['understanding'].liveText).toBe('')
+    expect(next.sections['sec-uuid-1'].liveText).toBe('')
   })
 
   it('SECTION_TOKEN appends token to liveText', () => {
-    const state = makeInitialState()
+    const section = makeSectionState()
+    const state = makeInitialState([section])
     const s1 = generationReducer(state, {
       type: 'SECTION_TOKEN',
-      sectionKey: 'understanding',
+      sectionId: 'sec-uuid-1',
       token: 'Hello ',
     })
     const s2 = generationReducer(s1, {
       type: 'SECTION_TOKEN',
-      sectionKey: 'understanding',
+      sectionId: 'sec-uuid-1',
       token: 'world',
     })
-    expect(s2.sections['understanding'].liveText).toBe('Hello world')
+    expect(s2.sections['sec-uuid-1'].liveText).toBe('Hello world')
   })
 
   it('SECTION_COMPLETE sets status=complete, finalContent, increments completedCount', () => {
-    const state = makeInitialState()
+    const section = makeSectionState()
+    const state = makeInitialState([section])
     const next = generationReducer(state, {
       type: 'SECTION_COMPLETE',
-      sectionKey: 'understanding',
+      sectionId: 'sec-uuid-1',
       content: 'Final content here',
     })
-    expect(next.sections['understanding'].status).toBe('complete')
-    expect(next.sections['understanding'].finalContent).toBe('Final content here')
+    expect(next.sections['sec-uuid-1'].status).toBe('complete')
+    expect(next.sections['sec-uuid-1'].finalContent).toBe('Final content here')
     expect(next.completedCount).toBe(1)
   })
 
   it('SECTION_ERROR sets status=error and error message', () => {
-    const state = makeInitialState()
+    const section = makeSectionState()
+    const state = makeInitialState([section])
     const next = generationReducer(state, {
       type: 'SECTION_ERROR',
-      sectionKey: 'understanding',
+      sectionId: 'sec-uuid-1',
       error: 'Network timeout',
     })
-    expect(next.sections['understanding'].status).toBe('error')
-    expect(next.sections['understanding'].error).toBe('Network timeout')
+    expect(next.sections['sec-uuid-1'].status).toBe('error')
+    expect(next.sections['sec-uuid-1'].error).toBe('Network timeout')
   })
 
   it('SET_ANCHOR updates consistencyAnchor', () => {
@@ -140,16 +158,16 @@ describe('generationReducer', () => {
     expect(next.consistencyAnchor).toBe('anchor-text')
   })
 
-  it('GENERATION_COMPLETE sets isGenerating=false and currentWave=null', () => {
-    const state = { ...makeInitialState(), isGenerating: true, currentWave: 3 as const }
+  it('GENERATION_COMPLETE sets isGenerating=false', () => {
+    const state = { ...makeInitialState(), isGenerating: true }
     const next = generationReducer(state, { type: 'GENERATION_COMPLETE' })
     expect(next.isGenerating).toBe(false)
-    expect(next.currentWave).toBe(null)
   })
 
-  it('RESET returns initial state', () => {
+  it('RESET returns initial state with empty sections', () => {
+    const section = makeSectionState()
     const state = {
-      ...makeInitialState(),
+      ...makeInitialState([section]),
       isGenerating: true,
       completedCount: 7,
       consistencyAnchor: 'some anchor',
@@ -158,34 +176,7 @@ describe('generationReducer', () => {
     expect(next.isGenerating).toBe(false)
     expect(next.completedCount).toBe(0)
     expect(next.consistencyAnchor).toBe('')
-  })
-})
-
-// ---------------------------------------------------------------------------
-// getWaveSections tests
-// ---------------------------------------------------------------------------
-
-describe('getWaveSections', () => {
-  it('getWaveSections(1) returns ["understanding"]', () => {
-    expect(getWaveSections(1)).toEqual(['understanding'])
-  })
-
-  it('getWaveSections(2) returns 6 body section keys', () => {
-    const wave2 = getWaveSections(2)
-    expect(wave2).toHaveLength(6)
-    expect(wave2).toContain('scope_of_work')
-    expect(wave2).toContain('proposed_team')
-    expect(wave2).toContain('timeline')
-    expect(wave2).toContain('budget')
-    expect(wave2).toContain('regulatory_strategy')
-    expect(wave2).toContain('quality_management')
-  })
-
-  it('getWaveSections(3) returns executive_summary and cover_letter', () => {
-    const wave3 = getWaveSections(3)
-    expect(wave3).toHaveLength(2)
-    expect(wave3).toContain('executive_summary')
-    expect(wave3).toContain('cover_letter')
+    expect(Object.keys(next.sections)).toHaveLength(0)
   })
 })
 
@@ -245,7 +236,7 @@ describe('fetchRagChunks', () => {
     vi.clearAllMocks()
   })
 
-  it('calls retrieve-context with sectionKey and therapeuticArea', async () => {
+  it('calls retrieve-context with sectionName and therapeuticArea', async () => {
     const { supabase } = await import('../lib/supabase')
     const invokeMock = vi.mocked(supabase.functions.invoke)
     invokeMock.mockResolvedValueOnce({
@@ -253,10 +244,10 @@ describe('fetchRagChunks', () => {
       error: null,
     })
 
-    const result = await fetchRagChunks('proposal-1', 'understanding', 'Oncology')
+    const result = await fetchRagChunks('org-1', 'Understanding of the Study', 'Oncology')
     expect(invokeMock).toHaveBeenCalledWith('retrieve-context', {
       body: {
-        orgId: 'proposal-1',
+        orgId: 'org-1',
         query: 'Understanding of the Study',
         therapeuticArea: 'Oncology',
       },
@@ -273,7 +264,7 @@ describe('fetchRagChunks', () => {
       error: new Error('connection failed'),
     })
 
-    const result = await fetchRagChunks('proposal-1', 'understanding', 'Oncology')
+    const result = await fetchRagChunks('org-1', 'understanding', 'Oncology')
     expect(result).toEqual([])
   })
 })

@@ -6,7 +6,6 @@ import {
   GenerationAction,
   SectionState,
   SectionStatus,
-  ToneOption,
   GenerateSectionPayloadV2,
   AnchorPayload,
 } from '../types/generation'

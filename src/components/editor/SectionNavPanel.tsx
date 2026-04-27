@@ -1,4 +1,3 @@
-import { SECTION_NAMES, SECTION_WAVE_MAP } from '../../types/generation'
 import type { SectionEditorState } from '../../types/workspace'
 
 interface SectionNavPanelProps {
@@ -31,7 +30,8 @@ function statusDotClass(status: DotStatus): string {
 }
 
 export function SectionNavPanel({ sections, activeSectionKey, onSelectSection }: SectionNavPanelProps) {
-  const sectionKeys = Object.keys(SECTION_WAVE_MAP)
+  // Derive ordered section keys from workspace state (position-ordered by SectionWorkspace)
+  const sectionKeys = Object.keys(sections)
 
   return (
     <nav className="w-56 shrink-0 border-r border-gray-200 overflow-y-auto bg-white sticky top-0 self-start max-h-screen">
@@ -55,7 +55,7 @@ export function SectionNavPanel({ sections, activeSectionKey, onSelectSection }:
                 }`}
               >
                 <span className={`w-2 h-2 rounded-full shrink-0 ${statusDotClass(status)}`} />
-                <span className="leading-snug">{SECTION_NAMES[key] ?? key}</span>
+                <span className="leading-snug">{editorState?.section_key ?? key}</span>
               </button>
             </li>
           )

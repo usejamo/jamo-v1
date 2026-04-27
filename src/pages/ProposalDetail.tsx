@@ -1,5 +1,5 @@
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
-import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import allDocuments from '../data/documents.json'
 import type { ProposalStatus } from '../types/proposal'
 import type { PendingSuggestion } from '../types/draft'
@@ -16,7 +16,7 @@ import { useAuth } from '../context/AuthContext'
 import { useProposalGeneration } from '../hooks/useProposalGeneration'
 import { GenerationHeader } from '../components/GenerationHeader'
 import { GenerationControls } from '../components/GenerationControls'
-import type { GenerateSectionPayload } from '../types/generation'
+import type { GenerateSectionPayloadV2 } from '../types/generation'
 import type { SectionEditorHandle, ComplianceFlag } from '../types/workspace'
 import SectionWorkspace from '../components/editor/SectionWorkspace'
 import { supabase } from '../lib/supabase'
@@ -128,19 +128,19 @@ export default function ProposalDetail() {
   const [searchParams] = useSearchParams()
   const DRAFT_KEY = `draft-generated-${id}`
   const OVERRIDES_KEY = `draft-overrides-${id}`
-  const [generating, setGenerating] = useState(false)
+  const [generating] = useState(false)
   const [generated, setGenerated] = useState(() => !!sessionStorage.getItem(DRAFT_KEY))
-  const [acceptedOverrides, setAcceptedOverrides] = useState<Record<string, ContentBlock[]>>(() => {
+  const [_acceptedOverrides, setAcceptedOverrides] = useState<Record<string, ContentBlock[]>>(() => {
     try {
       const stored = sessionStorage.getItem(`draft-overrides-${id}`)
       return stored ? JSON.parse(stored) : {}
     } catch { return {} }
   })
-  const [flashSectionId, setFlashSectionId] = useState<string | null>(null)
+  const [_flashSectionId, setFlashSectionId] = useState<string | null>(null)
   const [isCondensed, setIsCondensed] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const [pendingSuggestion, setPendingSuggestion] = useState<PendingSuggestion | null>(null)
-  const [lastResolution, setLastResolution] = useState<'accepted' | 'declined' | null>(null)
+  const [_lastResolution, setLastResolution] = useState<'accepted' | 'declined' | null>(null)
 
   const { proposals, loading: proposalsLoading } = useProposals()
   const { openModal, showToast } = useProposalModal()
@@ -213,7 +213,7 @@ export default function ProposalDetail() {
     setGapCount(gaps.length)
   }, [genState?.isGenerating, proposalSections])
 
-  const isStreamingMode = genState.isGenerating || genState.currentWave !== null
+  const isStreamingMode = genState.isGenerating || genState.completedCount > 0
   const existingDocs: MockDoc[] = id ? (docsByProposal[id] ?? []) : []
 
   const rfpDoc = existingDocs.find(d => d.type === 'rfp')?.name ?? 'RFP Document'
@@ -239,8 +239,7 @@ export default function ProposalDetail() {
   useEffect(() => {
     if (searchParams.get('generate') === 'true' && proposal && !genState.isGenerating && genState.completedCount === 0) {
       const input = buildProposalInput()
-      const selectedTemplateId = (proposal as any)?.selected_template_id ?? null
-      generateAll(input, selectedTemplateId)
+      generateAll(input)
       window.history.replaceState({}, '', window.location.pathname)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -268,9 +267,6 @@ export default function ProposalDetail() {
     setLastResolution('declined')
   }, [])
 
-  const handleResolutionConsumed = useCallback(() => {
-    setLastResolution(null)
-  }, [])
 
   if (proposalsLoading) {
     return (
@@ -291,7 +287,7 @@ export default function ProposalDetail() {
     )
   }
 
-  function buildProposalInput(): GenerateSectionPayload['proposalInput'] {
+  function buildProposalInput(): GenerateSectionPayloadV2['proposalContext'] {
     return {
       studyInfo: {
         sponsorName: (proposal as any)?.sponsor_name ?? proposal?.client ?? '',
@@ -309,13 +305,12 @@ export default function ProposalDetail() {
 
   function handleGenerate() {
     const input = buildProposalInput()
-    const selectedTemplateId = (proposal as any)?.selected_template_id ?? null
-    generateAll(input, selectedTemplateId)
+    generateAll(input)
   }
 
-  function handleRegenerate(sectionKey: string) {
+  function handleRegenerate(sectionId: string) {
     const input = buildProposalInput()
-    regenerateSection(sectionKey, input)
+    regenerateSection(sectionId, input)
   }
 
   return (
@@ -495,7 +490,6 @@ export default function ProposalDetail() {
               <>
                 <GenerationHeader
                   isGenerating={genState.isGenerating}
-                  currentWave={genState.currentWave}
                   completedCount={genState.completedCount}
                   totalCount={genState.totalCount}
                 />
@@ -555,7 +549,7 @@ export default function ProposalDetail() {
                   orgId={profile?.org_id ?? user?.user_metadata?.org_id ?? ''}
                   editorRefsRef={editorRefsMap}
                   onActiveSectionChange={setActiveSectionKey}
-                  externalScrollRef={scrollRef}
+                  externalScrollRef={scrollRef as React.RefObject<HTMLDivElement>}
                   consistencyCheckRef={consistencyCheckRef}
                 />
               </div>

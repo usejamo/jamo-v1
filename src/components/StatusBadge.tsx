@@ -1,9 +1,8 @@
 import type { SectionStatus } from '../types/generation'
 
 const STATUS_CONFIG: Record<SectionStatus, { bg: string; text: string; label: string }> = {
-  queued:     { bg: 'bg-gray-100',  text: 'text-gray-500',  label: 'Queued' },
+  pending:    { bg: 'bg-gray-100',  text: 'text-gray-500',  label: 'Pending' },
   generating: { bg: 'bg-blue-50',   text: 'text-blue-600',  label: 'Generating\u2026' },
-  waiting:    { bg: 'bg-gray-100',  text: 'text-gray-500',  label: 'Waiting for body sections' },
   complete:   { bg: 'bg-green-100', text: 'text-green-600', label: 'Complete' },
   error:      { bg: 'bg-red-100',   text: 'text-red-600',   label: 'Generation failed' },
 }

@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { DraftSection, Annotation, AnnotationSourceType, PendingSuggestion, ContentBlock } from '../types/draft'
 import type { GenerationState } from '../types/generation'
-import { getWaveSections } from '../types/generation'
 import { DEMO_COMMANDS } from '../data/demoCommands'
 import RenderBlock from './RenderBlock'
 import SuggestedChange from './SuggestedChange'
@@ -249,42 +248,19 @@ export default function ProposalDraftRenderer({
     )
   }, [])
 
-  // Streaming mode render path
+  // Streaming mode render path — position-ordered (template-driven, D-08)
   if (mode === 'streaming' && generationState) {
+    const sortedSections = Object.values(generationState.sections).sort(
+      (a, b) => a.position - b.position
+    )
     return (
       <div className="relative">
-        {/* Wave 1 — Foundation */}
-        <p className="text-xs text-gray-400 mb-2 mt-4">Wave 1 — Foundation</p>
-        {getWaveSections(1).map(key => (
+        {sortedSections.map(section => (
           <SectionStreamCard
-            key={key}
-            section={generationState.sections[key]}
-            onRegenerate={() => onRegenerate?.(key)}
-            onRetry={() => onRetry?.(key)}
-          />
-        ))}
-
-        {/* Wave 2 — Body sections */}
-        <p className="text-xs text-gray-400 mb-2 mt-8">Wave 2 — Body sections</p>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {getWaveSections(2).map(key => (
-            <SectionStreamCard
-              key={key}
-              section={generationState.sections[key]}
-              onRegenerate={() => onRegenerate?.(key)}
-              onRetry={() => onRetry?.(key)}
-            />
-          ))}
-        </div>
-
-        {/* Wave 3 — Summary */}
-        <p className="text-xs text-gray-400 mb-2 mt-8">Wave 3 — Summary</p>
-        {getWaveSections(3).map(key => (
-          <SectionStreamCard
-            key={key}
-            section={generationState.sections[key]}
-            onRegenerate={() => onRegenerate?.(key)}
-            onRetry={() => onRetry?.(key)}
+            key={section.id}
+            section={section}
+            onRegenerate={() => onRegenerate?.(section.id)}
+            onRetry={() => onRetry?.(section.id)}
           />
         ))}
       </div>

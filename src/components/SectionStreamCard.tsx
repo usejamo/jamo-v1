@@ -1,4 +1,5 @@
-import type { SectionState, WaveNumber } from '../types/generation'
+import React from 'react'
+import type { SectionState } from '../types/generation'
 import { markdownToHtml } from '../lib/markdownToHtml'
 import { StatusBadge, STATUS_CONFIG } from './StatusBadge'
 
@@ -8,19 +9,13 @@ interface SectionStreamCardProps {
   onRetry?: () => void
 }
 
-const WAVE_BADGE_CONFIG: Record<WaveNumber, { bg: string; text: string; label: string }> = {
-  1: { bg: 'bg-jamo-50',   text: 'text-jamo-600',  label: 'Wave 1' },
-  2: { bg: 'bg-blue-50',   text: 'text-blue-600',   label: 'Wave 2' },
-  3: { bg: 'bg-purple-50', text: 'text-purple-600', label: 'Wave 3' },
-}
-
 /**
  * Splits text into JSX segments, wrapping [PLACEHOLDER: ...] markers in amber marks.
  * Exported for unit testing.
  */
-export function highlightPlaceholders(text: string): JSX.Element {
+export function highlightPlaceholders(text: string): React.ReactElement {
   const regex = /\[PLACEHOLDER:\s*([^\]]+)\]/g
-  const parts: (string | JSX.Element)[] = []
+  const parts: (string | React.ReactElement)[] = []
   let lastIndex = 0
   let match: RegExpExecArray | null
 
@@ -47,24 +42,18 @@ export function highlightPlaceholders(text: string): JSX.Element {
 }
 
 export function SectionStreamCard({ section, onRegenerate, onRetry }: SectionStreamCardProps) {
-  const { status, sectionName, wave, liveText, finalContent, error } = section
-  const waveBadge = WAVE_BADGE_CONFIG[wave]
+  const { status, name, liveText, finalContent, error } = section
   const statusLabel = STATUS_CONFIG[status].label
 
   return (
     <div
       className="border border-gray-200 rounded-lg bg-white p-4 mb-4 transition-shadow duration-200"
-      aria-label={`${sectionName} — ${statusLabel}`}
+      aria-label={`${name} — ${statusLabel}`}
     >
       {/* Header row */}
       <div className="flex items-start justify-between gap-2">
-        <h3 className="text-base font-bold text-gray-900">{sectionName}</h3>
+        <h3 className="text-base font-bold text-gray-900">{name}</h3>
         <div className="flex items-center gap-2 flex-shrink-0">
-          <span
-            className={`${waveBadge.bg} ${waveBadge.text} text-xs font-semibold px-2 py-0.5 rounded-full`}
-          >
-            {waveBadge.label}
-          </span>
           <StatusBadge status={status} />
         </div>
       </div>
@@ -94,10 +83,10 @@ export function SectionStreamCard({ section, onRegenerate, onRetry }: SectionStr
       {status === 'error' && (
         <div className="mt-2">
           <p className="text-sm text-red-600">
-            Generation failed — {sectionName} could not be completed.
+            Generation failed — {name} could not be completed.
           </p>
           <p className="text-xs text-gray-500 mt-1">
-            This may be a temporary issue. Click Retry to try again.
+            {error ?? 'This may be a temporary issue. Click Retry to try again.'}
           </p>
           {onRetry && (
             <button
