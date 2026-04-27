@@ -149,7 +149,10 @@ export default function ProposalDetail() {
 
   // Fetch proposal_sections from Supabase for SectionWorkspace
   const [proposalSections, setProposalSections] = useState<Array<{
+    id: string
     section_key: string
+    name: string | null
+    position: number | null
     content: string
     is_locked: boolean
     status: string
@@ -157,14 +160,16 @@ export default function ProposalDetail() {
     compliance_flags: ComplianceFlag[] | null
   }>>([])
   const [sectionsLoaded, setSectionsLoaded] = useState(false)
+  const [templateName, setTemplateName] = useState<string | null>(null)
 
   useEffect(() => {
     if (!id) return
     setSectionsLoaded(false)
     supabase
       .from('proposal_sections')
-      .select('section_key, content, is_locked, status, last_saved_content, compliance_flags')
+      .select('id, section_key, name, position, content, is_locked, status, last_saved_content, compliance_flags')
       .eq('proposal_id', id)
+      .order('position', { ascending: true })
       .then(({ data }) => {
         if (data && data.length > 0) {
           setProposalSections(data as any)
@@ -173,6 +178,19 @@ export default function ProposalDetail() {
         setSectionsLoaded(true)
       })
   }, [id])
+
+  useEffect(() => {
+    const templateId = (proposal as any)?.selected_template_id
+    if (!templateId) return
+    supabase
+      .from('templates')
+      .select('name')
+      .eq('id', templateId)
+      .single()
+      .then(({ data }) => {
+        if (data?.name) setTemplateName(data.name)
+      })
+  }, [(proposal as any)?.selected_template_id])
 
   // Phase 9: editor refs for chat injection
   const editorRefsMap = useRef<Map<string, SectionEditorHandle>>(new Map())
@@ -186,8 +204,9 @@ export default function ProposalDetail() {
     if (!id) return
     supabase
       .from('proposal_sections')
-      .select('section_key, content, is_locked, status, last_saved_content, compliance_flags')
+      .select('id, section_key, name, position, content, is_locked, status, last_saved_content, compliance_flags')
       .eq('proposal_id', id)
+      .order('position', { ascending: true })
       .then(({ data }) => {
         if (data && data.length > 0) setProposalSections(data as any)
       })
@@ -536,15 +555,25 @@ export default function ProposalDetail() {
 
             {!isStreamingMode && generated && sectionsLoaded && (
               <div className="border border-gray-100 rounded-lg bg-white">
+                {templateName && (
+                  <div className="px-4 pt-3 pb-1 border-b border-gray-100">
+                    <span className="text-xs text-gray-400 font-medium">
+                      Template: <span className="text-gray-500">{templateName}</span>
+                    </span>
+                  </div>
+                )}
                 <SectionWorkspace
                   proposalId={id ?? ''}
                   sections={proposalSections.map(s => ({
+                    id: s.id,
                     section_key: s.section_key,
                     content: s.content ?? '',
                     is_locked: s.is_locked ?? false,
                     status: s.status ?? 'missing',
                     last_saved_content: s.last_saved_content ?? null,
                     compliance_flags: s.compliance_flags ?? null,
+                    name: s.name ?? s.section_key,
+                    position: s.position ?? 99,
                   }))}
                   orgId={profile?.org_id ?? user?.user_metadata?.org_id ?? ''}
                   editorRefsRef={editorRefsMap}
