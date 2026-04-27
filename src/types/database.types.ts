@@ -367,12 +367,16 @@ export type Database = {
           compliance_flags: Json
           content: string | null
           created_at: string
+          description: string | null
           generated_at: string | null
           id: string
           is_locked: boolean
           last_saved_content: string | null
+          name: string | null
           org_id: string
+          position: number | null
           proposal_id: string
+          role: string | null
           section_key: string
           section_name: string
           status: string
@@ -383,12 +387,16 @@ export type Database = {
           compliance_flags?: Json
           content?: string | null
           created_at?: string
+          description?: string | null
           generated_at?: string | null
           id?: string
           is_locked?: boolean
           last_saved_content?: string | null
+          name?: string | null
           org_id: string
+          position?: number | null
           proposal_id: string
+          role?: string | null
           section_key: string
           section_name: string
           status?: string
@@ -399,12 +407,16 @@ export type Database = {
           compliance_flags?: Json
           content?: string | null
           created_at?: string
+          description?: string | null
           generated_at?: string | null
           id?: string
           is_locked?: boolean
           last_saved_content?: string | null
+          name?: string | null
           org_id?: string
+          position?: number | null
           proposal_id?: string
+          role?: string | null
           section_key?: string
           section_name?: string
           status?: string
@@ -579,6 +591,7 @@ export type Database = {
           description: string | null
           file_path: string | null
           id: string
+          is_default: boolean
           low_confidence: boolean
           name: string
           org_id: string | null
@@ -590,6 +603,7 @@ export type Database = {
           description?: string | null
           file_path?: string | null
           id?: string
+          is_default?: boolean
           low_confidence?: boolean
           name: string
           org_id?: string | null
@@ -601,6 +615,7 @@ export type Database = {
           description?: string | null
           file_path?: string | null
           id?: string
+          is_default?: boolean
           low_confidence?: boolean
           name?: string
           org_id?: string | null
