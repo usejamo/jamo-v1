@@ -169,6 +169,111 @@ Please generate ONLY the "${sectionName}" section now, following the structure a
 }
 
 /**
+ * Build system prompt and user message for v2 payload.
+ * Uses sectionDescription as content scope; sectionRole as strategy hint only.
+ */
+export function buildSectionPromptV2(params: {
+  sectionId: string
+  sectionName: string
+  sectionDescription: string | null
+  sectionRole: string | null
+  tone: string
+  ragChunks: Array<{ content: string; doc_type?: string; agency?: string }>
+  consistencyAnchor?: string
+  priorSections: Array<{ id: string; name: string; content: string }>
+  proposalContext: {
+    studyInfo?: Record<string, string>
+    assumptions?: Array<{ category: string; value: string; confidence: string }>
+    services?: string[]
+  }
+}): { system: string; userMessage: string } {
+  const { sectionName, sectionDescription, sectionRole, tone, ragChunks, consistencyAnchor, priorSections, proposalContext } = params
+
+  // Role-based tone/structure hints (soft signal only — does NOT override content scope)
+  const roleHints: Record<string, string> = {
+    executive_summary: 'Write as a compelling 1–2 page executive summary. Synthesize all key points from prior sections. Lead with the CRO\'s strongest differentiators.',
+    cover_letter: 'Write as a formal business letter. Keep under 1 page. Reference the sponsor by name. Express genuine enthusiasm and commitment.',
+    budget: 'Organize as a structured financial breakdown. Use tables. Include payment milestone assumptions. Align all line items with scope of work.',
+    timeline: 'Include a visual Gantt-style description. Reference specific milestones, durations, and dependencies. All dates must be internally consistent.',
+    regulatory_strategy: 'Reference specific ICH-GCP guidelines (E6 R2/R3), FDA/EMA guidance, and regional considerations relevant to the therapeutic area.',
+    understanding: 'Demonstrate deep comprehension of the sponsor\'s study. Reference protocol specifics and therapeutic context. This is your credibility section.',
+  }
+
+  let system = CRO_PROPOSAL_SYSTEM_PROMPT
+
+  system += `\n\nIMPORTANT: Generate ONLY the "${sectionName}" section.`
+
+  if (sectionDescription) {
+    system += `\n\nSECTION SCOPE: ${sectionDescription}`
+  }
+
+  if (sectionRole && roleHints[sectionRole]) {
+    system += `\n\nSECTION STRATEGY: ${roleHints[sectionRole]}`
+  }
+
+  system += `\n\nTone for this section: ${tone}.\n\nCRITICAL RULE: When specific information is not available, use [PLACEHOLDER: description of what's needed] markers. NEVER invent specific numbers, dates, or names.`
+
+  if (consistencyAnchor) {
+    system += `\n\n## CONSISTENCY ANCHOR (summary of prior sections):\n${consistencyAnchor}`
+  }
+
+  if (priorSections && priorSections.length > 0) {
+    // Include up to 3 most recent prior sections as direct context (token budget guard)
+    const recentPrior = priorSections.slice(-3)
+    const priorContext = recentPrior
+      .map((s) => `### ${s.name}\n${s.content.slice(0, 800)}${s.content.length > 800 ? '...[truncated]' : ''}`)
+      .join('\n\n---\n\n')
+    system += `\n\n[PRIOR SECTIONS — for consistency]\n${priorContext}\n[/PRIOR SECTIONS]`
+  }
+
+  if (ragChunks && ragChunks.length > 0) {
+    system += `\n\n[REGULATORY CONTEXT]\n${ragChunks.map((c) => c.content).join('\n---\n')}\n[/REGULATORY CONTEXT]`
+  }
+
+  // Build user message
+  const studyInfo = proposalContext?.studyInfo || {}
+  const assumptions = proposalContext?.assumptions || []
+  const services = proposalContext?.services || []
+
+  const sections: string[] = []
+  sections.push(`## SPONSOR & RFP INFORMATION\n\n**Sponsor Name:** ${studyInfo.sponsorName || '[PLACEHOLDER: Sponsor name]'}\n**Therapeutic Area:** ${studyInfo.therapeuticArea || '[PLACEHOLDER: Therapeutic area]'}\n**Indication:** ${studyInfo.indication || '[PLACEHOLDER: Indication]'}\n**Proposal Due Date:** ${studyInfo.dueDate || '[Not provided]'}`)
+  sections.push(`## STUDY DETAILS\n\n**Study Phase:** ${studyInfo.studyPhase || '[PLACEHOLDER: Study phase]'}\n**Regions/Countries:** ${studyInfo.countries || '[Not provided]'}`)
+
+  if (assumptions.length > 0) {
+    const assumptionsList = assumptions.map((a: any) => `- [${a.category}] ${a.value || a.content}`).join('\n')
+    sections.push(`## EXTRACTED ASSUMPTIONS\n${assumptionsList}`)
+  }
+
+  if (services.length > 0) {
+    sections.push(`## SERVICES REQUESTED\n${services.map((s: string) => `- ${s}`).join('\n')}`)
+  }
+
+  const userMessage = `Generate the "${sectionName}" section of the CRO proposal based on the following inputs.\n\n${sections.join('\n\n---\n\n')}\n\n---\n\nPlease generate ONLY the "${sectionName}" section now. Use [PLACEHOLDER: ...] for any missing information.`
+
+  return { system, userMessage }
+}
+
+/**
+ * Write a completed proposal section by UUID (v2 — no upsert, just UPDATE).
+ */
+export async function writeSectionById(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  sectionId: string,
+  content: string
+): Promise<void> {
+  const { error } = await supabase
+    .from('proposal_sections')
+    .update({
+      content,
+      status: 'complete',
+      generated_at: new Date().toISOString(),
+    })
+    .eq('id', sectionId)
+  if (error) throw new Error(`writeSectionById failed: ${error.message}`)
+}
+
+/**
  * Write (upsert) a completed proposal section to the database.
  */
 export async function writeSection(
@@ -260,9 +365,27 @@ serve(async (req) => {
     // ------------------------------------------------------------------
     // Streaming generation mode
     // ------------------------------------------------------------------
-    const { proposalId, sectionId, proposalInput, ragChunks, consistencyAnchor, tone, templateContext } = body
+    const isV2 = body.version === 2
 
-    if (!proposalId || !sectionId || !proposalInput) {
+    // V2 payload fields
+    const {
+      proposalId,
+      sectionId,
+      ragChunks,
+      tone,
+      debug,
+    } = body
+
+    // V2-specific
+    const sectionName: string = isV2 ? body.sectionName : (SECTION_NAMES[sectionId] || sectionId)
+    const sectionDescription: string | null = isV2 ? (body.sectionDescription ?? null) : null
+    const sectionRole: string | null = isV2 ? (body.sectionRole ?? null) : null
+    const priorSections: Array<{ id: string; name: string; content: string }> = isV2 ? (body.priorSections ?? []) : []
+    const proposalContext = isV2 ? body.proposalContext : body.proposalInput
+    const consistencyAnchor: string = body.consistencyAnchor ?? ''
+    const templateContext = isV2 ? undefined : body.templateContext
+
+    if (!proposalId || !sectionId || (!isV2 && !proposalContext)) {
       return new Response(JSON.stringify({ error: 'Missing required fields' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -293,15 +416,26 @@ serve(async (req) => {
     const orgId: string = profile!.org_id
 
     // Build prompts
-    const { system, userMessage } = buildSectionPrompt({
-      sectionId,
-      tone: tone || 'formal',
-      ragChunks: ragChunks || [],
-      anchor: consistencyAnchor || '',
-      proposalInput,
-      templateContext,
-    })
-
+    const { system: baseSystem, userMessage } = isV2
+      ? buildSectionPromptV2({
+          sectionId,
+          sectionName,
+          sectionDescription,
+          sectionRole,
+          tone: tone || 'formal',
+          ragChunks: ragChunks || [],
+          consistencyAnchor,
+          priorSections,
+          proposalContext,
+        })
+      : buildSectionPrompt({
+          sectionId,
+          tone: tone || 'formal',
+          ragChunks: ragChunks || [],
+          anchor: consistencyAnchor || '',
+          proposalInput: proposalContext,
+          templateContext,
+        })
     // Call Anthropic with streaming
     const anthropicResp = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -312,9 +446,9 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
-        max_tokens: 1500,
+        max_tokens: debug ? 150 : 1500,
         stream: true,
-        system,
+        system: baseSystem,
         messages: [{ role: 'user', content: userMessage }],
       }),
     })
@@ -343,7 +477,10 @@ serve(async (req) => {
         controller.enqueue(chunk)
       },
       flush() {
-        writeSection(supabase, proposalId, sectionId, orgId, fullText).catch((err) =>
+        const writeOp = isV2
+          ? writeSectionById(supabase, sectionId, fullText)
+          : writeSection(supabase, proposalId, sectionId, orgId, fullText)
+        writeOp.catch((err) =>
           console.error('[generate-proposal-section] flush write error:', err)
         )
       },
