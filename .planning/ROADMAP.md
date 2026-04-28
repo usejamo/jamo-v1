@@ -291,6 +291,31 @@ Plans:
 - [x] 10.1-04-PLAN.md — Workspace & list updates: ProposalDetail dynamic fetch by position, template badge in nav, SectionEditorBlock UUID key, ProposalsList template name on cards
 - [x] 10.1-05-PLAN.md — Template extraction + wizard defaults: template-extract captures descriptions + LLM role classification, TemplatesTab role editing, Step4Generate default pre-selection
 
+### Phase 10.3: Placeholder Marks & Section Health System (INSERTED)
+
+**Goal:** Replace fragile `[PLACEHOLDER: ...]` string detection with a TipTap custom mark that persists through DB round-trips with stable UUIDs. Add a generalized `issues` field to SectionEditorState driven by `UPDATE_SECTION_ISSUES` dispatches. Status dot reads from `issues` in parallel with the existing compliance_flags bridge.
+
+**Deliverables:**
+- `PlaceholderMark` TipTap extension with resolution plugin (amber pill, clears on edit)
+- `placeholderPatternToSpan` shared helper + `escapeHtml` utility
+- `migratePlaceholders` legacy backfill (applied in SectionEditorBlock with immediate autosave)
+- `IssueCategory`, `SectionIssue` types + `issues` field on `SectionEditorState`
+- `UPDATE_SECTION_ISSUES` workspace action + reducer case
+- Placeholder analyzer effect in SectionEditorBlock (debounced, drives dispatch)
+- `resolveStatus` updated with `hasIssues` check (compliance_flags bridge preserved)
+- Edge function post-process pass converts `[PLACEHOLDER: ...]` to spans before DB write
+- Integration test: roundtrip UUID stability
+
+**Requirements covered:** (new phase — addresses technical debt from Phase 10.1)
+**Depends on:** Phase 10.1
+
+**Plans:** 3 plans
+
+Plans:
+- [ ] 10.3-01-PLAN.md — Wave 1 foundations: IssueCategory/SectionIssue types, UPDATE_SECTION_ISSUES reducer, escapeHtml, placeholderHtml, migratePlaceholders, PlaceholderMark TipTap extension
+- [ ] 10.3-02-PLAN.md — Wave 2 wiring: SectionEditorBlock (register mark, migration pass, analyzer effect), SectionNavPanel resolveStatus, edge function post-process pass
+- [ ] 10.3-03-PLAN.md — Wave 3 integration test: UUID roundtrip stability and idempotency
+
 ### Phase 11: DOCX Export
 
 **Goal:** Clean client-side DOCX export of the generated proposal.
