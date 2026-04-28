@@ -194,17 +194,10 @@ serve(async (req) => {
       const text = html.replace(/<[^>]+>/g, ' ')
       wordCount = text.trim().split(/\s+/).length
     } else {
-      // PDF: extract text and use heading heuristic
-      const { getDocument } = await import('https://esm.sh/pdfjs-dist@3.11.174/build/pdf.min.mjs')
+      // PDF: extract text using unpdf (edge-runtime safe, no canvas dependency)
+      const { extractText } = await import('https://esm.sh/unpdf@0.11.0')
       const buffer = await fileData.arrayBuffer()
-      const pdf = await getDocument({ data: new Uint8Array(buffer) }).promise
-      const textParts: string[] = []
-      for (let i = 1; i <= pdf.numPages; i++) {
-        const page = await pdf.getPage(i)
-        const content = await page.getTextContent()
-        textParts.push(content.items.map((item: { str?: string }) => item.str ?? '').join(' '))
-      }
-      const fullText = textParts.join('\n')
+      const { text: fullText } = await extractText(new Uint8Array(buffer), { mergePages: true })
       wordCount = fullText.trim().split(/\s+/).length
       sections = parseSectionsFromText(fullText)
     }
