@@ -11,11 +11,14 @@ type DotStatus = 'complete' | 'needs-review' | 'missing' | 'generating' | 'error
 function resolveStatus(editorState: SectionEditorState | undefined): DotStatus {
   if (!editorState) return 'missing'
   if (editorState.status === 'generating') return 'generating'
-  if (editorState.status === 'error') return 'error'
-  if (!editorState.content) return 'missing'
-  if (editorState.compliance_flags.length > 0) return 'needs-review'
-  if (editorState.status === 'complete') return 'complete'
-  return 'missing'
+  if (editorState.status === 'error')      return 'error'
+  if (!editorState.content)                return 'missing'
+
+  const hasIssues      = Object.values(editorState.issues).some(list => list.length > 0)
+  const hasLegacyFlags = editorState.compliance_flags.length > 0
+  if (hasIssues || hasLegacyFlags) return 'needs-review'
+
+  return 'complete'
 }
 
 function statusDotClass(status: DotStatus): string {
@@ -55,7 +58,25 @@ export function SectionNavPanel({ sections, activeSectionKey, onSelectSection }:
                 }`}
               >
                 <span className={`w-2 h-2 rounded-full shrink-0 ${statusDotClass(status)}`} />
-                <span className="leading-snug">{editorState?.section_key ?? key}</span>
+                <span className="flex-1 min-w-0">
+                  <span className="leading-snug block">{editorState?.name ?? editorState?.section_key ?? key}</span>
+                  {editorState && Object.entries(editorState.issues).flatMap(([category, issueList]) =>
+                    (issueList ?? []).map((issue) => {
+                      const displayLabel = category === 'placeholder'
+                        ? `Missing: ${issue.label}`
+                        : issue.label
+                      return (
+                        <span
+                          key={issue.id}
+                          className="block text-xs text-amber-700 truncate"
+                          title={displayLabel}
+                        >
+                          {displayLabel}
+                        </span>
+                      )
+                    })
+                  )}
+                </span>
               </button>
             </li>
           )
