@@ -51,11 +51,13 @@ type IssueCategory = 'placeholder' | 'compliance' | 'typo' | 'cross-section'
  * Analyzers that don't yet implement deterministic IDs must document that gap inline.
  *
  * label MUST be non-empty and human-readable. The nav panel and JamoAI surface issues
- * by label. An empty label is a bug in the dispatching analyzer.
+ * by label. An empty label is a bug in the dispatching analyzer. The label should be
+ * the raw issue description without any UI prefix (e.g. "sponsor's full legal name",
+ * not "Missing: sponsor's full legal name"). Display prefixes belong in the render layer.
  */
 interface SectionIssue {
   id: string
-  label: string     // e.g. "Missing: sponsor's full legal name" — never empty
+  label: string     // e.g. "sponsor's full legal name" — never empty, no UI prefix
   message?: string  // optional extended context
 }
 ```
@@ -142,30 +144,29 @@ function collectPlaceholderRanges(
   targetIds: Set<string>
 ): Array<{ from: number; to: number }> {
   const rangeMap = new Map<string, { from: number; to: number }>()
+  // Track the first-seen position per ID to detect non-contiguous marks in one pass (O(n))
+  const lastSeenEnd = new Map<string, number>()
 
   doc.descendants((node, pos) => {
     const mark = node.marks.find(m => m.type === markType && targetIds.has(m.attrs.id))
     if (!mark) return
     const id = mark.attrs.id
-    const existing = rangeMap.get(id)
     const end = pos + node.nodeSize
+    const existing = rangeMap.get(id)
     rangeMap.set(id, {
       from: existing ? Math.min(existing.from, pos) : pos,
       to:   existing ? Math.max(existing.to, end)   : end,
     })
-  })
 
-  // Dev-mode: warn on non-contiguous marks (indicates duplicate ID bug)
-  if (process.env.NODE_ENV === 'development') {
-    for (const [id, range] of rangeMap) {
-      doc.descendants((node, pos) => {
-        const mark = node.marks.find(m => m.type === markType && m.attrs.id === id)
-        if (mark && (pos < range.from || pos + node.nodeSize > range.to)) {
-          console.warn(`[PlaceholderMark] Non-contiguous mark for id="${id}". Possible duplicate ID from edge function or copy-paste.`)
-        }
-      })
+    if (process.env.NODE_ENV === 'development') {
+      const prevEnd = lastSeenEnd.get(id)
+      if (prevEnd !== undefined && pos > prevEnd) {
+        // Gap detected: previous node ended at prevEnd, this node starts at pos
+        console.warn(`[PlaceholderMark] Non-contiguous mark for id="${id}" (gap at pos ${prevEnd}–${pos}). Possible duplicate ID from edge function or copy-paste.`)
+      }
+      lastSeenEnd.set(id, Math.max(lastSeenEnd.get(id) ?? 0, end))
     }
-  }
+  })
 
   return Array.from(rangeMap.values())
 }
@@ -180,17 +181,25 @@ function resolutionPlugin(markType: MarkType) {
       // coordinates from step N should be mapped forward through steps N+1…end before
       // querying newState.doc. The dominant case — single-character typing — is
       // single-step and unaffected. Revisit if undo/paste triggers partial resolution.
+      // NOTE: Out-of-range coordinates from compound transactions can throw inside
+      // nodesBetween. The try/catch below prevents an editor crash — partial resolution
+      // is the acceptable fallback until compound-transaction handling is implemented.
       const touchedIds = new Set<string>()
 
       transactions.forEach(transaction => {
         if (!transaction.docChanged) return
         transaction.mapping.maps.forEach(map => {
           map.forEach((_of, _ot, newFrom, newTo) => {
-            newState.doc.nodesBetween(newFrom, newTo, node => {
-              node.marks
-                .filter(m => m.type === markType)
-                .forEach(m => touchedIds.add(m.attrs.id))
-            })
+            try {
+              newState.doc.nodesBetween(newFrom, newTo, node => {
+                node.marks
+                  .filter(m => m.type === markType)
+                  .forEach(m => touchedIds.add(m.attrs.id))
+              })
+            } catch {
+              // Compound-transaction coordinate out of range — skip this step's range.
+              // Partial resolution is acceptable; an editor crash is not.
+            }
           })
         })
       })
@@ -267,13 +276,17 @@ import { placeholderPatternToSpan } from './placeholderHtml'
 /**
  * One-time migration for pre-deploy rows that still contain raw [PLACEHOLDER: ...]
  * patterns. Applied in SectionEditorBlock before passing content to useEditor.
- * After the first autosave the persisted HTML contains data-placeholder-id spans
- * and this function becomes a no-op for that row.
  *
- * ID stability note: legacy rows generate new UUIDs on every load until the first
- * autosave commits the migrated form. IDs are therefore session-scoped for legacy
- * content. This is accepted given low volume. Schedule a one-time DB backfill script
- * when legacy row count becomes non-trivial.
+ * ID stability: if the migrated string differs from the input, an autosave is triggered
+ * immediately (before any user interaction) to commit the new UUIDs to the DB. This
+ * prevents remount within the same session from generating a second set of UUIDs and
+ * breaking any in-session issue references.
+ *
+ * After the autosave the persisted HTML contains data-placeholder-id spans and this
+ * function becomes a no-op for that row on all future loads.
+ *
+ * Schedule a one-time DB backfill script when legacy row volume becomes non-trivial,
+ * to eliminate the migration path entirely.
  */
 export function migratePlaceholders(html: string): string {
   return html.replace(
@@ -281,6 +294,17 @@ export function migratePlaceholders(html: string): string {
     (_, raw) => placeholderPatternToSpan(raw, crypto.randomUUID())
   )
 }
+```
+
+**Autosave trigger in `SectionEditorBlock`:**
+
+```typescript
+const migratedContent = migratePlaceholders(rawContent)
+// Commit migrated UUIDs to DB immediately so remount doesn't regenerate them
+if (migratedContent !== rawContent) {
+  saveNow(migratedContent)
+}
+// Pass migratedContent to useEditor's content prop
 ```
 
 Applied in `SectionEditorBlock` before the content is passed to `useEditor`. Not applied in `markdownToHtml` or anywhere in the generation pipeline.
@@ -301,7 +325,7 @@ User autosaves (or types elsewhere)
   → getHTML() → renderHTML: placeholder mark → <span data-placeholder-id="uuid" ...>label</span>
   → written to DB — same UUID preserved ✓
 
-Next page load
+Next page load / remount
   → same parseHTML path → same UUID restored ✓
 ```
 
@@ -326,7 +350,8 @@ useEffect(() => {
       const mark = node.marks.find(m => m.type === markType)
       if (!mark || seen.has(mark.attrs.id)) return
       seen.add(mark.attrs.id)
-      issues.push({ id: mark.attrs.id, label: `Missing: ${mark.attrs.label}` })
+      // label is the raw description — no UI prefix here. Nav panel adds display prefix.
+      issues.push({ id: mark.attrs.id, label: mark.attrs.label })
     })
 
     dispatch({
@@ -354,9 +379,9 @@ When the resolution plugin strips a mark (user edits inside a placeholder), TipT
 
 ---
 
-## 7. Status dot wiring
+## 7. Status dot & issue display
 
-`resolveStatus` in `SectionNavPanel` — transitional form:
+### 7.1 `resolveStatus` in `SectionNavPanel` — transitional form
 
 ```typescript
 function resolveStatus(editorState: SectionEditorState): DotStatus {
@@ -375,19 +400,33 @@ function resolveStatus(editorState: SectionEditorState): DotStatus {
 
 `hasLegacyFlags` is the Approach B bridge. It is removed when compliance migrates to `UPDATE_SECTION_ISSUES` (§8.1).
 
+### 7.2 Issue label rendering
+
+Display prefixes belong in the render layer, not in issue data. When the nav panel (or any future surface) renders a `placeholder` issue label, it prepends the category-appropriate prefix:
+
+```typescript
+// Nav panel render example
+const displayLabel = category === 'placeholder'
+  ? `Missing: ${issue.label}`
+  : issue.label
+```
+
+This keeps `SectionIssue.label` clean for JamoAI consumption — the AI receives `"sponsor's full legal name"`, not `"Missing: sponsor's full legal name"`.
+
 ---
 
 ## 8. Deferred work
 
 ### 8.1 Compliance migration to `UPDATE_SECTION_ISSUES`
 
-`useComplianceCheck` currently dispatches `SET_COMPLIANCE_FLAGS` and writes to `proposal_sections.compliance_flags`. Follow-up work:
+`useComplianceCheck` currently dispatches `SET_COMPLIANCE_FLAGS` and writes to `proposal_sections.compliance_flags`. This migration touches more than types — every dispatch site, every reader of `compliance_flags` in workspace state, the reducer, the dot logic, and the DB column write all change together. Underestimate this at your peril; scope it as a dedicated phase. Specific work:
 
 - Change `useComplianceCheck` to dispatch `UPDATE_SECTION_ISSUES` with `category: 'compliance'`
 - Implement deterministic IDs for compliance issues (hash of section_key + rule + content snippet)
-- Remove `compliance_flags` from `SectionEditorState` and `WorkspaceAction`
+- Remove `compliance_flags` from `SectionEditorState`, `WorkspaceAction`, and the reducer
 - Remove `hasLegacyFlags` bridge from `resolveStatus`
 - Drop `compliance_flags` column write from `useComplianceCheck` (or keep for server-side analytics — decision TBD)
+- Update all tests that reference `compliance_flags` or `SET_COMPLIANCE_FLAGS`
 
 ### 8.2 Deterministic analyzer IDs
 
@@ -411,7 +450,23 @@ Dot logic: green only if all present categories are `ready` with empty issue lis
 
 ---
 
-## 9. Files affected
+## 9. Testing
+
+### 9.1 Integration test — roundtrip stability
+
+Add an integration test that exercises the full pipeline for a generated section containing a placeholder:
+
+1. Edge function post-process converts `[PLACEHOLDER: budget figure]` → span with UUID
+2. Content is written to DB
+3. TipTap loads content → `parseHTML` restores the mark with the same UUID
+4. `getHTML()` → `renderHTML` produces a span with the same UUID
+5. Assert IDs match at steps 3 and 4
+
+This test catches any markdown-layer interference with the bracket syntax (e.g. a markdown parser treating `[...]` as a link) and any serialization gap in the mark's `parseHTML`/`renderHTML` pair.
+
+---
+
+## 10. Files affected
 
 | File | Change |
 |------|--------|
@@ -421,6 +476,6 @@ Dot logic: green only if all present categories are `ready` with empty issue lis
 | `src/lib/placeholderHtml.ts` | New — `placeholderPatternToSpan` shared helper |
 | `src/lib/migratePlaceholders.ts` | New — legacy backfill function |
 | `src/components/editor/extensions/PlaceholderMark.ts` | New — TipTap mark definition + resolution plugin |
-| `src/components/editor/SectionEditorBlock.tsx` | Register mark, apply migration pass, add analyzer effect |
-| `src/components/editor/SectionNavPanel.tsx` | Update `resolveStatus` with `hasIssues` check |
+| `src/components/editor/SectionEditorBlock.tsx` | Register mark, apply migration pass + immediate autosave, add analyzer effect |
+| `src/components/editor/SectionNavPanel.tsx` | Update `resolveStatus` with `hasIssues` check; add display prefix in render |
 | `supabase/functions/generate-proposal-section/index.ts` | Add post-process pass before DB write |
