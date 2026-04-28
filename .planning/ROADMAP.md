@@ -282,14 +282,14 @@ Plans:
 **Goal:** Replace hardcoded 9-section model with template-driven section architecture. Sections derived from selected template, identified by UUID. Default "Standard Proposal" template seeded. Generation sequential by position. Workspace and ProposalsList become section-data-driven.
 **Requirements**: REQ-9.1, REQ-9.2, REQ-9.4, REQ-4.1, REQ-4.2, REQ-4.6, REQ-5.1, REQ-5.2
 **Depends on:** Phase 10
-**Plans:** 5 plans
+**Plans:** 5/5 plans complete
 
 Plans:
-- [ ] 10.1-01-PLAN.md — Schema migration: add name/description/position/role to proposal_sections, is_default to templates, seed Standard Proposal template (9 sections), schema push
-- [ ] 10.1-02-PLAN.md — Generation engine refactor: delete SECTION_WAVE_MAP/createInitialSections, add GenerateSectionPayloadV2, rewrite useProposalGeneration sequential loop, section pre-creation in wizard
-- [ ] 10.1-03-PLAN.md — Edge function v2 payload: buildSectionPromptV2 with sectionDescription scope + role strategy hints, writeSectionById, priorSections context injection
-- [ ] 10.1-04-PLAN.md — Workspace & list updates: ProposalDetail dynamic fetch by position, template badge in nav, SectionEditorBlock UUID key, ProposalsList template name on cards
-- [ ] 10.1-05-PLAN.md — Template extraction + wizard defaults: template-extract captures descriptions + LLM role classification, TemplatesTab role editing, Step4Generate default pre-selection
+- [x] 10.1-01-PLAN.md — Schema migration: add name/description/position/role to proposal_sections, is_default to templates, seed Standard Proposal template (9 sections), schema push
+- [x] 10.1-02-PLAN.md — Generation engine refactor: delete SECTION_WAVE_MAP/createInitialSections, add GenerateSectionPayloadV2, rewrite useProposalGeneration sequential loop, section pre-creation in wizard
+- [x] 10.1-03-PLAN.md — Edge function v2 payload: buildSectionPromptV2 with sectionDescription scope + role strategy hints, writeSectionById, priorSections context injection
+- [x] 10.1-04-PLAN.md — Workspace & list updates: ProposalDetail dynamic fetch by position, template badge in nav, SectionEditorBlock UUID key, ProposalsList template name on cards
+- [x] 10.1-05-PLAN.md — Template extraction + wizard defaults: template-extract captures descriptions + LLM role classification, TemplatesTab role editing, Step4Generate default pre-selection
 
 ### Phase 11: DOCX Export
 
