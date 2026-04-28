@@ -87,6 +87,29 @@ export function parseSSEDelta(line: string): string {
 }
 
 /**
+ * Escape HTML special characters for safe use in attributes and text content.
+ * SYNC OBLIGATION: This function body must remain byte-for-byte identical to
+ * src/lib/escapeHtml.ts escapeHtml(). Inlined because Deno Edge runtime cannot
+ * resolve src/ imports at deploy time.
+ */
+function escapeHtmlInline(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
+/**
+ * Convert a [PLACEHOLDER: label] pattern to a span with stable data attributes.
+ * Inlined from src/lib/placeholderHtml.ts — cannot import src/ in Deno Edge runtime.
+ */
+function placeholderPatternToSpan(label: string, id: string): string {
+  const escaped = escapeHtmlInline(label.trim())
+  return `<span data-placeholder-id="${id}" data-placeholder-label="${escaped}">${escaped}</span>`
+}
+
+/**
  * Build the system prompt and user message for a specific proposal section.
  */
 export function buildSectionPrompt(params: {
@@ -477,9 +500,15 @@ serve(async (req) => {
         controller.enqueue(chunk)
       },
       flush() {
+        // Post-process: convert [PLACEHOLDER: ...] patterns to stable UUID-keyed spans
+        // IDs assigned once here; preserved through parseHTML on all subsequent loads
+        const processedText = fullText.replace(
+          /\[PLACEHOLDER:\s*([^\]]+)\]/g,
+          (_, raw) => placeholderPatternToSpan(raw, crypto.randomUUID())
+        )
         const writeOp = isV2
-          ? writeSectionById(supabase, sectionId, fullText)
-          : writeSection(supabase, proposalId, sectionId, orgId, fullText)
+          ? writeSectionById(supabase, sectionId, processedText)
+          : writeSection(supabase, proposalId, sectionId, orgId, processedText)
         writeOp.catch((err) =>
           console.error('[generate-proposal-section] flush write error:', err)
         )
