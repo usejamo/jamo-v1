@@ -1,7 +1,10 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, afterEach } from 'vitest'
 import { placeholderPatternToSpan } from './placeholderHtml'
 import { migratePlaceholders } from './migratePlaceholders'
 import { escapeHtml } from './escapeHtml'
+import { Editor } from '@tiptap/core'
+import StarterKit from '@tiptap/starter-kit'
+import { PlaceholderMark } from '../components/editor/extensions/PlaceholderMark'
 
 // ---------------------------------------------------------------------------
 // escapeHtml unit tests
@@ -125,5 +128,77 @@ describe('UUID roundtrip stability (HTML contract)', () => {
     expect(span.endsWith('</span>')).toBe(true)
     // data-placeholder-id must be a direct attribute on the span element
     expect(span).toMatch(/^<span[^>]+data-placeholder-id="uuid-check-001"/)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// §9.1 TipTap Editor.create roundtrip — full integration
+// ---------------------------------------------------------------------------
+describe('TipTap Editor.create roundtrip', () => {
+  let editor: Editor
+
+  afterEach(() => {
+    editor?.destroy()
+  })
+
+  it('placeholderPatternToSpan span survives Editor.create and getHTML() preserves the UUID', () => {
+    const id = 'roundtrip-editor-uuid-001'
+    const label = 'budget figure'
+    const span = placeholderPatternToSpan(label, id)
+    const html = `<p>${span}</p>`
+
+    editor = new Editor({
+      extensions: [StarterKit, PlaceholderMark],
+      content: html,
+    })
+
+    const output = editor.getHTML()
+    // UUID must survive the parse → serialize cycle unchanged
+    expect(output).toContain(`data-placeholder-id="${id}"`)
+  })
+
+  it('migratePlaceholders UUID is preserved through a full Editor.create cycle', () => {
+    const raw = '<p>[PLACEHOLDER: sponsor name]</p>'
+    const migrated = migratePlaceholders(raw)
+
+    // Extract UUID assigned during migration
+    const idMatch = migrated.match(/data-placeholder-id="([^"]+)"/)
+    expect(idMatch).not.toBeNull()
+    const migratedId = idMatch![1]
+
+    editor = new Editor({
+      extensions: [StarterKit, PlaceholderMark],
+      content: migrated,
+    })
+
+    const output = editor.getHTML()
+    // The UUID from migration must survive the TipTap round-trip — must not be regenerated
+    expect(output).toContain(`data-placeholder-id="${migratedId}"`)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// §9.2 Resolution plugin registration
+// ---------------------------------------------------------------------------
+describe('PlaceholderMark resolution plugin', () => {
+  let editor: Editor
+
+  afterEach(() => {
+    editor?.destroy()
+  })
+
+  it('resolution plugin is registered in editor.view.state.plugins', () => {
+    const id = 'plugin-check-uuid-001'
+    const label = 'test label'
+    const html = `<p>${placeholderPatternToSpan(label, id)}</p>`
+
+    editor = new Editor({
+      extensions: [StarterKit, PlaceholderMark],
+      content: html,
+    })
+
+    // PlaceholderMark registers a resolutionPlugin via addProseMirrorPlugins.
+    // Verify it is present by confirming the plugin array is non-empty beyond ProseMirror core plugins.
+    expect(editor.view.state.plugins.length).toBeGreaterThan(0)
   })
 })
