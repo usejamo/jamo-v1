@@ -31,8 +31,17 @@ export interface ConsistencyFlag {
   sections_involved: string[]
 }
 
+export type IssueCategory = 'placeholder' | 'compliance' | 'typo' | 'cross-section'
+
+export interface SectionIssue {
+  id: string
+  label: string
+  message?: string
+}
+
 export interface SectionEditorState {
   section_key: string
+  name: string
   content: string
   last_saved_content: string | null
   is_locked: boolean
@@ -40,6 +49,7 @@ export interface SectionEditorState {
   autosave_status: 'idle' | 'saving' | 'saved'
   compliance_flags: ComplianceFlag[]
   compliance_checking: boolean
+  issues: Partial<Record<IssueCategory, SectionIssue[]>>
   ai_action: {
     type: AIActionType
     streaming: boolean
@@ -64,6 +74,7 @@ export type WorkspaceAction =
   | { type: 'SET_CONSISTENCY_FLAGS'; payload: ConsistencyFlag[] }
   | { type: 'DISMISS_CONSISTENCY' }
   | { type: 'SET_CONSISTENCY_CHECK_RAN'; payload: boolean }
+  | { type: 'UPDATE_SECTION_ISSUES'; payload: { section_key: string; category: IssueCategory; issues: SectionIssue[] } }
   | { type: 'OPEN_VERSION_HISTORY'; payload: string }
   | { type: 'CLOSE_VERSION_HISTORY' }
 
