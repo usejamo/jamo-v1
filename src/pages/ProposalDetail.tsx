@@ -208,7 +208,10 @@ export default function ProposalDetail() {
       .eq('proposal_id', id)
       .order('position', { ascending: true })
       .then(({ data }) => {
-        if (data && data.length > 0) setProposalSections(data as any)
+        if (data && data.length > 0) {
+          setProposalSections(data as any)
+          setGenerated(true)
+        }
       })
   }, [id])
 
@@ -232,7 +235,7 @@ export default function ProposalDetail() {
     setGapCount(gaps.length)
   }, [genState?.isGenerating, proposalSections])
 
-  const isStreamingMode = genState.isGenerating || genState.completedCount > 0
+  const isStreamingMode = genState.isGenerating
   const existingDocs: MockDoc[] = id ? (docsByProposal[id] ?? []) : []
 
   const rfpDoc = existingDocs.find(d => d.type === 'rfp')?.name ?? 'RFP Document'
@@ -525,7 +528,7 @@ export default function ProposalDetail() {
                   generationState={genState}
                   onRegenerate={handleRegenerate}
                   onRetry={handleRegenerate}
-                  hideNav={genState.isGenerating}
+                  hideNav={false}
                   pendingSuggestion={pendingSuggestion}
                   onSuggestionAccepted={handleSuggestionAccepted}
                   onSuggestionDeclined={handleSuggestionDeclined}
