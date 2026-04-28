@@ -16,6 +16,8 @@ import { ComplianceFlagList } from './ComplianceFlag'
 import { SectionActionToolbar } from './SectionActionToolbar'
 import { useComplianceCheck } from '../../hooks/useComplianceCheck'
 import { useSectionAIAction } from '../../hooks/useSectionAIAction'
+import { migratePlaceholders } from '../../lib/migratePlaceholders'
+import { PlaceholderMark } from './extensions/PlaceholderMark'
 
 interface SectionEditorBlockProps {
   sectionKey: string
@@ -41,6 +43,9 @@ export const SectionEditorBlock = forwardRef<SectionEditorHandle, SectionEditorB
 
     const { triggerAutosave, cancel, saveNow } = useAutosave(proposalId, sectionKey, onStatusChange)
 
+    const rawContent = markdownToHtml(editorState.content || '')
+    const migratedContent = migratePlaceholders(rawContent)
+
     const editor = useEditor({
       extensions: [
         StarterKit,
@@ -48,8 +53,9 @@ export const SectionEditorBlock = forwardRef<SectionEditorHandle, SectionEditorB
         TableRow,
         TableHeader,
         TableCell,
+        PlaceholderMark,
       ],
-      content: markdownToHtml(editorState.content || ''),
+      content: migratedContent,
       immediatelyRender: false,
       editable: !editorState.is_locked,
       onUpdate: ({ editor }) => {
@@ -59,6 +65,49 @@ export const SectionEditorBlock = forwardRef<SectionEditorHandle, SectionEditorB
       },
       onFocus: () => onFocus?.(),
     })
+
+    // Commit migrated placeholders to DB on first load if legacy [PLACEHOLDER: ...] strings were found
+    useEffect(() => {
+      if (migratedContent !== rawContent && editor) {
+        saveNow(migratedContent)
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []) // run once on mount only
+
+    // Placeholder analyzer: walk doc, collect placeholder marks, dispatch issues
+    useEffect(() => {
+      if (!editor) return
+
+      let timeoutId: ReturnType<typeof setTimeout> | null = null
+
+      const handler = () => {
+        if (timeoutId) clearTimeout(timeoutId)
+        timeoutId = setTimeout(() => {
+          const issues: import('../../types/workspace').SectionIssue[] = []
+          const seenIds = new Set<string>()
+          editor.state.doc.descendants((node) => {
+            const mark = node.marks.find((m) => m.type.name === 'placeholder')
+            if (mark && !seenIds.has(mark.attrs.id)) {
+              seenIds.add(mark.attrs.id)
+              issues.push({ id: mark.attrs.id, label: mark.attrs.label ?? '' })
+            }
+          })
+          dispatch({
+            type: 'UPDATE_SECTION_ISSUES',
+            payload: { section_key: sectionKey, category: 'placeholder', issues },
+          })
+        }, 200)
+      }
+
+      editor.on('update', handler)
+      // Run once immediately on mount to populate initial state
+      handler()
+
+      return () => {
+        editor.off('update', handler)
+        if (timeoutId) clearTimeout(timeoutId)
+      }
+    }, [editor, dispatch, sectionKey])
 
     // Sync editable state when lock changes
     useEffect(() => {
