@@ -309,12 +309,12 @@ Plans:
 **Requirements covered:** (new phase — addresses technical debt from Phase 10.1)
 **Depends on:** Phase 10.1
 
-**Plans:** 3 plans
+**Plans:** 4/4 plans complete
 
 Plans:
-- [ ] 10.3-01-PLAN.md — Wave 1 foundations: IssueCategory/SectionIssue types, UPDATE_SECTION_ISSUES reducer, escapeHtml, placeholderHtml, migratePlaceholders, PlaceholderMark TipTap extension
-- [ ] 10.3-02-PLAN.md — Wave 2 wiring: SectionEditorBlock (register mark, migration pass, analyzer effect), SectionNavPanel resolveStatus, edge function post-process pass
-- [ ] 10.3-03-PLAN.md — Wave 3 integration test: UUID roundtrip stability and idempotency
+- [x] 10.3-01-PLAN.md — Wave 1 foundations: IssueCategory/SectionIssue types, UPDATE_SECTION_ISSUES reducer, escapeHtml, placeholderHtml, migratePlaceholders, PlaceholderMark TipTap extension
+- [x] 10.3-02-PLAN.md — Wave 2 wiring: SectionEditorBlock (register mark, migration pass, analyzer effect), SectionNavPanel resolveStatus, edge function post-process pass
+- [x] 10.3-03-PLAN.md — Wave 3 integration test: UUID roundtrip stability and idempotency
 
 ### Phase 11: DOCX Export
 
