@@ -157,6 +157,25 @@ function workspaceReducer(state: WorkspaceState, action: WorkspaceAction): Works
       }
     }
 
+    case 'UPDATE_SECTION_ISSUES': {
+      const { section_key, category, issues } = action.payload
+      const section = state.sections[section_key]
+      if (!section) return state
+      return {
+        ...state,
+        sections: {
+          ...state.sections,
+          [section_key]: {
+            ...section,
+            issues: {
+              ...section.issues,
+              [category]: issues,
+            },
+          },
+        },
+      }
+    }
+
     case 'SET_CONSISTENCY_FLAGS':
       return { ...state, consistency_flags: action.payload }
 
