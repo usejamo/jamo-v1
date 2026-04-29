@@ -337,6 +337,24 @@ Plans:
 
 ---
 
+### Phase 11.1: DOCX Template Style Extraction (INSERTED)
+
+**Goal:** Apply the org's uploaded DOCX template styles to exported proposals so output matches org branding and formatting.
+
+**Deliverables:**
+- Unzip org's uploaded DOCX template from Supabase Storage
+- Extract `styles.xml` from the archive
+- Inject extracted styles into the generated DOCX so headings, fonts, and spacing match the org template
+- Satisfies REQ-10.4b (deferred from Phase 11)
+
+**Requirements covered:** REQ-10.4b
+
+**Depends on:** Phase 11, Phase 10 (template upload pipeline)
+
+**Plans:** 0 plans — not yet planned
+
+---
+
 ### Phase 12: Salesforce Integration
 
 **Goal:** Pull sponsor metadata from Salesforce to pre-populate wizard; push proposal status back.

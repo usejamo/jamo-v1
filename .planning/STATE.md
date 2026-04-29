@@ -31,8 +31,12 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 
 ## Last Session
 
-**Stopped at:** Phase 999.1 COMPLETE — compliance flags persist to DB (write + read path) and verified
-**Session date:** 2026-04-02
+**Stopped at:** Phase 11 COMPLETE — DOCX export with placeholder guard shipped
+**Session date:** 2026-04-29
+
+## Roadmap Evolution
+
+- Phase 11.1 added: DOCX template style extraction (REQ-10.4b) — unzip org DOCX, extract styles.xml, inject into generated export
 
 ---
 
