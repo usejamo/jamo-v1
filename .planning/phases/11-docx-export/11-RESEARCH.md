@@ -458,22 +458,25 @@ new Paragraph({ numbering: { reference: 'my-ordered', level: 0 }, children: [new
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Does TipTap emit `<b>`/`<i>` or `<strong>`/`<em>` for bold/italic?**
    - What we know: TipTap Starter Kit uses `Bold` and `Italic` extensions; default output is `<strong>` and `<em>`.
    - What's unclear: Whether any custom marks in this project override the default tag.
    - Recommendation: Check by running `editor.getHTML()` on a test section with bold text before finalizing the walker. Handle both `<b>`/`<strong>` and `<i>`/`<em>` defensively.
+   - RESOLVED: Plan 01 Task 2 handles both `<b>`/`<strong>` and `<i>`/`<em>` defensively in the htmlToDocx walker.
 
 2. **Does `docx` v9 require any Node.js polyfills in Vite?**
    - What we know: `docx` targets browser + Node; no FileSaver.js required; `Packer.toBlob` is browser-native.
    - What's unclear: Whether docx v9 uses any Node builtins (Buffer, stream) in the main bundle path.
    - Recommendation: Install and do a quick smoke test (import + `new Document()`) before the HTML parser task; add `optimizeDeps: { include: ['docx'] }` if Vite throws on cold start.
+   - RESOLVED: Plan 01 Task 1 adds `optimizeDeps: { include: ['docx'] }` to vite.config.ts as a precaution.
 
 3. **Should the "Unresolved Placeholders" summary be a prepended Word section or an appended appendix?**
    - What we know: CONTEXT.md says "Prepend a cover page or appendix titled 'Unresolved Placeholders'."
    - What's unclear: "Prepend" implies first page; "appendix" implies last.
    - Recommendation: Prepend as the first section child (before proposal content), so it's impossible to miss. Use a Heading 1 "Unresolved Placeholders" + one paragraph per missing item listing section name and label.
+   - RESOLVED: Plan 01 Task 3 prepends the "Unresolved Placeholders" section as the first document child.
 
 ---
 

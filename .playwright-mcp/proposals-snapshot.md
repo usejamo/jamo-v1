@@ -1,0 +1,145 @@
+- generic [ref=e5]:
+  - complementary [ref=e6]:
+    - generic [ref=e7]:
+      - img "jamo" [ref=e8]
+      - generic [ref=e9]: jamo
+      - button "Collapse sidebar" [ref=e10]:
+        - img [ref=e11]
+    - navigation [ref=e13]:
+      - list [ref=e14]:
+        - listitem [ref=e15]:
+          - link "Dashboard" [ref=e16] [cursor=pointer]:
+            - /url: /
+            - img [ref=e17]
+            - text: Dashboard
+        - listitem [ref=e19]:
+          - link "Proposals" [ref=e20] [cursor=pointer]:
+            - /url: /proposals
+            - img [ref=e21]
+            - text: Proposals
+    - generic [ref=e23]:
+      - link "Settings" [ref=e24] [cursor=pointer]:
+        - /url: /settings
+        - img [ref=e25]
+        - text: Settings
+      - button "Sign Out" [ref=e28]:
+        - img [ref=e29]
+        - text: Sign Out
+      - paragraph [ref=e31]: jamo Demo v0.1.0
+      - button "Reset Demo" [ref=e32]:
+        - img [ref=e33]
+        - text: Reset Demo
+  - main [ref=e35]:
+    - generic [ref=e36]:
+      - generic [ref=e37]:
+        - generic [ref=e38]:
+          - heading "Proposals" [level=1] [ref=e39]
+          - generic [ref=e40]:
+            - button "Active" [ref=e41]
+            - generic [ref=e42]: "|"
+            - button "Archived" [ref=e43]
+            - generic [ref=e44]: "|"
+            - button "Deleted" [ref=e45]
+            - generic [ref=e46]: 24 proposals
+        - button "New Proposal" [ref=e47]:
+          - img [ref=e48]
+          - text: New Proposal
+      - generic [ref=e50]:
+        - generic [ref=e51]:
+          - button "All" [ref=e52]
+          - button "Nephrology" [ref=e53]
+          - button "Oncology" [ref=e54]
+          - button "Oncology / Hematology" [ref=e55]
+          - button "Ophthalmology" [ref=e56]
+          - button "Pulmonary / Respiratory" [ref=e57]
+          - button "Rare Disease / Orphan Drug" [ref=e58]
+          - button "Rheumatology" [ref=e59]
+        - generic [ref=e61]:
+          - button "All Statuses" [ref=e62]
+          - button "Draft" [ref=e63]
+          - button "In Review" [ref=e64]
+          - button "Submitted" [ref=e65]
+          - button "Won" [ref=e66]
+          - button "Lost" [ref=e67]
+      - generic [ref=e68]:
+        - generic [ref=e69]:
+          - generic [ref=e70]:
+            - generic [ref=e71]: Proposal
+            - generic [ref=e72]: Sponsor
+          - generic [ref=e73]:
+            - generic [ref=e74]: Due Date
+            - generic [ref=e75]: Value
+            - generic [ref=e76]: Status
+        - generic [ref=e77]:
+          - generic [ref=e78] [cursor=pointer]:
+            - generic [ref=e79]
+            - generic [ref=e85]
+          - generic [ref=e90] [cursor=pointer]:
+            - generic [ref=e91]
+            - generic [ref=e97]
+          - generic [ref=e102] [cursor=pointer]:
+            - generic [ref=e103]
+            - generic [ref=e109]
+          - generic [ref=e114] [cursor=pointer]:
+            - generic [ref=e115]
+            - generic [ref=e121]
+          - generic [ref=e126] [cursor=pointer]:
+            - generic [ref=e127]
+            - generic [ref=e133]
+          - generic [ref=e138] [cursor=pointer]:
+            - generic [ref=e139]
+            - generic [ref=e145]
+          - generic [ref=e150] [cursor=pointer]:
+            - generic [ref=e151]
+            - generic [ref=e157]
+          - generic [ref=e162] [cursor=pointer]:
+            - generic [ref=e163]
+            - generic [ref=e169]
+          - generic [ref=e174] [cursor=pointer]:
+            - generic [ref=e175]
+            - generic [ref=e181]
+          - generic [ref=e186] [cursor=pointer]:
+            - generic [ref=e187]
+            - generic [ref=e193]
+          - generic [ref=e198] [cursor=pointer]:
+            - generic [ref=e199]
+            - generic [ref=e205]
+          - generic [ref=e210] [cursor=pointer]:
+            - generic [ref=e211]
+            - generic [ref=e217]
+          - generic [ref=e222] [cursor=pointer]:
+            - generic [ref=e223]
+            - generic [ref=e229]
+          - generic [ref=e234] [cursor=pointer]:
+            - generic [ref=e235]
+            - generic [ref=e241]
+          - generic [ref=e246] [cursor=pointer]:
+            - generic [ref=e247]
+            - generic [ref=e253]
+          - generic [ref=e258] [cursor=pointer]:
+            - generic [ref=e259]
+            - generic [ref=e265]
+          - generic [ref=e270] [cursor=pointer]:
+            - generic [ref=e271]
+            - generic [ref=e277]
+          - generic [ref=e282] [cursor=pointer]:
+            - generic [ref=e283]
+            - generic [ref=e289]
+          - generic [ref=e294] [cursor=pointer]:
+            - generic [ref=e295]
+            - generic [ref=e301]
+          - generic [ref=e306] [cursor=pointer]:
+            - generic [ref=e307]
+            - generic [ref=e313]
+          - generic [ref=e318] [cursor=pointer]:
+            - generic [ref=e319]
+            - generic [ref=e325]
+          - generic [ref=e330] [cursor=pointer]:
+            - generic [ref=e331]
+            - generic [ref=e337]
+          - generic [ref=e342] [cursor=pointer]:
+            - generic [ref=e343]
+            - generic [ref=e349]
+          - generic [ref=e354] [cursor=pointer]:
+            - generic [ref=e355]
+            - generic [ref=e361]

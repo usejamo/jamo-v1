@@ -22,8 +22,9 @@ export type DocxChild = Paragraph | Table
  */
 export function scanForPlaceholders(
   html: string,
-  sectionName: string
-): Array<{ id: string; label: string; sectionName: string }> {
+  sectionName: string,
+  sectionKey: string
+): Array<{ id: string; label: string; sectionName: string; section_key: string }> {
   const parser = new DOMParser()
   const doc = parser.parseFromString(html, 'text/html')
   const spans = doc.querySelectorAll('[data-placeholder-id]')
@@ -31,6 +32,7 @@ export function scanForPlaceholders(
     id: el.getAttribute('data-placeholder-id') ?? '',
     label: el.getAttribute('data-placeholder-label') ?? '(unknown)',
     sectionName,
+    section_key: sectionKey,
   }))
 }
 

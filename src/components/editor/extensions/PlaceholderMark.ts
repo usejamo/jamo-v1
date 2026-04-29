@@ -38,12 +38,17 @@ function resolutionPlugin(markType: MarkType): Plugin {
       for (const tr of transactions) {
         if (!tr.docChanged) continue
         try {
-          tr.mapping.maps.forEach((_stepMap: any, i: number) => {
+          tr.mapping.maps.forEach((stepMap: any, i: number) => {
             const stepDoc = i === 0 ? tr.before : (tr as any).docs?.[i - 1] ?? tr.before
-            const end = stepDoc.content.size
-            stepDoc.nodesBetween(0, end, (node: any) => {
-              const mark = node.marks?.find((m: any) => m.type === markType)
-              if (mark) touchedIds.add(mark.attrs.id)
+            stepMap.forEach((oldStart: number, oldEnd: number) => {
+              const from = Math.min(oldStart, stepDoc.content.size)
+              // Use oldStart+1 as minimum to handle pure insertions (oldStart === oldEnd)
+              const to = Math.min(Math.max(oldEnd, oldStart + 1), stepDoc.content.size)
+              if (from >= to) return
+              stepDoc.nodesBetween(from, to, (node: any) => {
+                const mark = node.marks?.find((m: any) => m.type === markType)
+                if (mark) touchedIds.add(mark.attrs.id)
+              })
             })
           })
         } catch (e) {
@@ -69,10 +74,15 @@ function resolutionPlugin(markType: MarkType): Plugin {
           }
         }
 
+        const boldMark = newState.schema.marks['bold']
+        const italicMark = newState.schema.marks['italic']
+
         for (const [, ranges] of rangeMap) {
           for (const { from, to } of ranges) {
             if (!tr) tr = newState.tr
             tr.removeMark(from, to, markType)
+            if (boldMark) tr.removeMark(from, to, boldMark)
+            if (italicMark) tr.removeMark(from, to, italicMark)
           }
         }
       } catch (e) {

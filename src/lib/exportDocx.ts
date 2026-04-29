@@ -19,6 +19,7 @@ export interface PlaceholderItem {
   id: string
   label: string
   sectionName: string
+  section_key: string
 }
 
 export class ExportBlockedError extends Error {
@@ -48,7 +49,7 @@ export async function exportDocx(opts: {
 
   // Scan all sections for placeholders
   const allPlaceholders: PlaceholderItem[] = sections.flatMap(s =>
-    scanForPlaceholders(s.content, s.name ?? s.section_key)
+    scanForPlaceholders(s.content, s.name ?? s.section_key, s.section_key)
   )
 
   if (allPlaceholders.length > 0 && !force) {

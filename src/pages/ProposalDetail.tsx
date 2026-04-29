@@ -63,11 +63,11 @@ function formatDate(dateStr: string | undefined | null) {
 // ── Export dropdown ────────────────────────────────────────────────────────────
 
 interface ExportDropdownProps {
-  sections: ExportSection[]
+  getSections: () => ExportSection[]
   proposalTitle: string
 }
 
-function ExportDropdown({ sections, proposalTitle }: ExportDropdownProps) {
+function ExportDropdown({ getSections, proposalTitle }: ExportDropdownProps) {
   const [open, setOpen] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [toastVisible, setToastVisible] = useState(false)
@@ -88,7 +88,7 @@ function ExportDropdown({ sections, proposalTitle }: ExportDropdownProps) {
     setOpen(false)
     setExporting(true)
     try {
-      await exportDocx({ sections, proposalTitle })
+      await exportDocx({ sections: getSections(), proposalTitle })
       setToastVisible(true)
       setTimeout(() => setToastVisible(false), 3000)
     } catch (err) {
@@ -107,7 +107,7 @@ function ExportDropdown({ sections, proposalTitle }: ExportDropdownProps) {
     setModalOpen(false)
     setExporting(true)
     try {
-      await exportDocx({ sections, proposalTitle, force: true })
+      await exportDocx({ sections: getSections(), proposalTitle, force: true })
       setToastVisible(true)
       setTimeout(() => setToastVisible(false), 3000)
     } catch (err) {
@@ -151,6 +151,13 @@ function ExportDropdown({ sections, proposalTitle }: ExportDropdownProps) {
           placeholders={blockedPlaceholders}
           onClose={() => setModalOpen(false)}
           onForce={handleForceExport}
+          onResolve={(item) => {
+            setModalOpen(false)
+            const target =
+              document.querySelector<HTMLElement>(`[data-placeholder-id="${item.id}"]`) ??
+              document.getElementById(item.section_key)
+            target?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          }}
         />
       )}
     </>
@@ -234,6 +241,14 @@ export default function ProposalDetail() {
   const [activeSectionKey, setActiveSectionKey] = useState<string | null>(null)
 
   const { state: genState, dispatch: genDispatch, generateAll, regenerateSection, stopGeneration } = useProposalGeneration(id ?? '')
+
+  const getLiveSections = useCallback((): ExportSection[] => {
+    return proposalSections.map(s => ({
+      name: s.name,
+      section_key: s.section_key,
+      content: editorRefsMap.current.get(s.section_key)?.getContent() ?? s.content,
+    }))
+  }, [proposalSections])
 
   const refetchSections = useCallback(() => {
     if (!id) return
@@ -537,7 +552,7 @@ export default function ProposalDetail() {
                     </svg>
                     Generated
                   </span>
-                  <ExportDropdown sections={proposalSections} proposalTitle={proposal?.title ?? ''} />
+                  <ExportDropdown getSections={getLiveSections} proposalTitle={proposal?.title ?? ''} />
                   <button
                     onClick={() => consistencyCheckRef.current?.()}
                     className="text-sm font-medium text-gray-600 hover:text-gray-800 bg-white border border-gray-200 hover:border-gray-300 hover:shadow-sm px-3 py-1.5 rounded-lg transition-colors"

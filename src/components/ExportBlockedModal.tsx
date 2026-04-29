@@ -5,12 +5,12 @@ interface Props {
   placeholders: PlaceholderItem[]
   onClose: () => void
   onForce: () => void
+  onResolve: (item: PlaceholderItem) => void
 }
 
-export function ExportBlockedModal({ placeholders, onClose, onForce }: Props) {
-  // Group by sectionName
-  const grouped = placeholders.reduce<Record<string, string[]>>((acc, p) => {
-    ;(acc[p.sectionName] ??= []).push(p.label)
+export function ExportBlockedModal({ placeholders, onClose, onForce, onResolve }: Props) {
+  const grouped = placeholders.reduce<Record<string, PlaceholderItem[]>>((acc, p) => {
+    ;(acc[p.sectionName] ??= []).push(p)
     return acc
   }, {})
 
@@ -23,15 +23,15 @@ export function ExportBlockedModal({ placeholders, onClose, onForce }: Props) {
         </p>
 
         <ul className="space-y-3 mb-6 max-h-64 overflow-y-auto">
-          {Object.entries(grouped).map(([section, labels]) => (
+          {Object.entries(grouped).map(([section, items]) => (
             <li key={section}>
               <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-1">{section}</p>
               <ul className="space-y-1">
-                {labels.map((label, i) => (
-                  <li key={i} className="flex items-center justify-between text-sm text-gray-600">
-                    <span>• {label}</span>
+                {items.map((item) => (
+                  <li key={item.id} className="flex items-center justify-between text-sm text-gray-600">
+                    <span>• {item.label}</span>
                     <button
-                      onClick={onClose}
+                      onClick={() => onResolve(item)}
                       className="text-xs text-indigo-600 hover:text-indigo-800 ml-4 shrink-0"
                     >
                       Resolve →
