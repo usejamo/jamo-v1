@@ -21,6 +21,9 @@ import type { SectionEditorHandle, ComplianceFlag } from '../types/workspace'
 import SectionWorkspace from '../components/editor/SectionWorkspace'
 import { supabase } from '../lib/supabase'
 import { detectGaps } from '../utils/chatContext'
+import { exportDocx, ExportBlockedError } from '../lib/exportDocx'
+import type { ExportSection, PlaceholderItem } from '../lib/exportDocx'
+import { ExportBlockedModal } from '../components/ExportBlockedModal'
 
 const docsByProposal = allDocuments as Record<string, MockDoc[]>
 
@@ -59,10 +62,17 @@ function formatDate(dateStr: string | undefined | null) {
 
 // ── Export dropdown ────────────────────────────────────────────────────────────
 
-function ExportDropdown() {
+interface ExportDropdownProps {
+  sections: ExportSection[]
+  proposalTitle: string
+}
+
+function ExportDropdown({ sections, proposalTitle }: ExportDropdownProps) {
   const [open, setOpen] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [toastVisible, setToastVisible] = useState(false)
+  const [blockedPlaceholders, setBlockedPlaceholders] = useState<PlaceholderItem[]>([])
+  const [modalOpen, setModalOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -74,14 +84,37 @@ function ExportDropdown() {
     return () => document.removeEventListener('mousedown', handler)
   }, [open])
 
-  function handleExport() {
+  async function handleExport() {
     setOpen(false)
     setExporting(true)
-    setTimeout(() => {
-      setExporting(false)
+    try {
+      await exportDocx({ sections, proposalTitle })
       setToastVisible(true)
       setTimeout(() => setToastVisible(false), 3000)
-    }, 1200)
+    } catch (err) {
+      if (err instanceof ExportBlockedError) {
+        setBlockedPlaceholders(err.placeholders)
+        setModalOpen(true)
+      } else {
+        console.error('Export failed:', err)
+      }
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  async function handleForceExport() {
+    setModalOpen(false)
+    setExporting(true)
+    try {
+      await exportDocx({ sections, proposalTitle, force: true })
+      setToastVisible(true)
+      setTimeout(() => setToastVisible(false), 3000)
+    } catch (err) {
+      console.error('Force export failed:', err)
+    } finally {
+      setExporting(false)
+    }
   }
 
   return (
@@ -103,12 +136,6 @@ function ExportDropdown() {
             >
               Export to Word
             </button>
-            <button
-              onClick={handleExport}
-              className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-            >
-              Export to PowerPoint
-            </button>
           </div>
         )}
       </div>
@@ -117,6 +144,14 @@ function ExportDropdown() {
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-sm px-5 py-2.5 rounded-lg shadow-xl z-50 pointer-events-none whitespace-nowrap">
           Proposal exported successfully.
         </div>
+      )}
+
+      {modalOpen && (
+        <ExportBlockedModal
+          placeholders={blockedPlaceholders}
+          onClose={() => setModalOpen(false)}
+          onForce={handleForceExport}
+        />
       )}
     </>
   )
@@ -502,7 +537,7 @@ export default function ProposalDetail() {
                     </svg>
                     Generated
                   </span>
-                  <ExportDropdown />
+                  <ExportDropdown sections={proposalSections} proposalTitle={proposal?.title ?? ''} />
                   <button
                     onClick={() => consistencyCheckRef.current?.()}
                     className="text-sm font-medium text-gray-600 hover:text-gray-800 bg-white border border-gray-200 hover:border-gray-300 hover:shadow-sm px-3 py-1.5 rounded-lg transition-colors"
