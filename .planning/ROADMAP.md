@@ -351,7 +351,14 @@ Plans:
 
 **Depends on:** Phase 11, Phase 10 (template upload pipeline)
 
-**Plans:** 0 plans — not yet planned
+**Plans:** 5 plans
+
+Plans:
+- [ ] 11.1-01-PLAN.md — Wave 0: install jszip, write migration SQL, Nyquist test stubs
+- [ ] 11.1-02-PLAN.md — [BLOCKING] Push style_inspection migration to live database
+- [ ] 11.1-03-PLAN.md — Wave 3: applyTemplateStyles utility + export wiring + TemplatesTab 10MB cap
+- [ ] 11.1-04-PLAN.md — Wave 3: Edge Function style inspection + TemplatesTab warnings
+- [ ] 11.1-05-PLAN.md — Wave 4: discoverability nudge (post-export, one-time, dismissible)
 
 ---
 
