@@ -329,11 +329,11 @@ Plans:
 
 **Requirements covered:** REQ-10.1 through REQ-10.5
 
-**Plans:** 2 plans
+**Plans:** 2/2 plans complete
 
 Plans:
-- [ ] 11-01-PLAN.md — Install docx, create htmlToDocx.ts + exportDocx.ts utilities (Wave 1)
-- [ ] 11-02-PLAN.md — Wire ExportDropdown, create ExportBlockedModal, remove PowerPoint item (Wave 2)
+- [x] 11-01-PLAN.md — Install docx, create htmlToDocx.ts + exportDocx.ts utilities (Wave 1)
+- [x] 11-02-PLAN.md — Wire ExportDropdown, create ExportBlockedModal, remove PowerPoint item (Wave 2)
 
 ---
 
