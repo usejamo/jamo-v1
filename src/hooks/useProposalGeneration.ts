@@ -1,4 +1,4 @@
-import { useReducer, useEffect, useCallback } from 'react'
+import { useReducer, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import {
@@ -70,10 +70,11 @@ export function generationReducer(
         },
       }
 
-    case 'SECTION_COMPLETE':
+    case 'SECTION_COMPLETE': {
+      const alreadyComplete = state.sections[action.sectionId]?.status === 'complete'
       return {
         ...state,
-        completedCount: state.completedCount + 1,
+        completedCount: alreadyComplete ? state.completedCount : state.completedCount + 1,
         sections: {
           ...state.sections,
           [action.sectionId]: {
@@ -83,6 +84,7 @@ export function generationReducer(
           },
         },
       }
+    }
 
     case 'SECTION_ERROR':
       return {
@@ -117,7 +119,8 @@ export function generationReducer(
 
 export async function readSSEStream(
   response: Response,
-  onToken: (token: string) => void
+  onToken: (token: string) => void,
+  signal?: AbortSignal
 ): Promise<void> {
   if (!response.body) return
 
@@ -126,7 +129,14 @@ export async function readSSEStream(
   let buffer = ''
 
   while (true) {
-    const { done, value } = await reader.read()
+    if (signal?.aborted) { reader.cancel(); return }
+    let done: boolean, value: Uint8Array | undefined
+    try {
+      ;({ done, value } = await reader.read())
+    } catch {
+      reader.cancel()
+      return
+    }
     if (done) break
 
     buffer += decoder.decode(value, { stream: true })
@@ -237,6 +247,7 @@ export async function extractAnchor(
 export function useProposalGeneration(proposalId: string) {
   const [state, dispatch] = useReducer(generationReducer, initialState)
   const { session, profile } = useAuth()
+  const abortControllerRef = useRef<AbortController | null>(null)
 
   // Hydrate all sections from DB on mount (builds nav, restores completed state)
   useEffect(() => {
@@ -306,7 +317,8 @@ export function useProposalGeneration(proposalId: string) {
       anchor: string,
       proposalContext: GenerateSectionPayloadV2['proposalContext'],
       ragChunks: GenerateSectionPayloadV2['ragChunks'],
-      debug?: boolean
+      debug?: boolean,
+      signal?: AbortSignal
     ): Promise<string> => {
       dispatch({ type: 'SECTION_GENERATING', sectionId: section.id })
 
@@ -343,9 +355,11 @@ export function useProposalGeneration(proposalId: string) {
               apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
             },
             body: JSON.stringify(payload),
+            signal,
           }
         )
       } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') return ''
         const errMsg = err instanceof Error ? err.message : String(err)
         dispatch({ type: 'SECTION_ERROR', sectionId: section.id, error: errMsg })
         return ''
@@ -361,7 +375,7 @@ export function useProposalGeneration(proposalId: string) {
       await readSSEStream(response, (token) => {
         fullText += token
         dispatch({ type: 'SECTION_TOKEN', sectionId: section.id, token })
-      })
+      }, signal)
 
       // Fallback: if Realtime hasn't confirmed within 10s, dispatch complete from local text
       setTimeout(() => {
@@ -379,6 +393,9 @@ export function useProposalGeneration(proposalId: string) {
       proposalContext: GenerateSectionPayloadV2['proposalContext'],
       debug?: boolean
     ) => {
+      const isDebug = debug ?? localStorage.getItem('jamo_debug_mode') === 'true'
+      const abortController = new AbortController()
+      abortControllerRef.current = abortController
       try {
         // Fetch approved assumptions for enriched context
         const assumptions = await fetchAssumptions(proposalId)
@@ -429,8 +446,10 @@ export function useProposalGeneration(proposalId: string) {
             anchor,
             enrichedContext,
             ragChunks,
-            debug
+            isDebug,
+            abortController.signal
           )
+          if (abortController.signal.aborted) break
           if (content) {
             completedSections.push({ id: section.id, name: section.name, content })
             // Update anchor with latest content (after every section)
@@ -509,8 +528,13 @@ export function useProposalGeneration(proposalId: string) {
     [generateSection]
   )
 
+  const stopGeneration = useCallback(() => {
+    abortControllerRef.current?.abort()
+    dispatch({ type: 'GENERATION_COMPLETE' })
+  }, [])
+
   // Sorted sections array for consumers (D-12)
   const sortedSections = Object.values(state.sections).sort((a, b) => a.position - b.position)
 
-  return { state, dispatch, generateAll, generateSection, regenerateSection, sortedSections }
+  return { state, dispatch, generateAll, generateSection, regenerateSection, sortedSections, stopGeneration }
 }

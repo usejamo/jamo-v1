@@ -198,7 +198,7 @@ export default function ProposalDetail() {
   const [gapCount, setGapCount] = useState(0)
   const [activeSectionKey, setActiveSectionKey] = useState<string | null>(null)
 
-  const { state: genState, dispatch: genDispatch, generateAll, regenerateSection } = useProposalGeneration(id ?? '')
+  const { state: genState, dispatch: genDispatch, generateAll, regenerateSection, stopGeneration } = useProposalGeneration(id ?? '')
 
   const refetchSections = useCallback(() => {
     if (!id) return
@@ -212,12 +212,14 @@ export default function ProposalDetail() {
           setProposalSections(data as any)
           setGenerated(true)
         }
+        setSectionsLoaded(true)
       })
   }, [id])
 
-  // Re-fetch sections from Supabase after each section completes — keeps proposalSections fresh for gap analysis
+  // Re-fetch sections from Supabase after generation completes — gate SectionWorkspace off until fresh data arrives
   useEffect(() => {
     if (!id || genState?.isGenerating || genState?.completedCount === 0) return
+    setSectionsLoaded(false)
     refetchSections()
   }, [id, genState?.completedCount, genState?.isGenerating, refetchSections])
 
@@ -310,18 +312,22 @@ export default function ProposalDetail() {
   }
 
   function buildProposalInput(): GenerateSectionPayloadV2['proposalContext'] {
+    // services and regions are stored as JSON in proposal.description by the wizard
+    const meta: { services?: string[]; regions?: string[] } = (() => {
+      try { return JSON.parse(proposal?.description ?? '{}') } catch { return {} }
+    })()
     return {
       studyInfo: {
-        sponsorName: (proposal as any)?.sponsor_name ?? proposal?.client ?? '',
+        sponsorName: proposal?.client ?? '',
         therapeuticArea: proposal?.therapeuticArea ?? '',
-        indication: (proposal as any)?.indication ?? '',
+        indication: proposal?.indication ?? '',
         studyPhase: proposal?.studyType ?? '',
-        countries: (proposal as any)?.countries ?? [],
+        countries: meta.regions ?? [],
         dueDate: proposal?.dueDate ?? '',
-        services: (proposal as any)?.services ?? [],
+        services: meta.services ?? [],
       },
       assumptions: [],
-      services: (proposal as any)?.services ?? [],
+      services: meta.services ?? [],
     }
   }
 
@@ -514,6 +520,7 @@ export default function ProposalDetail() {
                   isGenerating={genState.isGenerating}
                   completedCount={genState.completedCount}
                   totalCount={genState.totalCount}
+                  onStop={stopGeneration}
                 />
                 <GenerationControls
                   tone={genState.tone}

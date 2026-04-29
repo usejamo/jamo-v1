@@ -4,14 +4,16 @@ interface GenerationHeaderProps {
   isGenerating: boolean
   completedCount: number
   totalCount: number
+  onStop?: () => void
 }
 
 function ProgressBar({ completedCount, totalCount, isGenerating }: { completedCount: number; totalCount: number; isGenerating: boolean }) {
-  const pct = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0
+  const safeCompleted = Math.min(completedCount, totalCount)
+  const pct = totalCount > 0 ? Math.min(Math.round((safeCompleted / totalCount) * 100), 100) : 0
   return (
     <div className="w-48">
       <div className="flex justify-between text-xs text-gray-500 mb-1">
-        <span>{completedCount} of {totalCount} sections</span>
+        <span>{safeCompleted} of {totalCount} sections</span>
         <span>{pct}%</span>
       </div>
       <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
@@ -30,17 +32,20 @@ export function GenerationHeader({
   isGenerating,
   completedCount,
   totalCount,
+  onStop,
 }: GenerationHeaderProps) {
+  const safeCompleted = Math.min(completedCount, totalCount)
+
   const headingText = isGenerating
     ? 'Generating Proposal'
-    : completedCount === totalCount && totalCount > 0
+    : safeCompleted === totalCount && totalCount > 0
     ? `${totalCount} sections complete. Review your proposal below.`
     : 'Ready to generate'
 
   const subText = isGenerating
-    ? `Generating section ${completedCount + 1} of ${totalCount}\u2026`
-    : completedCount > 0
-    ? `${completedCount} of ${totalCount} sections complete`
+    ? `Generating section ${Math.min(safeCompleted + 1, totalCount)} of ${totalCount}\u2026`
+    : safeCompleted > 0
+    ? `${safeCompleted} of ${totalCount} sections complete`
     : 'Review your tone selection, then click Generate Proposal to begin.'
 
   return (
@@ -50,7 +55,17 @@ export function GenerationHeader({
         <p className="text-sm text-gray-500 mt-1">{subText}</p>
       </div>
       {totalCount > 0 && (
-        <ProgressBar completedCount={completedCount} totalCount={totalCount} isGenerating={isGenerating} />
+        <div className="flex items-center gap-3">
+          {isGenerating && onStop && (
+            <button
+              onClick={onStop}
+              className="px-3 py-1.5 text-sm font-medium text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 hover:text-gray-800 transition-colors"
+            >
+              Stop
+            </button>
+          )}
+          <ProgressBar completedCount={completedCount} totalCount={totalCount} isGenerating={isGenerating} />
+        </div>
       )}
     </div>
   )
