@@ -44,6 +44,12 @@ export function useSectionAIAction(proposalId: string, sectionKey: string, orgId
         payload: { section_key: sectionKey, action_type: actionType, snapshot: currentContent },
       })
 
+      // Convert placeholder spans back to [PLACEHOLDER: label] text so the AI can preserve them
+      const contentForAI = currentContent.replace(
+        /<span\b[^>]*\bdata-placeholder-label="([^"]*)"[^>]*>[^<]*<\/span>/g,
+        '[PLACEHOLDER: $1]'
+      )
+
       // SSE streaming via raw fetch
       let response: Response
       try {
@@ -59,7 +65,7 @@ export function useSectionAIAction(proposalId: string, sectionKey: string, orgId
             proposal_id: proposalId,
             section_key: sectionKey,
             action: actionType,
-            existing_content: actionType !== 'generate' ? currentContent : undefined,
+            existing_content: actionType !== 'generate' ? contentForAI : undefined,
             user_instructions: userInstructions || undefined,
           }),
         })

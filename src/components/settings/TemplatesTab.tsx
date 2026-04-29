@@ -159,15 +159,35 @@ function SectionDisclosure({
                       aria-label={`Role for ${s.name}`}
                     >
                       <option value="">None</option>
-                      <option value="understanding">Understanding</option>
-                      <option value="scope_of_work">Scope of Work</option>
-                      <option value="proposed_team">Proposed Team</option>
-                      <option value="timeline">Timeline</option>
-                      <option value="budget">Budget</option>
-                      <option value="regulatory_strategy">Regulatory Strategy</option>
-                      <option value="quality_management">Quality Management</option>
-                      <option value="executive_summary">Executive Summary</option>
-                      <option value="cover_letter">Cover Letter</option>
+                      <optgroup label="Front Matter">
+                        <option value="cover_letter">Cover Letter</option>
+                        <option value="executive_summary">Executive Summary</option>
+                        <option value="study_understanding">Study Understanding</option>
+                      </optgroup>
+                      <optgroup label="About the CRO">
+                        <option value="company_overview">Company Overview</option>
+                        <option value="therapeutic_experience">Therapeutic Experience</option>
+                        <option value="references">References</option>
+                      </optgroup>
+                      <optgroup label="Operational Approach">
+                        <option value="scope_of_work">Scope of Work</option>
+                        <option value="project_management">Project Management</option>
+                        <option value="proposed_team">Proposed Team</option>
+                        <option value="clinical_operations">Clinical Operations</option>
+                        <option value="site_management">Site Management</option>
+                        <option value="patient_recruitment">Patient Recruitment</option>
+                        <option value="data_management">Data Management</option>
+                        <option value="biostatistics">Biostatistics</option>
+                        <option value="medical_writing">Medical Writing</option>
+                        <option value="regulatory_strategy">Regulatory Strategy</option>
+                        <option value="pharmacovigilance">Pharmacovigilance</option>
+                        <option value="quality_management">Quality Management</option>
+                      </optgroup>
+                      <optgroup label="Project Parameters">
+                        <option value="timeline">Timeline</option>
+                        <option value="assumptions">Assumptions</option>
+                        <option value="budget">Budget</option>
+                      </optgroup>
                     </select>
                   </div>
                 </li>

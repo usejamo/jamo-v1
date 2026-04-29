@@ -65,6 +65,7 @@ export default function ProposalsList() {
   const [statusFilter,          setStatusFilter]          = useState<ProposalStatus | null>(null)
   const [view,                  setView]                  = useState<'active' | 'archived' | 'deleted'>('active')
   const [permanentDeleteTarget, setPermanentDeleteTarget] = useState<Proposal | null>(null)
+  const [debugMode,             setDebugMode]             = useState(() => localStorage.getItem('jamo_debug_mode') === 'true')
 
   const { archivedIds, archive, restore } = useArchived()
   const { proposals, permanentlyDelete } = useProposals()
@@ -162,7 +163,23 @@ export default function ProposalsList() {
             </span>
           </div>
         </div>
-        <button
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              const next = !debugMode
+              setDebugMode(next)
+              next ? localStorage.setItem('jamo_debug_mode', 'true') : localStorage.removeItem('jamo_debug_mode')
+            }}
+            title="Debug mode: generates 1-2 sentences per section to save cost"
+            className={`text-xs font-medium px-3 py-2 rounded-xl border transition-colors ${
+              debugMode
+                ? 'bg-amber-100 border-amber-300 text-amber-800 hover:bg-amber-200'
+                : 'bg-white border-gray-200 text-gray-400 hover:border-gray-300 hover:text-gray-600'
+            }`}
+          >
+            {debugMode ? 'Debug ON' : 'Debug'}
+          </button>
+          <button
           onClick={() => openModal()}
           className="flex items-center gap-2 bg-jamo-500 hover:bg-jamo-600 text-white text-sm font-medium px-4 py-2 rounded-xl transition-colors"
         >
@@ -170,7 +187,8 @@ export default function ProposalsList() {
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
           </svg>
           New Proposal
-        </button>
+          </button>
+        </div>
       </div>
 
       {/* ── Deleted disclaimer ── */}

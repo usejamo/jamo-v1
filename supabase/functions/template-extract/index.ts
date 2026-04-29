@@ -57,9 +57,17 @@ function parseSectionsFromText(text: string): Array<{ name: string; description:
 }
 
 const KNOWN_ROLES = [
-  'understanding', 'scope_of_work', 'proposed_team', 'timeline',
-  'budget', 'regulatory_strategy', 'quality_management',
-  'executive_summary', 'cover_letter'
+  // Front matter
+  'cover_letter', 'executive_summary', 'study_understanding',
+  // About the CRO
+  'company_overview', 'therapeutic_experience', 'references',
+  // Operational approach
+  'scope_of_work', 'project_management', 'proposed_team',
+  'clinical_operations', 'site_management', 'patient_recruitment',
+  'data_management', 'biostatistics', 'medical_writing',
+  'regulatory_strategy', 'pharmacovigilance', 'quality_management',
+  // Project parameters
+  'timeline', 'assumptions', 'budget'
 ] as const
 
 async function classifyRoles(
@@ -67,13 +75,40 @@ async function classifyRoles(
   anthropicApiKey: string
 ): Promise<Record<string, string | null>> {
   const sectionList = sections.map((s, i) => `${i + 1}. ${s.name}`).join('\n')
-  const prompt = `You are classifying proposal section names into known CRO proposal section types.
+  const prompt = `You are classifying CRO proposal section names into known section types.
 
-Known types: ${KNOWN_ROLES.join(', ')}
+Known types and what they mean:
+- cover_letter: personal letter from CRO to sponsor introducing the proposal
+- executive_summary: high-level recap of objectives, approach, team, timeline, and price
+- study_understanding: CRO's restatement of the sponsor's protocol and operational challenge to demonstrate comprehension (e.g. "Our Understanding of the Study")
+- company_overview: general intro to the CRO — history, footprint, size, mission (e.g. "About Us", "Who We Are")
+- therapeutic_experience: prior trial experience relevant to the indication, phase, or geography — often with case studies
+- references: contactable client references for similar past projects
+- scope_of_work: enumerated list of services and deliverables — the high-level "what we will do" (NOT how individual functions work)
+- project_management: PM methodology, governance model, communication plan, meeting cadence — the "how we run this"
+- proposed_team: named individuals, org chart, CVs, role-by-role responsibilities (people, not methodology)
+- clinical_operations: on-the-ground clinical monitoring — CRA model, monitoring frequency, risk-based monitoring, SDV
+- site_management: site identification, qualification, activation, country strategy (selection/activation, NOT monitoring)
+- patient_recruitment: enrollment strategy, screening funnel, recruitment partners, retention plan
+- data_management: EDC build, CRF design, data validation, query handling, database lock, CDISC/SDTM
+- biostatistics: statistical analysis plan, sample size, randomization, interim analyses, TFL programming
+- medical_writing: authoring protocol amendments, ICFs, CSRs, regulatory narratives, publications
+- regulatory_strategy: filing strategy, IND/CTA submissions, agency interactions, country approvals (excludes safety reporting)
+- pharmacovigilance: AE/SAE collection and reporting, safety database, DSMB support, signal detection
+- quality_management: quality system, SOP framework, audits, GCP compliance, integrated risk management
+- timeline: schedule, milestones, Gantt chart, key study dates (FPI/LPO/DBL)
+- assumptions: cost and operational assumptions underlying the bid (monitoring frequency, query rates, enrollment rates)
+- budget: pricing, fee structure, pass-throughs, payment terms
+
+Disambiguation rules:
+- scope_of_work lists ALL services at a high level; functional roles (data_management, clinical_operations, etc.) describe approach for ONE function
+- project_management is methodology and governance; proposed_team is people and org chart
+- clinical_operations is monitoring approach; site_management is site selection and activation
+- regulatory_strategy covers filings and agency interactions; pharmacovigilance covers safety reporting
 
 For each section name below, return its type from the known list, or "null" if it does not match any known type.
 Return ONLY a JSON object mapping section number to type string (or null).
-Example: {"1": "understanding", "2": "scope_of_work", "3": null}
+Example: {"1": "study_understanding", "2": "scope_of_work", "3": null}
 
 Sections:
 ${sectionList}`

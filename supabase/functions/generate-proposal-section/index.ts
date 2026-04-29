@@ -499,7 +499,7 @@ serve(async (req) => {
         }
         controller.enqueue(chunk)
       },
-      flush() {
+      async flush() {
         // Post-process: convert [PLACEHOLDER: ...] patterns to stable UUID-keyed spans
         // IDs assigned once here; preserved through parseHTML on all subsequent loads
         const processedText = fullText.replace(
@@ -509,9 +509,11 @@ serve(async (req) => {
         const writeOp = isV2
           ? writeSectionById(supabase, sectionId, processedText)
           : writeSection(supabase, proposalId, sectionId, orgId, processedText)
-        writeOp.catch((err) =>
+        try {
+          await writeOp
+        } catch (err) {
           console.error('[generate-proposal-section] flush write error:', err)
-        )
+        }
       },
     })
 

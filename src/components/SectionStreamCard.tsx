@@ -47,6 +47,7 @@ export function SectionStreamCard({ section, onRegenerate, onRetry }: SectionStr
 
   return (
     <div
+      id={section.id}
       className="border border-gray-200 rounded-lg bg-white p-4 mb-4 transition-shadow duration-200"
       aria-label={`${name} — ${statusLabel}`}
     >

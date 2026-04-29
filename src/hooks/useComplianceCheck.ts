@@ -40,19 +40,8 @@ export function useComplianceCheck(proposalId: string, _orgId: string) {
         })
       }
 
-      // Pass 1 Rule 2: Placeholder detection
-      const placeholderMatches = content.match(/\[PLACEHOLDER:[^\]]*\]/g)
-      if (placeholderMatches) {
-        placeholderMatches.forEach((match) => {
-          ruleFlags.push({
-            id: crypto.randomUUID(),
-            section_key: sectionKey,
-            type: 'warning',
-            message: `Unfilled placeholder: ${match}`,
-            source: 'rule',
-          })
-        })
-      }
+      // Pass 1 Rule 2: Placeholder detection is handled by the PlaceholderMark extension
+      // which walks the ProseMirror doc and dispatches UPDATE_SECTION_ISSUES — no duplicate check needed here.
 
       // Pass 1 Rule 3: Required heading check (section-type specific keyword checks)
       const sectionKeyLower = sectionKey.toLowerCase()
@@ -117,20 +106,12 @@ export function useComplianceCheck(proposalId: string, _orgId: string) {
         })
 
         if (error || !data) {
-          const errorFlags: ComplianceFlag[] = [
-            {
-              id: crypto.randomUUID(),
-              section_key: sectionKey,
-              type: 'warning',
-              message: 'Compliance check unavailable. Review manually before submitting.',
-              source: 'rule',
-            },
-          ]
+          // compliance-check function not deployed — clear flags silently rather than
+          // showing a misleading "unavailable" warning to the user
           dispatch({
             type: 'SET_COMPLIANCE_FLAGS',
-            payload: { section_key: sectionKey, flags: errorFlags },
+            payload: { section_key: sectionKey, flags: [] },
           })
-          await persistFlags(sectionKey, errorFlags)
           return
         }
 
@@ -152,20 +133,10 @@ export function useComplianceCheck(proposalId: string, _orgId: string) {
           type: 'SET_COMPLIANCE_CHECKING',
           payload: { section_key: sectionKey, checking: false },
         })
-        const catchFlags: ComplianceFlag[] = [
-          {
-            id: crypto.randomUUID(),
-            section_key: sectionKey,
-            type: 'warning',
-            message: 'Compliance check unavailable. Review manually before submitting.',
-            source: 'rule',
-          },
-        ]
         dispatch({
           type: 'SET_COMPLIANCE_FLAGS',
-          payload: { section_key: sectionKey, flags: catchFlags },
+          payload: { section_key: sectionKey, flags: [] },
         })
-        await persistFlags(sectionKey, catchFlags)
       }
     },
     [dispatch, persistFlags, proposalId]

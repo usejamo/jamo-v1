@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { DraftSection, Annotation, AnnotationSourceType, PendingSuggestion, ContentBlock } from '../types/draft'
-import type { GenerationState } from '../types/generation'
+import type { GenerationState, SectionState } from '../types/generation'
 import { DEMO_COMMANDS } from '../data/demoCommands'
 import RenderBlock from './RenderBlock'
 import SuggestedChange from './SuggestedChange'
@@ -179,6 +179,61 @@ function DraftNav({ sections, activeId }: { sections: DraftSection[]; activeId: 
   )
 }
 
+function statusDotClass(status: string): string {
+  switch (status) {
+    case 'complete':   return 'bg-green-500'
+    case 'generating': return 'bg-blue-400 animate-pulse'
+    case 'error':      return 'bg-red-500'
+    default:           return 'bg-gray-300'
+  }
+}
+
+function StreamingNav({ sections }: { sections: SectionState[] }) {
+  const [activeId, setActiveId] = useState(sections[0]?.id ?? '')
+
+  useEffect(() => {
+    if (sections.length === 0) return
+    const observers: IntersectionObserver[] = []
+    sections.forEach(s => {
+      const el = document.getElementById(s.id)
+      if (!el) return
+      const obs = new IntersectionObserver(
+        ([entry]) => { if (entry.isIntersecting) setActiveId(s.id) },
+        { rootMargin: '-8% 0px -65% 0px', threshold: 0 }
+      )
+      obs.observe(el)
+      observers.push(obs)
+    })
+    return () => observers.forEach(o => o.disconnect())
+  }, [sections.map(s => s.id).join(',')])
+
+  return (
+    <nav className="w-48 shrink-0 sticky top-0 self-start pt-1">
+      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3 px-2">Sections</p>
+      <ul className="space-y-0.5">
+        {sections.map(section => {
+          const isActive = activeId === section.id
+          return (
+            <li key={section.id}>
+              <button
+                onClick={() => document.getElementById(section.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                className={`w-full text-left flex items-center gap-2.5 px-2 py-2 rounded-md text-sm transition-colors ${
+                  isActive
+                    ? 'bg-jamo-50 text-jamo-600 font-medium'
+                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                }`}
+              >
+                <span className={`w-2 h-2 rounded-full shrink-0 ${statusDotClass(section.status)}`} />
+                <span className="leading-snug truncate">{section.name}</span>
+              </button>
+            </li>
+          )
+        })}
+      </ul>
+    </nav>
+  )
+}
+
 interface Props {
   sections: DraftSection[]
   acceptedOverrides?: Record<string, ContentBlock[]>
@@ -254,15 +309,20 @@ export default function ProposalDraftRenderer({
       (a, b) => a.position - b.position
     )
     return (
-      <div className="relative">
-        {sortedSections.map(section => (
-          <SectionStreamCard
-            key={section.id}
-            section={section}
-            onRegenerate={() => onRegenerate?.(section.id)}
-            onRetry={() => onRetry?.(section.id)}
-          />
-        ))}
+      <div className="flex gap-6">
+        {!hideNav && (
+          <StreamingNav sections={sortedSections} />
+        )}
+        <div className="flex-1 min-w-0">
+          {sortedSections.map(section => (
+            <SectionStreamCard
+              key={section.id}
+              section={section}
+              onRegenerate={() => onRegenerate?.(section.id)}
+              onRetry={() => onRetry?.(section.id)}
+            />
+          ))}
+        </div>
       </div>
     )
   }

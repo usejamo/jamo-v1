@@ -242,7 +242,7 @@ export function ProposalCreationWizard() {
           description: ts.description ?? null,
           role: ts.role ?? null,
           position: ts.position,
-          section_key: ts.role ?? `section-${ts.position}`,
+          section_key: `section-${ts.position}`,
           section_name: ts.name,
           status: 'pending',
           content: '',

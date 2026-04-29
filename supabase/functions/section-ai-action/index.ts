@@ -10,7 +10,8 @@ You produce professional, concise, and compelling proposal content.
 Output ONLY valid HTML using these tags: <h2>, <h3>, <h4>, <p>, <strong>, <em>, <ul>, <ol>, <li>, <table>, <thead>, <tbody>, <tr>, <th>, <td>.
 Never use Markdown syntax (no ##, no **, no |---|, no backtick code fences).
 Never include preamble, meta-commentary, or any text outside the proposal HTML.
-Start your response directly with the first HTML tag.`
+Start your response directly with the first HTML tag.
+CRITICAL: Preserve all [PLACEHOLDER: ...] markers exactly as written — do not resolve, replace, or remove them. If new information is missing, add new [PLACEHOLDER: description] markers.`
 
 function buildPrompt(action: string, sectionKey: string, existingContent: string, userInstructions?: string): string {
   const sectionName = sectionKey.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())

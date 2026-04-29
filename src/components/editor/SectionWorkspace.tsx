@@ -12,6 +12,7 @@ interface SectionWorkspaceProps {
   proposalId: string
   sections: Array<{
     section_key: string
+    name?: string | null
     content: string
     is_locked: boolean
     status: string
@@ -39,6 +40,7 @@ function SectionWorkspaceInner({ proposalId, sections, orgId, editorRefsRef, onA
     for (const s of sections) {
       sectionsMap[s.section_key] = {
         section_key: s.section_key,
+        name: s.name ?? s.section_key,
         content: s.content ?? '',
         last_saved_content: s.last_saved_content,
         is_locked: s.is_locked ?? false,
@@ -254,7 +256,7 @@ function SectionWorkspaceInner({ proposalId, sections, orgId, editorRefsRef, onA
                 }
               }}
               sectionKey={key}
-              sectionTitle={state.sections[key]?.section_key ?? key}
+              sectionTitle={state.sections[key]?.name ?? state.sections[key]?.section_key ?? key}
               proposalId={proposalId}
               orgId={orgId}
               editorState={editorState}

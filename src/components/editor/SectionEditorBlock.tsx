@@ -126,7 +126,7 @@ export const SectionEditorBlock = forwardRef<SectionEditorHandle, SectionEditorB
       const aiAction = editorState.ai_action
       if (!aiAction) return
       dispatch({ type: 'ACCEPT_AI_ACTION', payload: { section_key: sectionKey } })
-      const acceptedHtml = markdownToHtml(aiAction.preview_content)
+      const acceptedHtml = migratePlaceholders(markdownToHtml(aiAction.preview_content))
       editor?.commands.setContent(acceptedHtml, { emitUpdate: true })
       // Immediately persist accepted content so a quick refresh doesn't lose it
       await saveNow(acceptedHtml)
@@ -214,6 +214,20 @@ export const SectionEditorBlock = forwardRef<SectionEditorHandle, SectionEditorB
           flags={editorState.compliance_flags}
           checking={editorState.compliance_checking}
         />
+
+        {/* Placeholder issues */}
+        {Object.entries(editorState.issues ?? {}).flatMap(([category, issueList]) =>
+          (issueList ?? []).map((issue) => {
+            const displayLabel = category === 'placeholder'
+              ? `Missing: ${issue.label}`
+              : issue.label
+            return (
+              <div key={issue.id} className="px-4 py-1.5 text-sm text-amber-700 bg-amber-50 border-t border-amber-100">
+                {displayLabel}
+              </div>
+            )
+          })
+        )}
 
         {/* AI action preview — rendered based on ai_action state */}
         {editorState.ai_action && (
