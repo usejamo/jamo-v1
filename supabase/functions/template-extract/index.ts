@@ -151,6 +151,38 @@ ${sectionList}`
   }
 }
 
+const REQUIRED_STYLES = ['Normal', 'Heading 1', 'Heading 2', 'Heading 3'] as const
+
+export async function inspectDocxStyles(
+  buffer: ArrayBuffer
+): Promise<{ found: string[]; missing: string[] } | null> {
+  try {
+    const { default: JSZip } = await import('https://esm.sh/jszip@3.10.1')
+    const zip = await JSZip.loadAsync(buffer)
+    const stylesFile = zip.file('word/styles.xml')
+    if (!stylesFile) return null
+
+    const xml = await stylesFile.async('text')
+
+    // Extract both w:styleId attributes (camelCase IDs like "Heading1")
+    // and w:name w:val display names (like "Heading 1") — Pitfall 2
+    const styleIds = [...xml.matchAll(/w:styleId="([^"]+)"/g)].map(m => m[1])
+    const styleNames = [...xml.matchAll(/w:name\s+w:val="([^"]+)"/g)].map(m => m[1])
+    const allFound = [...new Set([...styleIds, ...styleNames])]
+
+    const found = (REQUIRED_STYLES as readonly string[]).filter(required =>
+      allFound.some(f => f.toLowerCase().replace(/\s/g, '') === required.toLowerCase().replace(/\s/g, ''))
+    )
+    const missing = (REQUIRED_STYLES as readonly string[]).filter(
+      required => !found.includes(required)
+    )
+
+    return { found, missing }
+  } catch {
+    return null  // D-06: malformed XML or ZIP → null, not false positive
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: CORS_HEADERS })
@@ -264,10 +296,17 @@ serve(async (req) => {
       if (insertError) throw new Error(`Section insert failed: ${insertError.message}`)
     }
 
+    // 8.5. Style inspection (DOCX only) — D-04/D-05/D-06
+    let styleInspection: { found: string[]; missing: string[] } | null = null
+    if (ext === 'docx') {
+      const inspectBuffer = await fileData.arrayBuffer()
+      styleInspection = await inspectDocxStyles(inspectBuffer)
+    }
+
     // 9. Update template to ready
     await supabase
       .from('templates')
-      .update({ parse_status: 'ready', low_confidence: isLowConfidence })
+      .update({ parse_status: 'ready', low_confidence: isLowConfidence, style_inspection: styleInspection })
       .eq('id', templateId)
 
     return new Response(
