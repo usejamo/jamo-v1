@@ -255,11 +255,14 @@ function DeleteDialog({
 
 // ── TemplatesTab ──────────────────────────────────────────────────────────────
 
+const MAX_TEMPLATE_SIZE = 10 * 1024 * 1024  // 10MB per D-15
+
 export function TemplatesTab() {
   const { profile } = useAuth()
   const [templates, setTemplates] = useState<Template[]>([])
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
   const [dragOver, setDragOver] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -303,6 +306,17 @@ export function TemplatesTab() {
   async function handleFileUpload(file: File) {
     if (!profile?.org_id) return
     if (!file.name.match(/\.(docx|pdf)$/i)) return
+
+    // D-15/D-16: Hard reject files over 10MB — actionable message per D-17
+    if (file.size > MAX_TEMPLATE_SIZE) {
+      const sizeMB = (file.size / (1024 * 1024)).toFixed(1)
+      setUploadError(
+        `This file is ${sizeMB} MB — templates must be under 10 MB. ` +
+        `Large embedded images often cause this. Try compressing images in Word before re-uploading.`
+      )
+      return
+    }
+    setUploadError(null)  // clear previous error on new valid upload attempt
 
     setUploading(true)
     try {
@@ -417,6 +431,12 @@ export function TemplatesTab() {
             </div>
           )}
         </div>
+
+        {uploadError && (
+          <div role="alert" className="mt-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2">
+            {uploadError}
+          </div>
+        )}
 
         <input
           ref={fileInputRef}
