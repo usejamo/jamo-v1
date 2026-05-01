@@ -36,7 +36,12 @@ function parseSectionsFromText(text: string): Array<{ name: string; description:
     const trimmed = lines[i].trim()
     if (!trimmed) continue
     const isAllCaps = trimmed === trimmed.toUpperCase() && /[A-Z]/.test(trimmed)
-    const isShortNoPunct = trimmed.length < 80 && !/[.!?,;]$/.test(trimmed)
+    const wordCount = trimmed.split(/\s+/).length
+    const isShortNoPunct =
+      trimmed.length < 80 &&
+      wordCount >= 3 &&           // exclude single words and short fragments
+      !/[.!?,;]$/.test(trimmed) &&
+      !/^\d+$/.test(trimmed)      // exclude page numbers
     if (isAllCaps || isShortNoPunct) {
       // Grab following lines as description (up to 3 non-empty lines or 300 chars)
       const descLines: string[] = []
@@ -250,11 +255,13 @@ serve(async (req) => {
     let sections: Array<{ name: string; description: string | null }> = []
     let wordCount = 0
 
+    // Read buffer once — Deno Blob streams are consumed on first arrayBuffer() call
+    const fileBuffer = await fileData.arrayBuffer()
+
     if (ext === 'docx') {
       // Use mammoth.convertToHtml to detect headings
       const mammoth = await import('https://esm.sh/mammoth@1.6.0')
-      const buffer = await fileData.arrayBuffer()
-      const result = await mammoth.convertToHtml({ buffer })
+      const result = await mammoth.convertToHtml({ buffer: fileBuffer })
       const html = result.value
       sections = parseSectionsFromHtml(html)
       // Estimate word count from plain text
@@ -263,8 +270,7 @@ serve(async (req) => {
     } else {
       // PDF: extract text using unpdf (edge-runtime safe, no canvas dependency)
       const { extractText } = await import('https://esm.sh/unpdf@0.11.0')
-      const buffer = await fileData.arrayBuffer()
-      const { text: fullText } = await extractText(new Uint8Array(buffer), { mergePages: true })
+      const { text: fullText } = await extractText(new Uint8Array(fileBuffer), { mergePages: true })
       wordCount = fullText.trim().split(/\s+/).length
       sections = parseSectionsFromText(fullText)
     }
@@ -278,9 +284,15 @@ serve(async (req) => {
     // 7. Low-confidence detection
     const isLowConfidence = sections.length < 3 || wordCount < 200
 
-    // 8. Bulk-insert template_sections
+    // 8. Bulk-insert template_sections (deduplicate by name first)
     if (sections.length > 0) {
-      const sectionInserts = sections.map((s, idx) => ({
+      const seen = new Set<string>()
+      const dedupedSections = sections.filter(s => {
+        if (seen.has(s.name)) return false
+        seen.add(s.name)
+        return true
+      })
+      const sectionInserts = dedupedSections.map((s, idx) => ({
         template_id: templateId,
         org_id: template.org_id,
         name: s.name,
@@ -299,8 +311,7 @@ serve(async (req) => {
     // 8.5. Style inspection (DOCX only) — D-04/D-05/D-06
     let styleInspection: { found: string[]; missing: string[] } | null = null
     if (ext === 'docx') {
-      const inspectBuffer = await fileData.arrayBuffer()
-      styleInspection = await inspectDocxStyles(inspectBuffer)
+      styleInspection = await inspectDocxStyles(fileBuffer)  // reuse buffer, don't re-call arrayBuffer()
     }
 
     // 9. Update template to ready
