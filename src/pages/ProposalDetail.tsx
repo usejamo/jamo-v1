@@ -69,11 +69,13 @@ interface ExportDropdownProps {
 }
 
 function ExportDropdown({ getSections, proposalTitle, templateFilePath }: ExportDropdownProps) {
+  const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [toastVisible, setToastVisible] = useState(false)
   const [blockedPlaceholders, setBlockedPlaceholders] = useState<PlaceholderItem[]>([])
   const [modalOpen, setModalOpen] = useState(false)
+  const [nudgeVisible, setNudgeVisible] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -99,6 +101,11 @@ function ExportDropdown({ getSections, proposalTitle, templateFilePath }: Export
     }
   }
 
+  function handleNudgeDismiss() {
+    localStorage.setItem('template_nudge_dismissed', 'true')
+    setNudgeVisible(false)
+  }
+
   async function handleExport() {
     setOpen(false)
     setExporting(true)
@@ -110,6 +117,13 @@ function ExportDropdown({ getSections, proposalTitle, templateFilePath }: Export
       await exportDocx({ sections: getSections(), proposalTitle, templateBlob })
       setToastVisible(true)
       setTimeout(() => setToastVisible(false), 3000)
+      // D-14: show one-time promotional nudge if no template configured and never dismissed
+      if (
+        !templateFilePath &&
+        localStorage.getItem('template_nudge_dismissed') !== 'true'
+      ) {
+        setNudgeVisible(true)
+      }
     } catch (err) {
       if (err instanceof ExportBlockedError) {
         setBlockedPlaceholders(err.placeholders)
@@ -133,6 +147,13 @@ function ExportDropdown({ getSections, proposalTitle, templateFilePath }: Export
       await exportDocx({ sections: getSections(), proposalTitle, force: true, templateBlob })
       setToastVisible(true)
       setTimeout(() => setToastVisible(false), 3000)
+      // D-14: show one-time promotional nudge if no template configured and never dismissed
+      if (
+        !templateFilePath &&
+        localStorage.getItem('template_nudge_dismissed') !== 'true'
+      ) {
+        setNudgeVisible(true)
+      }
     } catch (err) {
       console.error('Force export failed:', err)
     } finally {
@@ -166,6 +187,50 @@ function ExportDropdown({ getSections, proposalTitle, templateFilePath }: Export
       {toastVisible && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-sm px-5 py-2.5 rounded-lg shadow-xl z-50 pointer-events-none whitespace-nowrap">
           Proposal exported successfully.
+        </div>
+      )}
+
+      {nudgeVisible && (
+        <div
+          role="dialog"
+          aria-label="Template branding tip"
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 w-full max-w-sm bg-white border border-gray-200 rounded-xl shadow-xl z-50 p-4"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-gray-900">Match your firm's branding</p>
+              <p className="mt-1 text-sm text-gray-600">
+                Want exports to match your firm's formatting? Upload a Word template in Settings
+                and every export will use your styles automatically.
+              </p>
+              <div className="mt-3 flex items-center gap-3">
+                <button
+                  onClick={() => {
+                    handleNudgeDismiss()
+                    navigate('/settings')
+                  }}
+                  className="text-sm font-medium text-indigo-600 hover:text-indigo-700"
+                >
+                  Open Settings
+                </button>
+                <button
+                  onClick={handleNudgeDismiss}
+                  className="text-sm text-gray-500 hover:text-gray-700"
+                >
+                  Maybe later
+                </button>
+              </div>
+            </div>
+            <button
+              onClick={handleNudgeDismiss}
+              aria-label="Dismiss"
+              className="text-gray-400 hover:text-gray-600 shrink-0"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
+          </div>
         </div>
       )}
 
