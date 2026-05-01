@@ -52,6 +52,7 @@ interface Template {
   file_path: string | null
   created_at: string
   org_id: string | null
+  style_inspection: { found: string[]; missing: string[] } | null  // D-05
 }
 
 interface TemplateSection {
@@ -271,7 +272,7 @@ export function TemplatesTab() {
   async function fetchTemplates() {
     const { data } = await supabase
       .from('templates')
-      .select('id, name, description, source, parse_status, low_confidence, file_path, created_at, org_id')
+      .select('id, name, description, source, parse_status, low_confidence, file_path, created_at, org_id, style_inspection')
       .order('source', { ascending: true })
       .order('name', { ascending: true })
     if (data) setTemplates(data as Template[])
@@ -568,6 +569,26 @@ function TemplateRow({
       {template.parse_status === 'ready' && (
         <div className="pb-3">
           <SectionDisclosure templateId={template.id} lowConfidence={template.low_confidence} />
+          {template.style_inspection?.missing && template.style_inspection.missing.length > 0 && (
+            <div
+              role="alert"
+              className="mt-1.5 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 text-sm text-amber-700 flex items-start gap-2"
+            >
+              <IconAlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-500" />
+              <span>
+                Missing styles: <strong>{template.style_inspection.missing.join(', ')}</strong>.
+                {' '}Headings at {template.style_inspection.missing.length === 1 ? 'that level' : 'those levels'} will use default formatting.{' '}
+                <a
+                  href="https://support.microsoft.com/en-us/office/apply-styles-f8b96097-4d25-4fac-8200-6139c8093109"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline hover:text-amber-800"
+                >
+                  How to fix in Word
+                </a>
+              </span>
+            </div>
+          )}
         </div>
       )}
     </div>
