@@ -65,9 +65,10 @@ function formatDate(dateStr: string | undefined | null) {
 interface ExportDropdownProps {
   getSections: () => ExportSection[]
   proposalTitle: string
+  templateFilePath?: string | null
 }
 
-function ExportDropdown({ getSections, proposalTitle }: ExportDropdownProps) {
+function ExportDropdown({ getSections, proposalTitle, templateFilePath }: ExportDropdownProps) {
   const [open, setOpen] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [toastVisible, setToastVisible] = useState(false)
@@ -84,11 +85,29 @@ function ExportDropdown({ getSections, proposalTitle }: ExportDropdownProps) {
     return () => document.removeEventListener('mousedown', handler)
   }, [open])
 
+  async function fetchTemplateBlob(filePath: string): Promise<Blob | null> {
+    try {
+      const { data, error } = await supabase.storage
+        .from('documents')
+        .createSignedUrl(filePath, 3600)
+      if (error || !data?.signedUrl) return null
+      const resp = await fetch(data.signedUrl)
+      if (!resp.ok) return null
+      return await resp.blob()
+    } catch {
+      return null  // D-03: network error falls through to unstyled export
+    }
+  }
+
   async function handleExport() {
     setOpen(false)
     setExporting(true)
     try {
-      await exportDocx({ sections: getSections(), proposalTitle })
+      let templateBlob: Blob | undefined
+      if (templateFilePath) {
+        templateBlob = await fetchTemplateBlob(templateFilePath) ?? undefined
+      }
+      await exportDocx({ sections: getSections(), proposalTitle, templateBlob })
       setToastVisible(true)
       setTimeout(() => setToastVisible(false), 3000)
     } catch (err) {
@@ -107,7 +126,11 @@ function ExportDropdown({ getSections, proposalTitle }: ExportDropdownProps) {
     setModalOpen(false)
     setExporting(true)
     try {
-      await exportDocx({ sections: getSections(), proposalTitle, force: true })
+      let templateBlob: Blob | undefined
+      if (templateFilePath) {
+        templateBlob = await fetchTemplateBlob(templateFilePath) ?? undefined
+      }
+      await exportDocx({ sections: getSections(), proposalTitle, force: true, templateBlob })
       setToastVisible(true)
       setTimeout(() => setToastVisible(false), 3000)
     } catch (err) {
@@ -203,6 +226,7 @@ export default function ProposalDetail() {
   }>>([])
   const [sectionsLoaded, setSectionsLoaded] = useState(false)
   const [templateName, setTemplateName] = useState<string | null>(null)
+  const [templateFilePath, setTemplateFilePath] = useState<string | null>(null)
 
   useEffect(() => {
     if (!id) return
@@ -226,11 +250,18 @@ export default function ProposalDetail() {
     if (!templateId) return
     supabase
       .from('templates')
-      .select('name')
+      .select('name, file_path, source')
       .eq('id', templateId)
       .single()
       .then(({ data }) => {
         if (data?.name) setTemplateName(data.name)
+        // D-11: only uploaded DOCX templates are eligible for style extraction
+        if (
+          data?.source === 'uploaded' &&
+          data?.file_path?.toLowerCase().endsWith('.docx')
+        ) {
+          setTemplateFilePath(data.file_path)
+        }
       })
   }, [(proposal as any)?.selected_template_id])
 
@@ -552,7 +583,7 @@ export default function ProposalDetail() {
                     </svg>
                     Generated
                   </span>
-                  <ExportDropdown getSections={getLiveSections} proposalTitle={proposal?.title ?? ''} />
+                  <ExportDropdown getSections={getLiveSections} proposalTitle={proposal?.title ?? ''} templateFilePath={templateFilePath} />
                   <button
                     onClick={() => consistencyCheckRef.current?.()}
                     className="text-sm font-medium text-gray-600 hover:text-gray-800 bg-white border border-gray-200 hover:border-gray-300 hover:shadow-sm px-3 py-1.5 rounded-lg transition-colors"

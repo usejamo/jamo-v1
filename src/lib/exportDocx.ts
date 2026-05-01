@@ -8,6 +8,7 @@ import {
   Table,
 } from 'docx'
 import { htmlToDocxChildren, scanForPlaceholders } from './htmlToDocx'
+import { applyTemplateStyles } from './applyTemplateStyles'
 
 export interface ExportSection {
   name: string | null
@@ -44,8 +45,9 @@ export async function exportDocx(opts: {
   sections: ExportSection[]
   proposalTitle: string
   force?: boolean
+  templateBlob?: Blob
 }): Promise<void> {
-  const { sections, proposalTitle, force = false } = opts
+  const { sections, proposalTitle, force = false, templateBlob } = opts
 
   // Scan all sections for placeholders
   const allPlaceholders: PlaceholderItem[] = sections.flatMap(s =>
@@ -135,7 +137,11 @@ export async function exportDocx(opts: {
     sections: [{ children: docChildren }],
   })
 
-  const blob = await Packer.toBlob(doc)
+  const rawBlob = await Packer.toBlob(doc)
+  // D-01/D-03: apply org template styles if provided; falls back to rawBlob on any error
+  const blob = templateBlob
+    ? await applyTemplateStyles(rawBlob, templateBlob)
+    : rawBlob
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
