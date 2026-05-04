@@ -106,4 +106,14 @@ describe('SectionDisclosure', () => {
     expect(itemText.some(t => t.includes('Executive Summary'))).toBe(true)
     expect(itemText.some(t => t.includes('Scope of Work'))).toBe(true)
   })
+
+  it('shows scope-of-effect note when disclosure is open', async () => {
+    const { TemplatesTab: TemplatesTabModule } = await import('./TemplatesTab')
+    render(<TemplatesTabModule />)
+
+    const toggle = await screen.findByRole('button', { name: /view detected sections/i })
+    await userEvent.click(toggle)
+
+    expect(await screen.findByText(/changes apply to new proposals/i)).toBeInTheDocument()
+  })
 })

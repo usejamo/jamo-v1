@@ -149,6 +149,10 @@ function SectionDisclosure({
           ) : sections.length === 0 ? (
             <p className="text-sm text-gray-400 italic ml-2">No sections detected.</p>
           ) : (
+            <>
+            <p className="text-xs text-gray-500 mb-3">
+              Changes apply to new proposals. Existing proposals keep their current structure.
+            </p>
             <ol className="mt-2 ml-4 space-y-1 list-decimal text-sm text-gray-600">
               {sections.map(s => (
                 <li key={s.id}>
@@ -195,6 +199,7 @@ function SectionDisclosure({
                 </li>
               ))}
             </ol>
+            </>
           )}
         </div>
       )}
