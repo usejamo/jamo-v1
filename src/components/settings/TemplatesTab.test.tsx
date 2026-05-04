@@ -158,4 +158,56 @@ describe('SectionDisclosure', () => {
     expect(screen.queryByText(/remove "executive summary"/i)).not.toBeInTheDocument()
     expect(screen.getByText(/Executive Summary/)).toBeInTheDocument()
   })
+
+  it('removes section from list immediately on Confirm', async () => {
+    vi.doMock('../../lib/supabase', () => makeMockSupabase())
+    const { TemplatesTab: TemplatesTabModule } = await import('./TemplatesTab')
+    render(<TemplatesTabModule />)
+
+    const toggle = await screen.findByRole('button', { name: /view detected sections/i })
+    await userEvent.click(toggle)
+    await screen.findByText(/Executive Summary/)
+
+    const removeButtons = screen.getAllByRole('button', { name: /^remove$/i })
+    await userEvent.click(removeButtons[0])
+    await userEvent.click(screen.getByRole('button', { name: /^confirm$/i }))
+
+    expect(screen.queryByText(/Executive Summary/)).not.toBeInTheDocument()
+    expect(screen.getByText(/Scope of Work/)).toBeInTheDocument()
+  })
+
+  it('restores section and shows toast if DELETE fails', async () => {
+    const failMock = {
+      supabase: {
+        ...makeMockSupabase().supabase,
+        from: (table: string) => {
+          const base = makeMockSupabase().supabase.from(table)
+          if (table === 'template_sections') {
+            return {
+              ...base,
+              delete: () => ({ eq: () => Promise.resolve({ error: { message: 'DB error' } }) }),
+            }
+          }
+          return base
+        },
+      },
+    }
+    vi.doMock('../../lib/supabase', () => failMock)
+
+    const { TemplatesTab: TemplatesTabModule } = await import('./TemplatesTab')
+    render(<TemplatesTabModule />)
+
+    const toggle = await screen.findByRole('button', { name: /view detected sections/i })
+    await userEvent.click(toggle)
+    await screen.findByText(/Executive Summary/)
+
+    const removeButtons = screen.getAllByRole('button', { name: /^remove$/i })
+    await userEvent.click(removeButtons[0])
+    await userEvent.click(screen.getByRole('button', { name: /^confirm$/i }))
+
+    // Section restored after error
+    expect(await screen.findByText(/Executive Summary/)).toBeInTheDocument()
+    // Error toast
+    expect(screen.getByRole('alert')).toBeInTheDocument()
+  })
 })

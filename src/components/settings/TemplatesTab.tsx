@@ -98,6 +98,7 @@ function SectionDisclosure({
   })
   const [editError, setEditError] = useState<string | null>(null)
   const [removingId, setRemovingId] = useState<string | null>(null)
+  const [removeError, setRemoveError] = useState<string | null>(null)
 
   function handleEditOpen(section: TemplateSection) {
     setEditingId(section.id)
@@ -106,7 +107,26 @@ function SectionDisclosure({
   }
 
   async function handleRemoveConfirm(id: string) {
-    // implemented in Task 5
+    const removed = sections.find(s => s.id === id)
+    if (!removed) return
+
+    // Optimistic: remove from list immediately
+    setSections(prev => prev.filter(s => s.id !== id))
+    setRemovingId(null)
+
+    const { error } = await supabase
+      .from('template_sections')
+      .delete()
+      .eq('id', id)
+
+    if (error) {
+      // Restore section at original position
+      setSections(prev => {
+        const next = [...prev, removed]
+        return next.sort((a, b) => a.position - b.position)
+      })
+      setRemoveError('Failed to remove section. Please try again.')
+    }
   }
 
   async function loadSections() {
@@ -158,6 +178,18 @@ function SectionDisclosure({
             <p className="text-sm text-gray-400 italic ml-2">No sections detected.</p>
           ) : (
             <>
+            {removeError && (
+              <div role="alert" className="mb-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2">
+                {removeError}
+                <button
+                  type="button"
+                  onClick={() => setRemoveError(null)}
+                  className="ml-2 underline"
+                >
+                  Dismiss
+                </button>
+              </div>
+            )}
             <p className="text-xs text-gray-500 mb-3">
               Changes apply to new proposals. Existing proposals keep their current structure.
             </p>
