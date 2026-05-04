@@ -176,6 +176,31 @@ describe('SectionDisclosure', () => {
     expect(screen.getByText(/Scope of Work/)).toBeInTheDocument()
   })
 
+  it('opens edit panel below the row with pre-filled values when Edit is clicked', async () => {
+    vi.doMock('../../lib/supabase', () => makeMockSupabase())
+    const { TemplatesTab: TemplatesTabModule } = await import('./TemplatesTab')
+    render(<TemplatesTabModule />)
+
+    const toggle = await screen.findByRole('button', { name: /view detected sections/i })
+    await userEvent.click(toggle)
+    await screen.findByText(/Executive Summary/)
+
+    const editButtons = screen.getAllByRole('button', { name: /^edit$/i })
+    await userEvent.click(editButtons[0])
+
+    // Panel appears with pre-filled name
+    const nameInput = screen.getByRole('textbox', { name: /^name$/i })
+    expect(nameInput).toHaveValue('Executive Summary')
+
+    // Description pre-filled
+    const descInput = screen.getByRole('textbox', { name: /^description$/i })
+    expect(descInput).toHaveValue('Overview of the proposal')
+
+    // Save + Cancel buttons present
+    expect(screen.getByRole('button', { name: /^save$/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^cancel$/i })).toBeInTheDocument()
+  })
+
   it('restores section and shows toast if DELETE fails', async () => {
     const failMock = {
       supabase: {

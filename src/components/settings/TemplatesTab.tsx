@@ -63,6 +63,32 @@ interface TemplateSection {
   description: string | null
 }
 
+// ── Role options ─────────────────────────────────────────────────────────────
+
+const ROLE_OPTIONS: { value: string; label: string }[] = [
+  { value: 'cover_letter', label: 'Cover Letter' },
+  { value: 'executive_summary', label: 'Executive Summary' },
+  { value: 'study_understanding', label: 'Study Understanding' },
+  { value: 'company_overview', label: 'Company Overview' },
+  { value: 'therapeutic_experience', label: 'Therapeutic Experience' },
+  { value: 'references', label: 'References' },
+  { value: 'scope_of_work', label: 'Scope of Work' },
+  { value: 'project_management', label: 'Project Management' },
+  { value: 'proposed_team', label: 'Proposed Team' },
+  { value: 'clinical_operations', label: 'Clinical Operations' },
+  { value: 'site_management', label: 'Site Management' },
+  { value: 'patient_recruitment', label: 'Patient Recruitment' },
+  { value: 'data_management', label: 'Data Management' },
+  { value: 'biostatistics', label: 'Biostatistics' },
+  { value: 'medical_writing', label: 'Medical Writing' },
+  { value: 'regulatory_strategy', label: 'Regulatory Strategy' },
+  { value: 'pharmacovigilance', label: 'Pharmacovigilance' },
+  { value: 'quality_management', label: 'Quality Management' },
+  { value: 'timeline', label: 'Timeline' },
+  { value: 'assumptions', label: 'Assumptions' },
+  { value: 'budget', label: 'Budget' },
+]
+
 // ── Status indicator ──────────────────────────────────────────────────────────
 
 function StatusIndicator({ status }: { status: ParseStatus }) {
@@ -104,6 +130,10 @@ function SectionDisclosure({
     setEditingId(section.id)
     setEditDraft({ name: section.name, description: section.description ?? '', role: section.role })
     setEditError(null)
+  }
+
+  async function handleEditSave(_id: string) {
+    // implemented in Task 8
   }
 
   async function handleRemoveConfirm(id: string) {
@@ -231,6 +261,72 @@ function SectionDisclosure({
                           className="text-xs text-red-500 hover:text-red-600 font-medium"
                         >
                           Remove
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  {editingId === s.id && (
+                    <div className="mt-1 mb-2 rounded-lg border border-gray-200 bg-gray-50 p-3 space-y-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1" htmlFor={`edit-name-${s.id}`}>
+                          Name
+                        </label>
+                        <input
+                          id={`edit-name-${s.id}`}
+                          type="text"
+                          value={editDraft.name}
+                          onChange={e => setEditDraft(prev => ({ ...prev, name: e.target.value }))}
+                          className="w-full text-sm border border-gray-200 rounded-md px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                        />
+                        {editError && (
+                          <p className="mt-1 text-xs text-red-600">{editError}</p>
+                        )}
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1" htmlFor={`edit-desc-${s.id}`}>
+                          Description
+                        </label>
+                        <textarea
+                          id={`edit-desc-${s.id}`}
+                          rows={2}
+                          value={editDraft.description}
+                          onChange={e => setEditDraft(prev => ({ ...prev, description: e.target.value }))}
+                          className="w-full text-sm border border-gray-200 rounded-md px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-300 resize-none"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1" htmlFor={`edit-role-${s.id}`}>
+                          Role
+                        </label>
+                        <select
+                          id={`edit-role-${s.id}`}
+                          value={editDraft.role ?? ''}
+                          onChange={e => setEditDraft(prev => ({ ...prev, role: e.target.value || null }))}
+                          className="w-full text-sm border border-gray-200 rounded-md px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                        >
+                          <option value="">None</option>
+                          {ROLE_OPTIONS.map(opt => (
+                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="flex gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => handleEditSave(s.id)}
+                          className="px-3 py-1.5 text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white rounded-md"
+                        >
+                          Save
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setEditingId(null); setEditError(null) }}
+                          className="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-800"
+                        >
+                          Cancel
                         </button>
                       </div>
                     </div>
