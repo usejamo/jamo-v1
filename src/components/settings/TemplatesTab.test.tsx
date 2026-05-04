@@ -116,4 +116,24 @@ describe('SectionDisclosure', () => {
 
     expect(await screen.findByText(/changes apply to new proposals/i)).toBeInTheDocument()
   })
+
+  it('shows Edit and Remove buttons per section row, no inline role select', async () => {
+    const { TemplatesTab: TemplatesTabModule } = await import('./TemplatesTab')
+    render(<TemplatesTabModule />)
+
+    const toggle = await screen.findByRole('button', { name: /view detected sections/i })
+    await userEvent.click(toggle)
+
+    await screen.findByText(/Executive Summary/)
+
+    // Edit + Remove buttons present for each section
+    const editButtons = screen.getAllByRole('button', { name: /^edit$/i })
+    expect(editButtons.length).toBe(2)
+
+    const removeButtons = screen.getAllByRole('button', { name: /^remove$/i })
+    expect(removeButtons.length).toBe(2)
+
+    // Inline role select is gone from rows
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
+  })
 })

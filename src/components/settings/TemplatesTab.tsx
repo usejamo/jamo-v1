@@ -92,13 +92,17 @@ function SectionDisclosure({
   const [expanded, setExpanded] = useState(false)
   const [sections, setSections] = useState<TemplateSection[]>([])
   const [loading, setLoading] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editDraft, setEditDraft] = useState<{ name: string; description: string; role: string | null }>({
+    name: '', description: '', role: null,
+  })
+  const [editError, setEditError] = useState<string | null>(null)
+  const [removingId, setRemovingId] = useState<string | null>(null)
 
-  async function handleRoleChange(sectionId: string, newRole: string | null) {
-    await supabase
-      .from('template_sections')
-      .update({ role: newRole })
-      .eq('id', sectionId)
-    setSections(prev => prev.map(s => s.id === sectionId ? { ...s, role: newRole } : s))
+  function handleEditOpen(section: TemplateSection) {
+    setEditingId(section.id)
+    setEditDraft({ name: section.name, description: section.description ?? '', role: section.role })
+    setEditError(null)
   }
 
   async function loadSections() {
@@ -153,48 +157,25 @@ function SectionDisclosure({
             <p className="text-xs text-gray-500 mb-3">
               Changes apply to new proposals. Existing proposals keep their current structure.
             </p>
-            <ol className="mt-2 ml-4 space-y-1 list-decimal text-sm text-gray-600">
+            <ol className="mt-2 ml-2 space-y-1 text-sm text-gray-600">
               {sections.map(s => (
-                <li key={s.id}>
-                  <div className="flex items-center justify-between py-1">
-                    <span className="text-sm text-gray-700">{s.name}</span>
-                    <select
-                      value={s.role ?? ''}
-                      onChange={(e) => handleRoleChange(s.id, e.target.value || null)}
-                      className="text-xs text-gray-500 border border-gray-200 rounded px-1 py-0.5 ml-2 bg-white"
-                      aria-label={`Role for ${s.name}`}
+                <li key={s.id} className="flex items-center justify-between py-1.5">
+                  <span className="text-sm text-gray-700">{s.position}. {s.name}</span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => handleEditOpen(s)}
+                      className="text-xs text-indigo-600 hover:text-indigo-700 font-medium"
                     >
-                      <option value="">None</option>
-                      <optgroup label="Front Matter">
-                        <option value="cover_letter">Cover Letter</option>
-                        <option value="executive_summary">Executive Summary</option>
-                        <option value="study_understanding">Study Understanding</option>
-                      </optgroup>
-                      <optgroup label="About the CRO">
-                        <option value="company_overview">Company Overview</option>
-                        <option value="therapeutic_experience">Therapeutic Experience</option>
-                        <option value="references">References</option>
-                      </optgroup>
-                      <optgroup label="Operational Approach">
-                        <option value="scope_of_work">Scope of Work</option>
-                        <option value="project_management">Project Management</option>
-                        <option value="proposed_team">Proposed Team</option>
-                        <option value="clinical_operations">Clinical Operations</option>
-                        <option value="site_management">Site Management</option>
-                        <option value="patient_recruitment">Patient Recruitment</option>
-                        <option value="data_management">Data Management</option>
-                        <option value="biostatistics">Biostatistics</option>
-                        <option value="medical_writing">Medical Writing</option>
-                        <option value="regulatory_strategy">Regulatory Strategy</option>
-                        <option value="pharmacovigilance">Pharmacovigilance</option>
-                        <option value="quality_management">Quality Management</option>
-                      </optgroup>
-                      <optgroup label="Project Parameters">
-                        <option value="timeline">Timeline</option>
-                        <option value="assumptions">Assumptions</option>
-                        <option value="budget">Budget</option>
-                      </optgroup>
-                    </select>
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRemovingId(s.id)}
+                      className="text-xs text-red-500 hover:text-red-600 font-medium"
+                    >
+                      Remove
+                    </button>
                   </div>
                 </li>
               ))}
