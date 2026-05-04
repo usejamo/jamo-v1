@@ -60,6 +60,7 @@ interface TemplateSection {
   name: string
   role: string | null
   position: number
+  description: string | null
 }
 
 // ── Status indicator ──────────────────────────────────────────────────────────
@@ -105,10 +106,10 @@ function SectionDisclosure({
     setLoading(true)
     const { data } = await supabase
       .from('template_sections')
-      .select('id, name, role, position')
+      .select('id, name, role, position, description')
       .eq('template_id', templateId)
       .order('position', { ascending: true })
-    if (data) setSections(data)
+    if (data) setSections(data as TemplateSection[])
     setLoading(false)
   }
 
