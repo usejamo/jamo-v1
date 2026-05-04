@@ -132,8 +132,51 @@ function SectionDisclosure({
     setEditError(null)
   }
 
-  async function handleEditSave(_id: string) {
-    // implemented in Task 8
+  async function handleEditSave(id: string) {
+    const trimmedName = editDraft.name.trim()
+
+    // Validation: name required
+    if (!trimmedName) {
+      setEditError('Name is required.')
+      return
+    }
+
+    // Validation: name unique within template (case-insensitive, excluding self)
+    const isDuplicate = sections.some(
+      s => s.id !== id && s.name.toLowerCase() === trimmedName.toLowerCase()
+    )
+    if (isDuplicate) {
+      setEditError('Name already exists in this template.')
+      return
+    }
+
+    // Snapshot pre-save state for potential revert
+    const preSave = sections.find(s => s.id === id)
+
+    // Optimistic update local state
+    setSections(prev =>
+      prev.map(s =>
+        s.id === id
+          ? { ...s, name: trimmedName, description: editDraft.description || null, role: editDraft.role }
+          : s
+      )
+    )
+    setEditingId(null)
+    setEditError(null)
+
+    const { error } = await supabase
+      .from('template_sections')
+      .update({ name: trimmedName, description: editDraft.description || null, role: editDraft.role })
+      .eq('id', id)
+
+    if (error) {
+      // Revert optimistic update
+      if (preSave) {
+        setSections(prev => prev.map(s => s.id === id ? preSave : s))
+      }
+      setEditError('Failed to save changes. Please try again.')
+      setEditingId(id)
+    }
   }
 
   async function handleRemoveConfirm(id: string) {

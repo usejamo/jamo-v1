@@ -251,6 +251,85 @@ describe('SectionDisclosure', () => {
     expect(screen.getAllByRole('textbox', { name: /^name$/i })).toHaveLength(1)
   })
 
+  it('shows validation error when name is empty', async () => {
+    vi.doMock('../../lib/supabase', () => makeMockSupabase())
+    const { TemplatesTab: TemplatesTabModule } = await import('./TemplatesTab')
+    render(<TemplatesTabModule />)
+
+    const toggle = await screen.findByRole('button', { name: /view detected sections/i })
+    await userEvent.click(toggle)
+    await screen.findByText(/Executive Summary/)
+
+    const editButtons = screen.getAllByRole('button', { name: /^edit$/i })
+    await userEvent.click(editButtons[0])
+
+    const nameInput = screen.getByRole('textbox', { name: /^name$/i })
+    await userEvent.clear(nameInput)
+    await userEvent.click(screen.getByRole('button', { name: /^save$/i }))
+
+    expect(screen.getByText(/name is required/i)).toBeInTheDocument()
+    // Panel still open
+    expect(screen.getByRole('button', { name: /^save$/i })).toBeInTheDocument()
+  })
+
+  it('shows validation error when name duplicates another section', async () => {
+    vi.doMock('../../lib/supabase', () => makeMockSupabase())
+    const { TemplatesTab: TemplatesTabModule } = await import('./TemplatesTab')
+    render(<TemplatesTabModule />)
+
+    const toggle = await screen.findByRole('button', { name: /view detected sections/i })
+    await userEvent.click(toggle)
+    await screen.findByText(/Executive Summary/)
+
+    const editButtons = screen.getAllByRole('button', { name: /^edit$/i })
+    await userEvent.click(editButtons[0])
+
+    const nameInput = screen.getByRole('textbox', { name: /^name$/i })
+    await userEvent.clear(nameInput)
+    await userEvent.type(nameInput, 'scope of work')
+    await userEvent.click(screen.getByRole('button', { name: /^save$/i }))
+
+    expect(screen.getByText(/name already exists/i)).toBeInTheDocument()
+  })
+
+  it('saves successfully and updates the section name in the list', async () => {
+    const updateMock = vi.fn().mockResolvedValue({ error: null })
+    const mockWithSpy = {
+      supabase: {
+        ...makeMockSupabase().supabase,
+        from: (table: string) => {
+          const base = makeMockSupabase().supabase.from(table)
+          if (table === 'template_sections') {
+            return { ...base, update: () => ({ eq: updateMock }) }
+          }
+          return base
+        },
+      },
+    }
+    vi.doMock('../../lib/supabase', () => mockWithSpy)
+    const { TemplatesTab: TemplatesTabModule } = await import('./TemplatesTab')
+    render(<TemplatesTabModule />)
+
+    const toggle = await screen.findByRole('button', { name: /view detected sections/i })
+    await userEvent.click(toggle)
+    await screen.findByText(/Executive Summary/)
+
+    const editButtons = screen.getAllByRole('button', { name: /^edit$/i })
+    await userEvent.click(editButtons[0])
+
+    const nameInput = screen.getByRole('textbox', { name: /^name$/i })
+    await userEvent.clear(nameInput)
+    await userEvent.type(nameInput, 'Exec Summary')
+    await userEvent.click(screen.getByRole('button', { name: /^save$/i }))
+
+    // Panel collapsed
+    expect(screen.queryByRole('button', { name: /^save$/i })).not.toBeInTheDocument()
+    // Updated name in list
+    expect(await screen.findByText(/Exec Summary/)).toBeInTheDocument()
+    // Supabase called
+    expect(updateMock).toHaveBeenCalled()
+  })
+
   it('restores section and shows toast if DELETE fails', async () => {
     const failMock = {
       supabase: {
