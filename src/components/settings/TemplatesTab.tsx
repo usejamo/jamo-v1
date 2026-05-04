@@ -105,6 +105,10 @@ function SectionDisclosure({
     setEditError(null)
   }
 
+  async function handleRemoveConfirm(id: string) {
+    // implemented in Task 5
+  }
+
   async function loadSections() {
     if (sections.length > 0) return
     setLoading(true)
@@ -159,24 +163,46 @@ function SectionDisclosure({
             </p>
             <ol className="mt-2 ml-2 space-y-1 text-sm text-gray-600">
               {sections.map(s => (
-                <li key={s.id} className="flex items-center justify-between py-1.5">
-                  <span className="text-sm text-gray-700">{s.position}. {s.name}</span>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => handleEditOpen(s)}
-                      className="text-xs text-indigo-600 hover:text-indigo-700 font-medium"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setRemovingId(s.id)}
-                      className="text-xs text-red-500 hover:text-red-600 font-medium"
-                    >
-                      Remove
-                    </button>
-                  </div>
+                <li key={s.id}>
+                  {removingId === s.id ? (
+                    <div className="flex items-center gap-3 py-1.5 text-sm">
+                      <span className="text-gray-700">Remove &quot;{s.name}&quot;?</span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveConfirm(s.id)}
+                        className="text-red-600 hover:text-red-700 font-medium"
+                      >
+                        Confirm
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setRemovingId(null)}
+                        className="text-gray-500 hover:text-gray-700"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between py-1.5">
+                      <span className="text-sm text-gray-700">{s.position}. {s.name}</span>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => handleEditOpen(s)}
+                          className="text-xs text-indigo-600 hover:text-indigo-700 font-medium"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setRemovingId(s.id)}
+                          className="text-xs text-red-500 hover:text-red-600 font-medium"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </li>
               ))}
             </ol>

@@ -136,4 +136,26 @@ describe('SectionDisclosure', () => {
     // Inline role select is gone from rows
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
   })
+
+  it('shows inline confirmation when Remove is clicked, Cancel restores the row', async () => {
+    const { TemplatesTab: TemplatesTabModule } = await import('./TemplatesTab')
+    render(<TemplatesTabModule />)
+
+    const toggle = await screen.findByRole('button', { name: /view detected sections/i })
+    await userEvent.click(toggle)
+
+    await screen.findByText(/Executive Summary/)
+
+    const removeButtons = screen.getAllByRole('button', { name: /^remove$/i })
+    await userEvent.click(removeButtons[0])
+
+    // Confirmation text appears
+    expect(await screen.findByText(/remove "executive summary"/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^confirm$/i })).toBeInTheDocument()
+
+    // Cancel restores
+    await userEvent.click(screen.getByRole('button', { name: /^cancel$/i }))
+    expect(screen.queryByText(/remove "executive summary"/i)).not.toBeInTheDocument()
+    expect(screen.getByText(/Executive Summary/)).toBeInTheDocument()
+  })
 })
