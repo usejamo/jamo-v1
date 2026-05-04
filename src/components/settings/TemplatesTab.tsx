@@ -130,6 +130,7 @@ function SectionDisclosure({
     setEditingId(section.id)
     setEditDraft({ name: section.name, description: section.description ?? '', role: section.role })
     setEditError(null)
+    setRemovingId(null)
   }
 
   async function handleEditSave(id: string) {
@@ -157,7 +158,7 @@ function SectionDisclosure({
     setSections(prev =>
       prev.map(s =>
         s.id === id
-          ? { ...s, name: trimmedName, description: editDraft.description || null, role: editDraft.role }
+          ? { ...s, name: trimmedName, description: editDraft.description.trim() || null, role: editDraft.role }
           : s
       )
     )
@@ -166,7 +167,7 @@ function SectionDisclosure({
 
     const { error } = await supabase
       .from('template_sections')
-      .update({ name: trimmedName, description: editDraft.description || null, role: editDraft.role })
+      .update({ name: trimmedName, description: editDraft.description.trim() || null, role: editDraft.role })
       .eq('id', id)
 
     if (error) {
@@ -300,7 +301,7 @@ function SectionDisclosure({
                         </button>
                         <button
                           type="button"
-                          onClick={() => setRemovingId(s.id)}
+                          onClick={() => { setRemovingId(s.id); setEditingId(null) }}
                           className="text-xs text-red-500 hover:text-red-600 font-medium"
                         >
                           Remove
