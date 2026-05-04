@@ -201,6 +201,56 @@ describe('SectionDisclosure', () => {
     expect(screen.getByRole('button', { name: /^cancel$/i })).toBeInTheDocument()
   })
 
+  it('Cancel closes the edit panel without saving', async () => {
+    vi.doMock('../../lib/supabase', () => makeMockSupabase())
+    const { TemplatesTab: TemplatesTabModule } = await import('./TemplatesTab')
+    render(<TemplatesTabModule />)
+
+    const toggle = await screen.findByRole('button', { name: /view detected sections/i })
+    await userEvent.click(toggle)
+    await screen.findByText(/Executive Summary/)
+
+    const editButtons = screen.getAllByRole('button', { name: /^edit$/i })
+    await userEvent.click(editButtons[0])
+
+    // Change name
+    const nameInput = screen.getByRole('textbox', { name: /^name$/i })
+    await userEvent.clear(nameInput)
+    await userEvent.type(nameInput, 'Modified Name')
+
+    // Cancel
+    await userEvent.click(screen.getByRole('button', { name: /^cancel$/i }))
+
+    // Panel gone
+    expect(screen.queryByRole('textbox', { name: /^name$/i })).not.toBeInTheDocument()
+    // Original name unchanged in list
+    expect(screen.getByText(/Executive Summary/)).toBeInTheDocument()
+  })
+
+  it('opening a second Edit panel closes the first', async () => {
+    vi.doMock('../../lib/supabase', () => makeMockSupabase())
+    const { TemplatesTab: TemplatesTabModule } = await import('./TemplatesTab')
+    render(<TemplatesTabModule />)
+
+    const toggle = await screen.findByRole('button', { name: /view detected sections/i })
+    await userEvent.click(toggle)
+    await screen.findByText(/Executive Summary/)
+
+    const editButtons = screen.getAllByRole('button', { name: /^edit$/i })
+
+    // Open first panel
+    await userEvent.click(editButtons[0])
+    expect(screen.getByRole('textbox', { name: /^name$/i })).toHaveValue('Executive Summary')
+
+    // Open second panel
+    await userEvent.click(editButtons[1])
+    const nameInput = screen.getByRole('textbox', { name: /^name$/i })
+    expect(nameInput).toHaveValue('Scope of Work')
+
+    // Only one panel open
+    expect(screen.getAllByRole('textbox', { name: /^name$/i })).toHaveLength(1)
+  })
+
   it('restores section and shows toast if DELETE fails', async () => {
     const failMock = {
       supabase: {
