@@ -58,12 +58,20 @@ serve(async (req) => {
     )
 
     // Store pending OAuth state — code_verifier must be raw (not re-encoded) to match at token exchange
-    await supabase.from('oauth_pending').insert({
+    const { error: insertError } = await supabase.from('oauth_pending').insert({
       state,
       org_id,
       code_verifier: codeVerifier,
       expires_at: expiresAt,
     })
+
+    // WR-04: If insert fails, do not return auth_url — callback would fail with state_mismatch
+    if (insertError) {
+      return new Response(
+        JSON.stringify({ error: 'Failed to store OAuth state. Please try again.' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
 
     // Build Salesforce authorization URL
     const authUrl = new URL(`${baseUrl}/services/oauth2/authorize`)
