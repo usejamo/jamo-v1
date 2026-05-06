@@ -1,6 +1,8 @@
 import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { TemplatesTab } from '../components/settings/TemplatesTab'
+import { SalesforceConnection } from '../components/SalesforceConnection'
 
 // ── Shared constants ──────────────────────────────────────────────────────────
 
@@ -41,13 +43,6 @@ interface Integration {
 }
 
 const INTEGRATIONS: Integration[] = [
-  {
-    name: 'Salesforce',
-    logoUrl: 'https://www.vectorlogo.zone/logos/salesforce/salesforce-icon.svg',
-    description: 'CRM pipeline and opportunity management',
-    status: 'connected',
-    detail: 'Production Environment · Last sync 2 min ago',
-  },
   {
     name: 'HubSpot',
     logoUrl: 'https://www.vectorlogo.zone/logos/hubspot/hubspot-icon.svg',
@@ -458,7 +453,11 @@ function NotificationsTab() {
 
 export default function Settings() {
   const { profile } = useAuth()
-  const [activeTab, setActiveTab] = useState<SubTab>('Profile')
+  const [searchParams] = useSearchParams()
+  const requestedTab = searchParams.get('tab') as SubTab | null
+  const [activeTab, setActiveTab] = useState<SubTab>(
+    requestedTab && (SUB_TABS as readonly string[]).includes(requestedTab) ? requestedTab : 'Profile'
+  )
 
   const visibleTabs = SUB_TABS.filter(tab =>
     tab !== 'Templates' || profile?.role === 'admin' || profile?.role === 'super_admin'
@@ -503,6 +502,7 @@ export default function Settings() {
             </p>
           </div>
           <div className="grid grid-cols-3 gap-5">
+            <SalesforceConnection />
             {INTEGRATIONS.map(integration => (
               <IntegrationCard key={integration.name} integration={integration} />
             ))}
