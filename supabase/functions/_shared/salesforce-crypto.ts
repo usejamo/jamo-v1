@@ -66,9 +66,28 @@ export async function verifyState(
   const orgId = payload.substring(0, colonIndex)
   const nonce = payload.substring(colonIndex + 1)
 
-  // Re-sign to verify
-  const expectedToken = await signState(orgId, nonce, secret)
-  if (expectedToken !== stateToken) return null
+  // Timing-safe verify using Web Crypto — prevents HMAC oracle via timing side-channel
+  const encoder = new TextEncoder()
+  const keyData = encoder.encode(secret)
+  const key = await crypto.subtle.importKey(
+    'raw', keyData, { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']
+  )
+
+  // Decode the received signature back to bytes
+  let sigBytes: Uint8Array
+  try {
+    const sigPadded = sigB64 + '=='.slice(0, (4 - (sigB64.length % 4)) % 4)
+    const sigStd = sigPadded.replace(/-/g, '+').replace(/_/g, '/')
+    const binary = atob(sigStd)
+    sigBytes = Uint8Array.from(binary, c => c.charCodeAt(0))
+  } catch {
+    return null
+  }
+
+  const valid = await crypto.subtle.verify(
+    'HMAC', key, sigBytes, encoder.encode(`${orgId}:${nonce}`)
+  )
+  if (!valid) return null
 
   return { orgId, nonce }
 }
