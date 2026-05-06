@@ -11,7 +11,18 @@ serve(async (req) => {
   // D-04: Verify required secrets
   const consumerKey = Deno.env.get('SALESFORCE_CONSUMER_KEY')
   const consumerSecret = Deno.env.get('SALESFORCE_CONSUMER_SECRET')
-  const SETTINGS_URL = Deno.env.get('SETTINGS_REDIRECT_URL') ?? 'http://localhost:5173/settings?tab=Integrations'
+
+  // CR-02: Validate SETTINGS_URL origin against allowlist — prevent open-redirect via misconfigured env
+  const ALLOWED_SETTINGS_ORIGINS = ['https://app.usejamo.com', 'http://localhost:5173']
+  const rawSettingsUrl = Deno.env.get('SETTINGS_REDIRECT_URL') ?? 'http://localhost:5173/settings?tab=Integrations'
+  let parsedSettingsOrigin: string | null = null
+  try { parsedSettingsOrigin = new URL(rawSettingsUrl).origin } catch { /* ignore */ }
+  const SETTINGS_URL = parsedSettingsOrigin && ALLOWED_SETTINGS_ORIGINS.includes(parsedSettingsOrigin)
+    ? rawSettingsUrl
+    : 'http://localhost:5173/settings?tab=Integrations'
+  if (!parsedSettingsOrigin || !ALLOWED_SETTINGS_ORIGINS.includes(parsedSettingsOrigin)) {
+    console.warn(`SETTINGS_REDIRECT_URL origin "${parsedSettingsOrigin}" not in allowlist — using localhost fallback`)
+  }
 
   if (!consumerKey || !consumerSecret) {
     return new Response(null, {
@@ -22,11 +33,15 @@ serve(async (req) => {
 
   const url = new URL(req.url)
   const code = url.searchParams.get('code')
+  // WR-01: URLSearchParams.get() already URL-decodes — do not wrap in decodeURIComponent
   const stateToken = url.searchParams.get('state')
   const errorParam = url.searchParams.get('error')
 
+  // CR-02: Whitelist known Salesforce error codes — do not act on arbitrary attacker-controlled strings
+  const KNOWN_SF_ERRORS = new Set(['access_denied', 'invalid_request', 'unauthorized_client'])
+
   // User denied access on Salesforce side
-  if (errorParam === 'access_denied') {
+  if (errorParam && KNOWN_SF_ERRORS.has(errorParam)) {
     return new Response(null, {
       status: 302,
       headers: { Location: `${SETTINGS_URL}&sf_error=user_denied` },
@@ -54,12 +69,12 @@ serve(async (req) => {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
   )
 
-  // Fetch oauth_pending row — decodeURIComponent handles Salesforce URL-encoding (Pitfall 5)
+  // Fetch oauth_pending row — stateToken already decoded by URLSearchParams.get() (WR-01)
   // Also verify not expired (T-12-05 mitigation)
   const { data: pending } = await supabase
     .from('oauth_pending')
     .select('code_verifier, org_id')
-    .eq('state', decodeURIComponent(stateToken))
+    .eq('state', stateToken)
     .gt('expires_at', new Date().toISOString())
     .single()
 
@@ -71,7 +86,7 @@ serve(async (req) => {
   }
 
   // Delete oauth_pending row immediately — single-use nonce (T-12-02 mitigation)
-  await supabase.from('oauth_pending').delete().eq('state', decodeURIComponent(stateToken))
+  await supabase.from('oauth_pending').delete().eq('state', stateToken)
 
   // Determine base URL from org_id — we stored is_sandbox in oauth_pending indirectly;
   // derive from instance_url after token exchange (use login.salesforce.com for initial exchange)
