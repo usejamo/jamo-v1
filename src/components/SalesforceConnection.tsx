@@ -62,6 +62,7 @@ export function SalesforceConnection() {
   }, [orgId])
 
   const handleConnect = async () => {
+    if (!orgId) return  // WR-03: profile not yet loaded — prevent undefined org_id
     setLoading(true)
     setError(null)
     const { data, error } = await supabase.functions.invoke('salesforce-oauth-initiate', {
@@ -224,8 +225,8 @@ export function SalesforceConnection() {
             {/* Connect button */}
             <button
               onClick={handleConnect}
-              disabled={loading}
-              className={`text-xs font-medium text-jamo-600 hover:text-jamo-700 border border-jamo-200 hover:border-jamo-300 px-3 py-1.5 rounded-lg transition-colors${loading ? ' opacity-60' : ''}`}
+              disabled={loading || fetchLoading || !orgId}
+              className={`text-xs font-medium text-jamo-600 hover:text-jamo-700 border border-jamo-200 hover:border-jamo-300 px-3 py-1.5 rounded-lg transition-colors${(loading || fetchLoading || !orgId) ? ' opacity-60' : ''}`}
             >
               {loading ? (
                 <span role="status" aria-label="Loading" className="inline-flex items-center gap-1.5">
