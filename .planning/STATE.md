@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Phase 11.1 planned — ready to execute (5 plans, 4 waves)
-last_updated: "2026-04-30T02:24:16.425Z"
+stopped_at: Phase 13 context gathered
+last_updated: "2026-05-07T18:47:48.449Z"
 progress:
-  total_phases: 17
-  completed_phases: 14
-  total_plans: 69
-  completed_plans: 65
-  percent: 94
+  total_phases: 18
+  completed_phases: 16
+  total_plans: 72
+  completed_plans: 73
+  percent: 100
 ---
 
 ## Project Status
@@ -31,12 +31,13 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 
 ## Last Session
 
-**Stopped at:** Phase 11.1 planned — ready to execute (5 plans, 4 waves)
+**Stopped at:** Phase 13 context gathered
 **Session date:** 2026-04-29
 
 ## Roadmap Evolution
 
 - Phase 11.1 added: DOCX template style extraction (REQ-10.4b) — unzip org DOCX, extract styles.xml, inject into generated export
+- Phase 12.1 added: Salesforce Data Sync — salesforce-sync Edge Function, Step 1 pre-population, status write-back, graceful degradation (split from Phase 12 which shipped OAuth-only)
 
 ---
 
