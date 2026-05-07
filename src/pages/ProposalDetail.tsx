@@ -1,7 +1,7 @@
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import allDocuments from '../data/documents.json'
-import type { ProposalStatus } from '../types/proposal'
+
 import type { PendingSuggestion } from '../types/draft'
 import { generateProposalDraft } from '../data/proposalDraftData'
 import { COMMAND_MAP } from '../data/demoCommands'
@@ -35,21 +35,7 @@ interface MockDoc {
   uploadedAt: string
 }
 
-const STATUS_LABELS: Record<ProposalStatus, string> = {
-  draft: 'Draft',
-  in_review: 'In Review',
-  submitted: 'Submitted',
-  won: 'Won',
-  lost: 'Lost',
-}
-
-const STATUS_COLORS: Record<ProposalStatus, string> = {
-  draft: 'bg-gray-100 text-gray-600',
-  in_review: 'bg-amber-100 text-amber-700',
-  submitted: 'bg-blue-100 text-blue-700',
-  won: 'bg-green-100 text-green-700',
-  lost: 'bg-red-100 text-red-600',
-}
+import { StatusSelector, STATUS_LABELS } from '../components/StatusSelector'
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(value)
@@ -207,7 +193,7 @@ function ExportDropdown({ getSections, proposalTitle, templateFilePath }: Export
                 <button
                   onClick={() => {
                     handleNudgeDismiss()
-                    navigate('/settings')
+                    navigate('/settings?tab=Templates')
                   }}
                   className="text-sm font-medium text-indigo-600 hover:text-indigo-700"
                 >
@@ -272,7 +258,7 @@ export default function ProposalDetail() {
   const [pendingSuggestion, setPendingSuggestion] = useState<PendingSuggestion | null>(null)
   const [_lastResolution, setLastResolution] = useState<'accepted' | 'declined' | null>(null)
 
-  const { proposals, loading: proposalsLoading } = useProposals()
+  const { proposals, loading: proposalsLoading, updateStatus } = useProposals()
   const { openModal, showToast } = useProposalModal()
   const { profile, user } = useAuth()
   const proposal = proposals.find(p => p.id === id)
@@ -548,9 +534,14 @@ export default function ProposalDetail() {
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <div className="flex items-center gap-3 mb-2">
-                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${STATUS_COLORS[proposal.status]}`}>
-                      {STATUS_LABELS[proposal.status]}
-                    </span>
+                    <StatusSelector
+                      status={proposal.status}
+                      onChange={async (next) => {
+                        await updateStatus(proposal.id, next)
+                        showToast(`Status updated to ${STATUS_LABELS[next]}`)
+                      }}
+                      variant="labeled"
+                    />
                     <span className="text-xs text-gray-400">{proposal.id.toUpperCase()}</span>
                   </div>
                   <h1 className="text-xl font-bold text-gray-900">{proposal.title}</h1>
