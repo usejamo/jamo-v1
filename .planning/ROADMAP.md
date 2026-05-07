@@ -379,6 +379,24 @@ Plans:
 
 ---
 
+### Phase 12.1: Salesforce Data Sync (INSERTED)
+
+**Goal:** Use the connected Salesforce org's credentials to query Opportunity/Account fields and pre-populate wizard Step 1 with sponsor metadata; write proposal status back to the Salesforce Opportunity on submit/complete. Graceful degradation if Salesforce is not connected or the sync fails.
+
+**Deliverables:**
+- `salesforce-sync` Edge Function — given a connected org's vault-stored tokens, query Salesforce for Opportunity fields and return sponsor metadata (sponsor name, therapeutic area, indication, study phase)
+- Wire pre-population into wizard Step 1 (`Step1StudyInfo.tsx`) — fields auto-filled when Salesforce is connected; empty as normal otherwise
+- Write proposal status PATCH back to the relevant Salesforce Opportunity on proposal submit/complete
+- Graceful degradation — Step 1 renders normally with empty fields if Salesforce not connected or sync call fails; no blocking errors
+
+**Requirements covered:** REQ-12.4, REQ-12.5, REQ-12.6
+
+**Depends on:** Phase 12
+
+**Plans:** Not planned yet
+
+---
+
 ### Phase 13: Dashboard & Proposal Lifecycle
 
 **Goal:** Wire the existing dashboard to live Supabase data. Lightweight metrics.
@@ -391,6 +409,15 @@ Plans:
 - ProposalsList filters (active / archived / deleted) all hitting Supabase
 
 **Requirements covered:** REQ-11.1 through REQ-11.4
+
+**Plans:** 5 plans
+
+Plans:
+- [x] 13-01-PLAN.md — Rename in_review → in_progress (migration, types, seed JSON)
+- [x] 13-02-PLAN.md — StatusSelector component + updateStatus in ProposalsContext
+- [ ] 13-03-PLAN.md — Wire ProposalsList with StatusSelector + Supabase archived/deleted tabs
+- [ ] 13-04-PLAN.md — Wire Dashboard KPI cards to live Supabase data
+- [ ] 13-05-PLAN.md — Wire ProposalDetail header with labeled StatusSelector
 
 ---
 

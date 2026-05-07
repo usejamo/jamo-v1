@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Phase 13 context gathered
-last_updated: "2026-05-07T18:47:48.449Z"
+stopped_at: "Completed 13-02-PLAN.md (StatusSelector + updateStatus)"
+last_updated: "2026-05-07T20:25:00.000Z"
 progress:
   total_phases: 18
   completed_phases: 16
-  total_plans: 72
-  completed_plans: 73
-  percent: 100
+  total_plans: 77
+  completed_plans: 76
+  percent: 99
 ---
 
 ## Project Status
@@ -108,6 +108,10 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 - **AIChatPanel stubs:** use it.skip (not dynamic imports) — Vite resolves all imports at transform time; component implemented in Plan 01
 
 - **Compliance flags persistence (D-02/D-03):** persistFlags upserts to proposal_sections.compliance_flags after every SET_COMPLIANCE_FLAGS dispatch; silent-fail; DB flags loaded as optimistic cache on mount, background re-check at 500ms per D-02 staleness policy
+
+- **STATUS_LABELS/STATUS_COLORS shared from StatusSelector.tsx:** Single source of truth for status display config; downstream pages (Dashboard, ProposalsList, ProposalDetail) import from StatusSelector.tsx
+- **Terminal status confirmation gate:** won/lost transitions gated behind confirmation modal in StatusSelector; all other transitions apply immediately on click
+- **updateStatus is a thin wrapper:** delegates to updateProposal(id, { status }) — no direct Supabase call, reuses camelCase→snake_case mapping
 
 ## Critical Risks to Watch
 
