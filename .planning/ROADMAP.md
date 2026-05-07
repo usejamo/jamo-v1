@@ -415,9 +415,9 @@ Plans:
 Plans:
 - [x] 13-01-PLAN.md — Rename in_review → in_progress (migration, types, seed JSON)
 - [x] 13-02-PLAN.md — StatusSelector component + updateStatus in ProposalsContext
-- [ ] 13-03-PLAN.md — Wire ProposalsList with StatusSelector + Supabase archived/deleted tabs
+- [x] 13-03-PLAN.md — Wire ProposalsList with StatusSelector + Supabase archived/deleted tabs
 - [x] 13-04-PLAN.md — Wire ProposalsList/ProposalDetail with StatusSelector + Supabase archived/deleted tabs
-- [ ] 13-05-PLAN.md — Wire Dashboard KPI cards to live Supabase data
+- [x] 13-05-PLAN.md — Push in_review→in_progress data migration to remote Supabase DB
 
 ---
 
