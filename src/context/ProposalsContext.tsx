@@ -17,6 +17,7 @@ function mapRow(row: Record<string, any>): Proposal {
     dueDate: row.due_date ?? '',
     value: row.estimated_value ?? 0,
     createdAt: row.created_at?.slice(0, 10) ?? '',
+    updatedAt: row.updated_at ?? row.created_at ?? '',
     indication: row.indication ?? '',
     description: row.description ?? '',
     selected_template_id: row.selected_template_id ?? null,

@@ -10,6 +10,7 @@ export interface Proposal {
   dueDate: string
   value: number
   createdAt: string
+  updatedAt?: string
   indication?: string
   description?: string
   selected_template_id?: string | null

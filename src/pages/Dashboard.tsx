@@ -4,48 +4,15 @@ import { useArchived } from '../context/ArchivedContext'
 import { useProposals } from '../context/ProposalsContext'
 import { useDeleted } from '../context/DeletedContext'
 import { useProposalModal } from '../context/ProposalModalContext'
-
-const DEMO_NOW = new Date('2026-02-26T12:00:00')
-const WIN_RATE  = 0.67
+import { STATUS_LABELS, STATUS_COLORS } from '../components/StatusSelector'
 
 const PIPELINE_STAGES: { label: string; statuses: ProposalStatus[] }[] = [
   { label: 'RFP Received', statuses: ['draft'] },
-  { label: 'In Review',   statuses: ['in_review'] },
+  { label: 'In Progress', statuses: ['in_progress'] },
   { label: 'Submitted',   statuses: ['submitted'] },
   { label: 'Won',         statuses: ['won'] },
   { label: 'Lost',        statuses: ['lost'] },
 ]
-
-const STATUS_LABELS: Record<ProposalStatus, string> = {
-  draft:     'Draft',
-  in_review: 'In Review',
-  submitted: 'Submitted',
-  won:       'Won',
-  lost:      'Lost',
-}
-
-const STATUS_COLORS: Record<ProposalStatus, string> = {
-  draft:     'bg-gray-100 text-gray-600',
-  in_review: 'bg-amber-100 text-amber-700',
-  submitted: 'bg-blue-100 text-blue-700',
-  won:       'bg-green-100 text-green-700',
-  lost:      'bg-red-100 text-red-600',
-}
-
-// Activity labels used for stale-activity urgency detection.
-// prop-003 and prop-006 deliberately set to ≥48h to yield exactly 4 urgent items.
-const LAST_ACTIVITY: Record<string, string> = {
-  'prop-001': '3 days ago',
-  'prop-002': '2h ago',
-  'prop-003': '2 days ago',
-  'prop-004': '3 days ago',
-  'prop-005': '4 days ago',
-  'prop-006': '3 days ago',
-  'prop-007': '3h ago',
-  'prop-008': '1 week ago',
-  'prop-009': '2h ago',
-  'prop-010': '5h ago',
-}
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -59,17 +26,18 @@ function formatDate(s: string) {
   return new Date(s).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
-function activityAgeHours(label: string): number {
-  if (!label) return 0
-  if (label.includes('week'))    return 168
-  if (label.includes('days ago') || label.includes('day ago')) return (parseInt(label) || 1) * 24
-  if (label === 'Yesterday')     return 24
-  if (label.includes('h ago'))   return parseInt(label) || 1
-  return 0
+function timeAgo(date: string | Date | undefined): string {
+  if (!date) return '—'
+  const diff = Date.now() - new Date(date).getTime()
+  const hours = Math.floor(diff / 3600000)
+  if (hours < 1) return 'just now'
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  return `${days}d ago`
 }
 
 function getUrgencyTag(dueDate: string) {
-  const diffH = (new Date(dueDate).getTime() - DEMO_NOW.getTime()) / 3_600_000
+  const diffH = (new Date(dueDate).getTime() - new Date().getTime()) / 3_600_000
   if (diffH >= 0 && diffH <= 72) {
     const days = Math.ceil(diffH / 24)
     return { urgent: true, label: `Due in ${days} day${days !== 1 ? 's' : ''}` }
@@ -80,19 +48,16 @@ function getUrgencyTag(dueDate: string) {
 /** A proposal is urgent if it's active AND (due within 72h OR inactive ≥48h) */
 function isUrgent(p: Proposal): boolean {
   if (p.status === 'won' || p.status === 'lost') return false
-  const diffH = (new Date(p.dueDate).getTime() - DEMO_NOW.getTime()) / 3_600_000
+  const diffH = (new Date(p.dueDate).getTime() - new Date().getTime()) / 3_600_000
   if (diffH >= 0 && diffH <= 72) return true
-  return activityAgeHours(LAST_ACTIVITY[p.id] ?? '') >= 48
+  const inactiveHours = p.updatedAt ? (Date.now() - new Date(p.updatedAt).getTime()) / 3_600_000 : 0
+  return inactiveHours >= 48
 }
 
 function getStats(proposals: Proposal[]) {
   const active   = proposals.filter(p => p.status !== 'lost').length
-  const decided  = proposals.filter(p => p.status === 'won' || p.status === 'lost').length
-  const won      = proposals.filter(p => p.status === 'won').length
-  const winRate  = decided > 0 ? Math.round((won / decided) * 100) : 0
   const pipeline = proposals.filter(p => p.status !== 'lost').reduce((s, p) => s + p.value, 0)
-  const weighted = Math.round(pipeline * WIN_RATE)
-  return { active, winRate, pipeline, weighted }
+  return { active, pipeline }
 }
 
 // ── Sub-components ───────────────────────────────────────────────────────────
@@ -183,19 +148,16 @@ export default function Dashboard() {
           accent="text-jamo-500"
         />
         <StatCard
-          label="Win Rate"
-          value={`${stats.winRate}%`}
-          sub="of decided proposals"
-          accent="text-green-600"
+          label="Generated This Month"
+          value="0"
+          sub="No AI calls yet this month"
+          accent="text-purple-600"
         />
         <StatCard
           label="Pipeline Value"
           value={formatCurrency(stats.pipeline)}
           sub="excl. lost proposals"
           accent="text-blue-600"
-          source="Data source: Salesforce Production Environment"
-          weighted={`Weighted: ${formatCurrency(stats.weighted)}`}
-          weightedBadge="via Workday"
         />
       </div>
 
@@ -247,7 +209,7 @@ export default function Dashboard() {
                     <div className="flex items-center">
                       {/* Last Activity — collapses on hover to free space */}
                       <span className="text-right text-xs text-gray-400 whitespace-nowrap overflow-hidden transition-all duration-200 w-[5.5rem] mr-3 group-hover:w-0 group-hover:mr-0 group-hover:opacity-0">
-                        {LAST_ACTIVITY[p.id] ?? '—'}
+                        {timeAgo(p.updatedAt)}
                       </span>
                       {/* Value — collapses on hover */}
                       <span className="text-right text-sm font-medium text-gray-700 whitespace-nowrap overflow-hidden transition-all duration-200 w-16 mr-3 group-hover:w-0 group-hover:mr-0 group-hover:opacity-0">
