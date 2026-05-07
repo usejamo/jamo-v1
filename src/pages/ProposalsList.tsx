@@ -3,33 +3,35 @@ import { useNavigate } from 'react-router-dom'
 import type { Proposal, ProposalStatus } from '../types/proposal'
 import { useArchived } from '../context/ArchivedContext'
 import { useProposals } from '../context/ProposalsContext'
-import { useDeleted, isWithin30Days } from '../context/DeletedContext'
+import { useDeleted } from '../context/DeletedContext'
 import { useProposalModal } from '../context/ProposalModalContext'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../context/AuthContext'
+import { StatusSelector, STATUS_LABELS } from '../components/StatusSelector'
 
-const DEMO_NOW = new Date('2026-02-26T12:00:00')
-
-const STATUS_LABELS: Record<ProposalStatus, string> = {
-  draft:     'Draft',
-  in_review: 'In Review',
-  submitted: 'Submitted',
-  won:       'Won',
-  lost:      'Lost',
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapRow(row: Record<string, any>): Proposal {
+  return {
+    id: row.id,
+    title: row.title,
+    client: row.client_name ?? '',
+    studyType: row.study_type ?? '',
+    therapeuticArea: row.therapeutic_area ?? '',
+    status: row.status,
+    dueDate: row.due_date ?? '',
+    value: row.estimated_value ?? 0,
+    createdAt: row.created_at?.slice(0, 10) ?? '',
+    updatedAt: row.updated_at ?? row.created_at ?? '',
+    indication: row.indication ?? '',
+    description: row.description ?? '',
+    selected_template_id: row.selected_template_id ?? null,
+  }
 }
-
-const STATUS_COLORS: Record<ProposalStatus, string> = {
-  draft:     'bg-gray-100 text-gray-600',
-  in_review: 'bg-amber-100 text-amber-700',
-  submitted: 'bg-blue-100 text-blue-700',
-  won:       'bg-green-100 text-green-700',
-  lost:      'bg-red-100 text-red-600',
-}
-
 
 const STATUS_FILTER_OPTIONS: { label: string; value: ProposalStatus | null }[] = [
   { label: 'All Statuses', value: null },
   { label: 'Draft',        value: 'draft' },
-  { label: 'In Review',    value: 'in_review' },
+  { label: 'In Progress',  value: 'in_progress' },
   { label: 'Submitted',    value: 'submitted' },
   { label: 'Won',          value: 'won' },
   { label: 'Lost',         value: 'lost' },
@@ -48,7 +50,7 @@ function formatDate(s: string) {
 }
 
 function getUrgencyTag(dueDate: string) {
-  const diffH = (new Date(dueDate).getTime() - DEMO_NOW.getTime()) / 3_600_000
+  const diffH = (new Date(dueDate).getTime() - new Date().getTime()) / 3_600_000
   if (diffH >= 0 && diffH <= 72) {
     const days = Math.ceil(diffH / 24)
     return { urgent: true, label: `Due in ${days} day${days !== 1 ? 's' : ''}` }
@@ -67,10 +69,15 @@ export default function ProposalsList() {
   const [permanentDeleteTarget, setPermanentDeleteTarget] = useState<Proposal | null>(null)
   const [debugMode,             setDebugMode]             = useState(() => localStorage.getItem('jamo_debug_mode') === 'true')
 
-  const { archivedIds, archive, restore } = useArchived()
-  const { proposals, permanentlyDelete } = useProposals()
-  const { deletedAt, deletedIds, deleteProposal, restoreFromTrash, purgeFromTrash } = useDeleted()
+  const { archive, restore } = useArchived()
+  const { proposals, updateStatus, permanentlyDelete } = useProposals()
+  const { deleteProposal, restoreFromTrash, purgeFromTrash } = useDeleted()
   const { openModal, showToast } = useProposalModal()
+  const { session, profile } = useAuth()
+
+  const [archivedProposals, setArchivedProposals] = useState<Proposal[]>([])
+  const [deletedProposals, setDeletedProposals] = useState<Proposal[]>([])
+  const [tabLoading, setTabLoading] = useState(false)
 
   const [templateNames, setTemplateNames] = useState<Record<string, string>>({})
 
@@ -94,6 +101,36 @@ export default function ProposalsList() {
       })
   }, [proposals])
 
+  useEffect(() => {
+    if (!session || !profile?.org_id) return
+    if (view === 'archived') {
+      setTabLoading(true)
+      supabase
+        .from('proposals')
+        .select('*')
+        .eq('org_id', profile.org_id)
+        .eq('is_archived', true)
+        .is('deleted_at', null)
+        .order('updated_at', { ascending: false })
+        .then(({ data, error }) => {
+          setTabLoading(false)
+          if (!error && data) setArchivedProposals(data.map(mapRow))
+        })
+    } else if (view === 'deleted') {
+      setTabLoading(true)
+      supabase
+        .from('proposals')
+        .select('*')
+        .eq('org_id', profile.org_id)
+        .not('deleted_at', 'is', null)
+        .order('updated_at', { ascending: false })
+        .then(({ data, error }) => {
+          setTabLoading(false)
+          if (!error && data) setDeletedProposals(data.map(mapRow))
+        })
+    }
+  }, [view, session, profile?.org_id])
+
   // Escape closes the permanent-delete confirmation
   useEffect(() => {
     if (!permanentDeleteTarget) return
@@ -109,11 +146,10 @@ export default function ProposalsList() {
     [proposals]
   )
 
-  const viewProposals = proposals.filter(p => {
-    if (view === 'deleted')  return deletedIds.has(p.id) && isWithin30Days(new Date(deletedAt[p.id]))
-    if (view === 'archived') return archivedIds.has(p.id) && !deletedIds.has(p.id)
-    return !archivedIds.has(p.id) && !deletedIds.has(p.id)
-  })
+  const viewProposals =
+    view === 'archived' ? archivedProposals
+    : view === 'deleted' ? deletedProposals
+    : proposals
 
   const filtered = viewProposals
     .filter(p => taFilter === 'All' || p.therapeuticArea === taFilter)
@@ -272,7 +308,12 @@ export default function ProposalsList() {
         </div>
 
         {/* Empty state */}
-        {filtered.length === 0 && (
+        {tabLoading && (
+          <div className="px-6 py-10 text-center text-sm text-gray-400">
+            Loading…
+          </div>
+        )}
+        {!tabLoading && filtered.length === 0 && (
           <div className="px-6 py-10 text-center text-sm text-gray-400">
             No proposals match the current filters.
           </div>
@@ -325,10 +366,15 @@ export default function ProposalsList() {
                     <div className="w-20 text-right">
                       <span className="text-sm font-medium text-gray-900 tabular-nums">{formatCurrency(p.value)}</span>
                     </div>
-                    <div className="w-24 pl-4 whitespace-nowrap">
-                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${STATUS_COLORS[p.status]}`}>
-                        {STATUS_LABELS[p.status]}
-                      </span>
+                    <div className="w-24 pl-4 whitespace-nowrap" onClick={e => e.stopPropagation()}>
+                      <StatusSelector
+                        status={p.status}
+                        onChange={async (next) => {
+                          await updateStatus(p.id, next)
+                          showToast(`Status updated to ${STATUS_LABELS[next]}`)
+                        }}
+                        variant="compact"
+                      />
                     </div>
                   </div>
 
