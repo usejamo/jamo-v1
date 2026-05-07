@@ -390,6 +390,26 @@ export default function ProposalDetail() {
     return () => el.removeEventListener('scroll', onScroll)
   }, [])
 
+  const buildProposalInput = useCallback((): GenerateSectionPayloadV2['proposalContext'] => {
+    // services and regions are stored as JSON in proposal.description by the wizard
+    const meta: { services?: string[]; regions?: string[] } = (() => {
+      try { return JSON.parse(proposal?.description ?? '{}') } catch { return {} }
+    })()
+    return {
+      studyInfo: {
+        sponsorName: proposal?.client ?? '',
+        therapeuticArea: proposal?.therapeuticArea ?? '',
+        indication: proposal?.indication ?? '',
+        studyPhase: proposal?.studyType ?? '',
+        countries: meta.regions ?? [],
+        dueDate: proposal?.dueDate ?? '',
+        services: meta.services ?? [],
+      },
+      assumptions: [],
+      services: meta.services ?? [],
+    }
+  }, [proposal])
+
   // Auto-trigger generation when navigated from wizard with ?generate=true
   // Must be before early returns to satisfy Rules of Hooks
   useEffect(() => {
@@ -441,26 +461,6 @@ export default function ProposalDetail() {
       </div>
     )
   }
-
-  const buildProposalInput = useCallback((): GenerateSectionPayloadV2['proposalContext'] => {
-    // services and regions are stored as JSON in proposal.description by the wizard
-    const meta: { services?: string[]; regions?: string[] } = (() => {
-      try { return JSON.parse(proposal?.description ?? '{}') } catch { return {} }
-    })()
-    return {
-      studyInfo: {
-        sponsorName: proposal?.client ?? '',
-        therapeuticArea: proposal?.therapeuticArea ?? '',
-        indication: proposal?.indication ?? '',
-        studyPhase: proposal?.studyType ?? '',
-        countries: meta.regions ?? [],
-        dueDate: proposal?.dueDate ?? '',
-        services: meta.services ?? [],
-      },
-      assumptions: [],
-      services: meta.services ?? [],
-    }
-  }, [proposal])
 
   function handleGenerate() {
     const input = buildProposalInput()

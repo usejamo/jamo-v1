@@ -347,40 +347,32 @@ export default function ProposalsList() {
                 </div>
 
                 {/*
-                  Right zone — fixed intrinsic width set by Tier 2 in normal flow.
-                  Actions overlay absolutely on top; both layers crossfade via opacity only.
-                  No width animation = Tier 1 never shifts.
+                  Right zone — Status is always visible; date/value crossfade with actions.
+                  StatusSelector sits outside the relative overlay zone so it's never covered
+                  by the absolute inset-0 actions layer and never fades on hover.
                 */}
-                <div className="relative shrink-0 pl-8 flex items-center">
+                <div className="shrink-0 pl-8 flex items-center">
 
-                  {/* Tier 2: Due Date + Value + Status — fades out on hover */}
-                  <div className="flex items-center transition-opacity duration-200 opacity-100 group-hover:opacity-0 pointer-events-auto group-hover:pointer-events-none">
-                    <div className="w-36">
-                      {urgency.urgent ? (
-                        <span className="inline-flex text-xs font-medium bg-amber-50 text-amber-600 px-2 py-0.5 rounded-full border border-amber-100">
-                          {urgency.label}
-                        </span>
-                      ) : (
-                        <span className="text-sm text-gray-500">{formatDate(p.dueDate)}</span>
-                      )}
+                  {/* Overlay zone: date/value fades out, actions fade in */}
+                  <div className="relative flex items-center">
+                    {/* Tier 2: Due Date + Value — fades out on hover */}
+                    <div className="flex items-center transition-opacity duration-200 opacity-100 group-hover:opacity-0 pointer-events-auto group-hover:pointer-events-none">
+                      <div className="w-36">
+                        {urgency.urgent ? (
+                          <span className="inline-flex text-xs font-medium bg-amber-50 text-amber-600 px-2 py-0.5 rounded-full border border-amber-100">
+                            {urgency.label}
+                          </span>
+                        ) : (
+                          <span className="text-sm text-gray-500">{formatDate(p.dueDate)}</span>
+                        )}
+                      </div>
+                      <div className="w-20 text-right">
+                        <span className="text-sm font-medium text-gray-900 tabular-nums">{formatCurrency(p.value)}</span>
+                      </div>
                     </div>
-                    <div className="w-20 text-right">
-                      <span className="text-sm font-medium text-gray-900 tabular-nums">{formatCurrency(p.value)}</span>
-                    </div>
-                    <div className="w-24 pl-4 whitespace-nowrap" onClick={e => e.stopPropagation()}>
-                      <StatusSelector
-                        status={p.status}
-                        onChange={async (next) => {
-                          await updateStatus(p.id, next)
-                          showToast(`Status updated to ${STATUS_LABELS[next]}`)
-                        }}
-                        variant="compact"
-                      />
-                    </div>
-                  </div>
 
-                  {/* Actions — absolute overlay on the same lane, fades in on hover */}
-                  <div className="absolute inset-0 flex items-center justify-end transition-opacity duration-200 opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto z-10">
+                    {/* Actions — absolute overlay on the same lane, fades in on hover */}
+                    <div className="absolute inset-0 flex items-center justify-end transition-opacity duration-200 opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto z-10">
                     <div className="flex items-center gap-1.5">
                       {rowActions.map(action => {
                         const isRestore   = action === 'Restore'
@@ -420,6 +412,19 @@ export default function ProposalsList() {
                         )
                       })}
                     </div>
+                  </div>
+                  </div>{/* end overlay zone */}
+
+                  {/* Status — always visible, outside the overlay/actions layer */}
+                  <div className="w-24 pl-4 whitespace-nowrap" onClick={e => e.stopPropagation()}>
+                    <StatusSelector
+                      status={p.status}
+                      onChange={async (next) => {
+                        await updateStatus(p.id, next)
+                        showToast(`Status updated to ${STATUS_LABELS[next]}`)
+                      }}
+                      variant="compact"
+                    />
                   </div>
 
                 </div>
