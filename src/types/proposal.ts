@@ -1,4 +1,4 @@
-export type ProposalStatus = 'draft' | 'in_review' | 'submitted' | 'won' | 'lost'
+export type ProposalStatus = 'draft' | 'in_progress' | 'submitted' | 'won' | 'lost'
 
 export interface Proposal {
   id: string
@@ -12,4 +12,5 @@ export interface Proposal {
   createdAt: string
   indication?: string
   description?: string
+  selected_template_id?: string | null
 }

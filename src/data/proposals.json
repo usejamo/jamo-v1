@@ -27,7 +27,7 @@
     "client": "Novartis",
     "studyType": "Phase I Clinical Trial",
     "therapeuticArea": "CNS",
-    "status": "in_review",
+    "status": "in_progress",
     "dueDate": "2026-03-10",
     "value": 320000,
     "createdAt": "2026-01-22"
@@ -93,7 +93,7 @@
     "client": "AbbVie",
     "studyType": "Phase II Clinical Trial",
     "therapeuticArea": "Immunology",
-    "status": "in_review",
+    "status": "in_progress",
     "dueDate": "2026-03-28",
     "value": 490000,
     "createdAt": "2026-02-05"
