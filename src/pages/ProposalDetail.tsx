@@ -398,8 +398,7 @@ export default function ProposalDetail() {
       generateAll(input)
       window.history.replaceState({}, '', window.location.pathname)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [proposal, searchParams])
+  }, [proposal, searchParams, buildProposalInput, generateAll, genState.isGenerating, genState.completedCount])
 
   const handleSuggestionAccepted = useCallback((commandKey: string) => {
     const command = COMMAND_MAP[commandKey]
@@ -443,7 +442,7 @@ export default function ProposalDetail() {
     )
   }
 
-  function buildProposalInput(): GenerateSectionPayloadV2['proposalContext'] {
+  const buildProposalInput = useCallback((): GenerateSectionPayloadV2['proposalContext'] => {
     // services and regions are stored as JSON in proposal.description by the wizard
     const meta: { services?: string[]; regions?: string[] } = (() => {
       try { return JSON.parse(proposal?.description ?? '{}') } catch { return {} }
@@ -461,7 +460,7 @@ export default function ProposalDetail() {
       assumptions: [],
       services: meta.services ?? [],
     }
-  }
+  }, [proposal])
 
   function handleGenerate() {
     const input = buildProposalInput()
