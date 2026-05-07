@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { Proposal, ProposalStatus } from '../types/proposal'
 import { useArchived } from '../context/ArchivedContext'
@@ -5,6 +6,8 @@ import { useProposals } from '../context/ProposalsContext'
 import { useDeleted } from '../context/DeletedContext'
 import { useProposalModal } from '../context/ProposalModalContext'
 import { STATUS_LABELS, STATUS_COLORS } from '../components/StatusSelector'
+import { supabase } from '../lib/supabase'
+import { useAuth } from '../context/AuthContext'
 
 const PIPELINE_STAGES: { label: string; statuses: ProposalStatus[] }[] = [
   { label: 'RFP Received', statuses: ['draft'] },
@@ -96,6 +99,26 @@ export default function Dashboard() {
   const { proposals } = useProposals()
   const { deletedIds } = useDeleted()
   const { openModal } = useProposalModal()
+  const { session, profile } = useAuth()
+
+  const [generatedCount, setGeneratedCount] = useState(0)
+  const [aiCallCount, setAiCallCount] = useState(0)
+
+  useEffect(() => {
+    if (!session || !profile?.org_id) return
+    const now = new Date()
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+    supabase
+      .from('usage_events')
+      .select('id, event_type')
+      .eq('org_id', profile.org_id)
+      .gte('created_at', startOfMonth)
+      .then(({ data, error }) => {
+        if (error || !data) return
+        setGeneratedCount(data.filter(e => e.event_type === 'proposal_generated').length)
+        setAiCallCount(data.filter(e => e.event_type === 'ai_section_call').length)
+      })
+  }, [session, profile?.org_id])
 
   const visibleProposals = proposals.filter(p => !archivedIds.has(p.id) && !deletedIds.has(p.id))
   const stats = getStats(visibleProposals)
@@ -149,8 +172,8 @@ export default function Dashboard() {
         />
         <StatCard
           label="Generated This Month"
-          value="0"
-          sub="No AI calls yet this month"
+          value={String(generatedCount)}
+          sub={aiCallCount > 0 ? `${aiCallCount} AI calls made` : 'No AI calls yet this month'}
           accent="text-purple-600"
         />
         <StatCard
