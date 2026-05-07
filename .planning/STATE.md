@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: "Completed 13-02-PLAN.md (StatusSelector + updateStatus)"
-last_updated: "2026-05-07T20:25:00.000Z"
+stopped_at: "Completed 13-04-PLAN.md (ProposalsList/ProposalDetail StatusSelector + Supabase tabs)"
+last_updated: "2026-05-07T20:35:00.000Z"
 progress:
   total_phases: 18
   completed_phases: 16
   total_plans: 77
-  completed_plans: 76
-  percent: 99
+  completed_plans: 77
+  percent: 100
 ---
 
 ## Project Status
@@ -112,6 +112,8 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 - **STATUS_LABELS/STATUS_COLORS shared from StatusSelector.tsx:** Single source of truth for status display config; downstream pages (Dashboard, ProposalsList, ProposalDetail) import from StatusSelector.tsx
 - **Terminal status confirmation gate:** won/lost transitions gated behind confirmation modal in StatusSelector; all other transitions apply immediately on click
 - **updateStatus is a thin wrapper:** delegates to updateProposal(id, { status }) — no direct Supabase call, reuses camelCase→snake_case mapping
+- **ProposalsList archived/deleted tabs:** Direct Supabase queries on tab switch, scoped by org_id + RLS; active tab uses ProposalsContext proposals (already filtered at source)
+- **StatusSelector stopPropagation in list rows:** Compact StatusSelector container uses onClick stopPropagation to prevent row navigation when opening dropdown
 
 ## Critical Risks to Watch
 
