@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import type { Proposal } from '../types/proposal'
+import type { Proposal, ProposalStatus } from '../types/proposal'
 import { supabase } from '../lib/supabase'
 import { useAuth } from './AuthContext'
 
@@ -19,6 +19,7 @@ function mapRow(row: Record<string, any>): Proposal {
     createdAt: row.created_at?.slice(0, 10) ?? '',
     indication: row.indication ?? '',
     description: row.description ?? '',
+    selected_template_id: row.selected_template_id ?? null,
   }
 }
 
@@ -28,6 +29,7 @@ interface ProposalsContextValue {
   error: string | null
   createProposal: (data: Omit<Proposal, 'id' | 'createdAt'>) => Promise<string>
   updateProposal: (id: string, data: Partial<Omit<Proposal, 'id' | 'createdAt'>>) => Promise<void>
+  updateStatus: (id: string, status: ProposalStatus) => Promise<void>
   permanentlyDelete: (id: string) => Promise<void>
 }
 
@@ -114,6 +116,10 @@ export function ProposalsProvider({ children }: { children: ReactNode }) {
     setProposals((prev) => prev.map((p) => (p.id === id ? { ...p, ...data } : p)))
   }
 
+  async function updateStatus(id: string, status: ProposalStatus): Promise<void> {
+    return updateProposal(id, { status })
+  }
+
   async function permanentlyDelete(id: string): Promise<void> {
     const { error } = await supabase.from('proposals').delete().eq('id', id)
 
@@ -129,6 +135,7 @@ export function ProposalsProvider({ children }: { children: ReactNode }) {
         error,
         createProposal,
         updateProposal,
+        updateStatus,
         permanentlyDelete,
       }}
     >
