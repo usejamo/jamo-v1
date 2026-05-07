@@ -40,6 +40,7 @@ interface Integration {
   description: string
   status: IntegrationStatus
   detail: string
+  comingSoon?: boolean
 }
 
 const INTEGRATIONS: Integration[] = [
@@ -48,14 +49,16 @@ const INTEGRATIONS: Integration[] = [
     logoUrl: 'https://www.vectorlogo.zone/logos/hubspot/hubspot-icon.svg',
     description: 'Marketing automation and contact tracking',
     status: 'disconnected',
-    detail: 'Not configured',
+    detail: 'Coming soon',
+    comingSoon: true,
   },
   {
     name: 'Workday',
     logoUrl: 'https://www.vectorlogo.zone/logos/workday/workday-icon.svg',
     description: 'Financial planning and revenue recognition',
-    status: 'connected',
-    detail: 'Production · Financial module enabled',
+    status: 'disconnected',
+    detail: 'Coming soon',
+    comingSoon: true,
   },
 ]
 
@@ -204,7 +207,7 @@ function IntegrationCard({ integration }: { integration: Integration }) {
   const connected = integration.status === 'connected'
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col gap-4 transition-all hover:shadow-sm hover:border-gray-300 active:scale-[0.97]">
+    <div className={`bg-white rounded-xl border border-gray-200 p-5 flex flex-col gap-4${integration.comingSoon ? ' opacity-60' : ' transition-all hover:shadow-sm hover:border-gray-300 active:scale-[0.97]'}`}>
       <div className="flex items-center gap-3">
         <IntegrationLogo name={integration.name} logoUrl={integration.logoUrl} />
         <div className="min-w-0">
@@ -223,7 +226,11 @@ function IntegrationCard({ integration }: { integration: Integration }) {
 
       <div className="flex items-center justify-between pt-3 border-t border-gray-100">
         <p className="text-[11px] text-gray-400">{integration.detail}</p>
-        {connected ? (
+        {integration.comingSoon ? (
+          <span className="text-xs font-medium text-gray-400 bg-gray-100 px-3 py-1.5 rounded-lg">
+            Coming soon
+          </span>
+        ) : connected ? (
           <button className="inline-flex items-center text-xs font-medium text-gray-600 hover:text-gray-800 border border-gray-200 px-3 py-1.5 rounded-lg transition-colors">
             Manage
           </button>
@@ -375,12 +382,6 @@ function GeneralTab() {
             onChange={e => set('taxId', e.target.value)}
             placeholder="e.g. US-47-1234567"
           />
-          <div className="flex items-center gap-1.5 mt-2">
-            <span className="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0" />
-            <span className="text-[11px] text-gray-400">
-              Linked to Workday · Production Financial module
-            </span>
-          </div>
         </div>
       </div>
 
