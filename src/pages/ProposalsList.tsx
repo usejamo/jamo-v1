@@ -46,6 +46,7 @@ function formatCurrency(v: number) {
 }
 
 function formatDate(s: string) {
+  if (!s) return '—'
   return new Date(s).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
@@ -159,9 +160,9 @@ export default function ProposalsList() {
   const filtersActive = taFilter !== 'All' || statusFilter !== null
 
   const rowActions =
-    view === 'archived' ? ['Edit', 'Duplicate', 'Restore'] :
+    view === 'archived' ? ['Edit', 'Restore'] :
     view === 'deleted'  ? ['Restore', 'Permanently Delete'] :
-    ['Edit', 'Duplicate', 'Archive']
+    ['Edit', 'Archive']   // 'Duplicate' removed until feature is implemented
 
   return (
     <>
@@ -468,11 +469,16 @@ export default function ProposalsList() {
               Cancel
             </button>
             <button
-              onClick={() => {
-                permanentlyDelete(permanentDeleteTarget.id)
-                purgeFromTrash(permanentDeleteTarget.id)
-                showToast('Proposal permanently deleted')
-                setPermanentDeleteTarget(null)
+              onClick={async () => {
+                try {
+                  await permanentlyDelete(permanentDeleteTarget.id)
+                  purgeFromTrash(permanentDeleteTarget.id)
+                  showToast('Proposal permanently deleted')
+                } catch {
+                  showToast('Delete failed — please try again')
+                } finally {
+                  setPermanentDeleteTarget(null)
+                }
               }}
               className="inline-flex items-center text-sm font-medium text-white bg-red-500 px-3 py-1.5 rounded-lg transition-colors"
             >
