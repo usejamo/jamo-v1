@@ -512,8 +512,8 @@ export default function ProposalDetail() {
           </div>
 
           {/* Expanded header: Back link + full metadata, fades out on scroll */}
-          <div className={`overflow-hidden transition-all duration-300 ${
-            isCondensed ? 'max-h-0 opacity-0 pointer-events-none' : 'max-h-96 opacity-100'
+          <div className={`transition-all duration-300 ${
+            isCondensed ? 'max-h-0 opacity-0 pointer-events-none overflow-hidden' : 'max-h-96 opacity-100 overflow-visible'
           }`}>
             {/* Back row */}
             <div className="px-6 pt-4 pb-1">

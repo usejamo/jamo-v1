@@ -118,7 +118,7 @@ export function StatusSelector({ status, onChange, variant, disabled }: StatusSe
               <h3 className="text-lg font-semibold text-gray-900">
                 Mark as {STATUS_LABELS[confirmTarget]}?
               </h3>
-              <p className="text-sm text-gray-500 mt-1">
+              <p className="text-sm text-gray-500 mt-1 whitespace-normal">
                 This marks the proposal as a terminal outcome. You can change it again if needed.
               </p>
             </div>
