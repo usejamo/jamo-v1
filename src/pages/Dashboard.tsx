@@ -26,6 +26,7 @@ function formatCurrency(v: number) {
 }
 
 function formatDate(s: string) {
+  if (!s) return '—'
   return new Date(s).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
@@ -244,7 +245,7 @@ export default function Dashboard() {
                           {STATUS_LABELS[p.status]}
                         </span>
                         <div className="absolute inset-y-0 right-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none group-hover:pointer-events-auto">
-                          {['Edit', 'Duplicate', 'Archive'].map(action => (
+                          {['Edit', 'Archive'].map(action => (
                             <button
                               key={action}
                               onClick={e => {
