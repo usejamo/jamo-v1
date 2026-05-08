@@ -511,14 +511,14 @@ serve(async (req) => {
           : writeSection(supabase, proposalId, sectionId, orgId, processedText)
         try {
           await writeOp
-          // Track section generation — fire and forget (do not block the stream)
-          supabase.from('usage_events').insert({
+          // Await so the Deno runtime doesn't terminate the promise before it settles
+          await supabase.from('usage_events').insert({
             event_type: 'ai_section_call',
             org_id: orgId,
             user_id: user?.id ?? null,
             proposal_id: proposalId ?? null,
             metadata: { section_id: sectionId, section_name: sectionName },
-          }).then(() => {}).catch((e: Error) => {
+          }).catch((e: Error) => {
             console.error('[generate-proposal-section] usage_events insert error:', e)
           })
         } catch (err) {

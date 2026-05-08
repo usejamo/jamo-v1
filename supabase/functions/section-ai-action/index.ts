@@ -94,15 +94,15 @@ Deno.serve(async (req) => {
         for await (const event of stream) {
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`))
         }
-        // Track AI action — fire and forget
+        // Await so the Deno runtime doesn't terminate the promise before it settles
         if (orgId) {
-          supabase.from('usage_events').insert({
+          await supabase.from('usage_events').insert({
             event_type: 'ai_section_call',
             org_id: orgId,
             user_id: user?.id ?? null,
             proposal_id: proposal_id ?? null,
             metadata: { section_key, action },
-          }).then(() => {}).catch((e: Error) => {
+          }).catch((e: Error) => {
             console.error('[section-ai-action] usage_events insert error:', e)
           })
         }
