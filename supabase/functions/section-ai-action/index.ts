@@ -1,4 +1,5 @@
 import Anthropic from 'npm:@anthropic-ai/sdk'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -50,6 +51,23 @@ Deno.serve(async (req) => {
     const body = await req.json()
     const { proposal_id, section_key, action, existing_content, user_instructions } = body
 
+    // Resolve user and org from JWT
+    const authHeader = req.headers.get('Authorization')
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    )
+    const userClient = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_ANON_KEY')!,
+      { global: { headers: { Authorization: authHeader ?? '' } } }
+    )
+    const { data: { user } } = await userClient.auth.getUser()
+    const { data: profile } = user
+      ? await supabase.from('user_profiles').select('org_id').eq('user_id', user.id).single()
+      : { data: null }
+    const orgId: string | null = profile?.org_id ?? null
+
     if (!proposal_id || !section_key || !action) {
       return new Response(JSON.stringify({ error: 'Missing required fields' }), {
         status: 400,
@@ -75,6 +93,18 @@ Deno.serve(async (req) => {
       async start(controller) {
         for await (const event of stream) {
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`))
+        }
+        // Track AI action — fire and forget
+        if (orgId) {
+          supabase.from('usage_events').insert({
+            event_type: 'ai_section_call',
+            org_id: orgId,
+            user_id: user?.id ?? null,
+            proposal_id: proposal_id ?? null,
+            metadata: { section_key, action },
+          }).then(() => {}).catch((e: Error) => {
+            console.error('[section-ai-action] usage_events insert error:', e)
+          })
         }
         controller.enqueue(encoder.encode('data: [DONE]\n\n'))
         controller.close()
