@@ -1,4 +1,4 @@
-export type ProposalStatus = 'draft' | 'in_progress' | 'submitted' | 'won' | 'lost'
+export type ProposalStatus = 'draft' | 'submitted' | 'won' | 'lost'
 
 export interface Proposal {
   id: string

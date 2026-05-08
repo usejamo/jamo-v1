@@ -31,7 +31,6 @@ function mapRow(row: Record<string, any>): Proposal {
 const STATUS_FILTER_OPTIONS: { label: string; value: ProposalStatus | null }[] = [
   { label: 'All Statuses', value: null },
   { label: 'Draft',        value: 'draft' },
-  { label: 'In Progress',  value: 'in_progress' },
   { label: 'Submitted',    value: 'submitted' },
   { label: 'Won',          value: 'won' },
   { label: 'Lost',         value: 'lost' },

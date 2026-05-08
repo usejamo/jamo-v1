@@ -10,11 +10,10 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 
 const PIPELINE_STAGES: { label: string; statuses: ProposalStatus[] }[] = [
-  { label: 'RFP Received', statuses: ['draft'] },
-  { label: 'In Progress', statuses: ['in_progress'] },
-  { label: 'Submitted',   statuses: ['submitted'] },
-  { label: 'Won',         statuses: ['won'] },
-  { label: 'Lost',        statuses: ['lost'] },
+  { label: 'Draft',     statuses: ['draft'] },
+  { label: 'Submitted', statuses: ['submitted'] },
+  { label: 'Won',       statuses: ['won'] },
+  { label: 'Lost',      statuses: ['lost'] },
 ]
 
 // ── Helpers ──────────────────────────────────────────────────────────────────

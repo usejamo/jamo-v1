@@ -2,19 +2,17 @@ import { useState, useRef, useEffect } from 'react'
 import type { ProposalStatus } from '../types/proposal'
 
 export const STATUS_LABELS: Record<ProposalStatus, string> = {
-  draft:       'Draft',
-  in_progress: 'In Progress',
-  submitted:   'Submitted',
-  won:         'Won',
-  lost:        'Lost',
+  draft:     'Draft',
+  submitted: 'Submitted',
+  won:       'Won',
+  lost:      'Lost',
 }
 
 export const STATUS_COLORS: Record<ProposalStatus, string> = {
-  draft:       'bg-gray-100 text-gray-600',
-  in_progress: 'bg-amber-100 text-amber-700',
-  submitted:   'bg-blue-100 text-blue-700',
-  won:         'bg-green-100 text-green-700',
-  lost:        'bg-red-100 text-red-600',
+  draft:     'bg-amber-100 text-amber-700',
+  submitted: 'bg-blue-100 text-blue-700',
+  won:       'bg-green-100 text-green-700',
+  lost:      'bg-red-100 text-red-600',
 }
 
 export interface StatusSelectorProps {
@@ -24,7 +22,7 @@ export interface StatusSelectorProps {
   disabled?: boolean
 }
 
-const ALL_STATUSES: ProposalStatus[] = ['draft', 'in_progress', 'submitted', 'won', 'lost']
+const ALL_STATUSES: ProposalStatus[] = ['draft', 'submitted', 'won', 'lost']
 const TERMINAL_STATUSES: ProposalStatus[] = ['won', 'lost']
 
 export function StatusSelector({ status, onChange, variant, disabled }: StatusSelectorProps) {
