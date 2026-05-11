@@ -110,13 +110,14 @@ export default function Dashboard() {
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
     supabase
       .from('usage_events')
-      .select('id, event_type')
+      .select('id, event_type, proposal_id')
       .eq('org_id', profile.org_id)
       .gte('created_at', startOfMonth)
       .then(({ data, error }) => {
         if (error || !data) return
-        setGeneratedCount(data.filter(e => e.event_type === 'proposal_generated').length)
-        setAiCallCount(data.filter(e => e.event_type === 'ai_section_call').length)
+        const aiCalls = data.filter(e => e.event_type === 'ai_section_call')
+        setGeneratedCount(new Set(aiCalls.map(e => e.proposal_id).filter(Boolean)).size)
+        setAiCallCount(aiCalls.length)
       })
   }, [session, profile?.org_id])
 

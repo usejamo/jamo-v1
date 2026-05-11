@@ -511,16 +511,14 @@ serve(async (req) => {
           : writeSection(supabase, proposalId, sectionId, orgId, processedText)
         try {
           await writeOp
-          // Await so the Deno runtime doesn't terminate the promise before it settles
-          await supabase.from('usage_events').insert({
+          const { error: usageErr } = await supabase.from('usage_events').insert({
             event_type: 'ai_section_call',
             org_id: orgId,
             user_id: user?.id ?? null,
             proposal_id: proposalId ?? null,
             metadata: { section_id: sectionId, section_name: sectionName },
-          }).catch((e: Error) => {
-            console.error('[generate-proposal-section] usage_events insert error:', e)
           })
+          if (usageErr) console.error('[generate-proposal-section] usage_events insert error:', usageErr)
         } catch (err) {
           console.error('[generate-proposal-section] flush write error:', err)
         }
