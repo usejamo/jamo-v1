@@ -124,9 +124,11 @@ Deno.serve(async (req) => {
                     )
                     break
                   case "check_regulatory_compliance":
-                    toolResult = handleCheckCompliance(
+                    toolResult = await handleCheckCompliance(
                       toolInput as Parameters<typeof handleCheckCompliance>[0],
-                      ragContext.retrievedChunkIds
+                      ragContext.retrievedChunkIds,
+                      proposal_id,
+                      org_id
                     )
                     break
                   case "ask_user":

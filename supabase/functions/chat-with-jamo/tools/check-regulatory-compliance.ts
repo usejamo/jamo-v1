@@ -1,4 +1,5 @@
 import type { Tool } from "npm:@anthropic-ai/sdk/resources/messages"
+import { createClient } from "npm:@supabase/supabase-js@2"
 
 export interface ComplianceIssue {
   severity: "critical" | "warning" | "info"
@@ -39,13 +40,49 @@ export const checkRegulatoryComplianceTool: Tool = {
   },
 }
 
-export function handleCheckCompliance(
+export async function handleCheckCompliance(
   input: CheckComplianceInput,
-  retrievedChunkIds: Set<string>
+  retrievedChunkIds: Set<string>,
+  proposalId?: string,
+  orgId?: string
 ) {
   // Guardrail: override passes to null if retrieval returned nothing (empty context = unreliable result)
   const hasRetrievedContext = retrievedChunkIds.size > 0
   const effectivePasses = hasRetrievedContext ? input.passes : null
+
+  // Map ComplianceIssue[] → ComplianceFlag[] (matches workspace.ts ComplianceFlag shape)
+  const complianceFlagSeverityMap: Record<string, 'warning' | 'fail'> = {
+    critical: 'fail',
+    warning: 'warning',
+    info: 'warning',
+  }
+
+  const flagsForDB = input.issues.map((issue) => ({
+    id: crypto.randomUUID(),
+    section_key: input.section_key,
+    type: complianceFlagSeverityMap[issue.severity] ?? 'warning',
+    message: issue.message,
+    source: 'haiku' as const,
+  }))
+
+  // Write to proposal_sections.compliance_flags — silent fail per D-08
+  if (proposalId && orgId && flagsForDB.length >= 0) {
+    try {
+      const supabase = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+      )
+      await supabase
+        .from("proposal_sections")
+        .update({ compliance_flags: flagsForDB })
+        .eq("proposal_id", proposalId)
+        .eq("section_key", input.section_key)
+      // Silent fail — compliance flags are non-blocking (D-08 pattern from useComplianceCheck)
+    } catch {
+      // Intentional silent fail
+    }
+  }
+
   return {
     section_key: input.section_key,
     passes: effectivePasses,
