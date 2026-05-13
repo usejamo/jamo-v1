@@ -25,7 +25,7 @@ export default defineConfig({
   test: {
     environment: 'happy-dom',
     setupFiles: ['./src/test/setup.ts'],
-    exclude: ['**/node_modules/**', '**/e2e/**'],
+    exclude: ['**/node_modules/**', '**/e2e/**', 'supabase/**'],
     globals: true,
     pool: 'forks',
     poolOptions: {
