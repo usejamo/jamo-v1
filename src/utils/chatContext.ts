@@ -74,6 +74,29 @@ export function buildSlidingWindow(
 }
 
 /**
+ * Convert a section key (snake_case) to a human-readable title.
+ * Looks up a known map first; falls back to humanizing the key.
+ */
+export function sectionKeyToTitle(key: string): string {
+  const knownTitles: Record<string, string> = {
+    executive_summary: 'Executive Summary',
+    background: 'Background',
+    objectives: 'Objectives',
+    methodology: 'Methodology',
+    safety_profile: 'Safety Profile',
+    efficacy_data: 'Efficacy Data',
+    regulatory_strategy: 'Regulatory Strategy',
+    clinical_overview: 'Clinical Overview',
+  }
+  if (knownTitles[key]) return knownTitles[key]
+  // Humanize: replace underscores with spaces and title-case each word
+  return key
+    .split('_')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ')
+}
+
+/**
  * Build a structured context payload for the chat-with-jamo edge function.
  */
 export function buildContextPayload(args: {
