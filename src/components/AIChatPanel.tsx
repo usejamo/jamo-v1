@@ -1,11 +1,13 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../lib/supabase'
-import type { ChatMessage, GapResult } from '../types/chat'
-import { TOOL_STATUS_LABELS } from '../types/chat'
+import type { ChatMessage, GapResult, ProposeEditPayload, AnswerWithCitationsPayload } from '../types/chat'
 import type { ToolDataEnvelope, ChatMessageType } from '../types/chat'
 import type { SectionEditorHandle } from '../types/workspace'
 import { buildContextPayload, detectGaps } from '../utils/chatContext'
+import { DiffPreview } from './chat/DiffPreview'
+import { CitationsBlock } from './chat/CitationsBlock'
+import { ToolStatusLabel } from './chat/ToolStatusLabel'
 
 interface Props {
   proposalId: string
@@ -544,8 +546,83 @@ export default function AIChatPanel({
                           </div>
                         ) : msg.role === 'assistant' && msg.messageType?.startsWith('tool-') && msg.toolData ? (
                           <div className="rounded-xl border border-gray-200 bg-white px-3 py-2.5 max-w-[88%]">
-                            <p className="text-xs text-gray-500">{msg.content || `Tool: ${msg.toolData.tool}`}</p>
-                            {/* TODO: Plans 06/07 replace this with DiffPreview, CitationsBlock, ComplianceCard, AskUserCard */}
+                            {msg.messageType === 'tool-propose-edit' && (
+                              (() => {
+                                const payload = msg.toolData.payload as ProposeEditPayload
+                                const state = msg.toolData.state as { resolutions?: Record<string, string>; stale_ids?: string[] }
+                                const acceptedIds = Object.entries(state.resolutions ?? {})
+                                  .filter(([, v]) => v === 'accepted').map(([k]) => k)
+                                const rejectedIds = Object.entries(state.resolutions ?? {})
+                                  .filter(([, v]) => v === 'rejected').map(([k]) => k)
+                                return (
+                                  <>
+                                    {payload.overall_summary && (
+                                      <p className="text-xs text-gray-600 mb-2">{payload.overall_summary}</p>
+                                    )}
+                                    <DiffPreview
+                                      changes={payload.changes}
+                                      acceptedIds={acceptedIds}
+                                      rejectedIds={rejectedIds}
+                                      staleIds={state.stale_ids ?? []}
+                                      onAccept={(paragraphId, change) => {
+                                        const editor = editorRefs.current.get(activeSectionKey ?? payload.section_key)
+                                        if (editor) {
+                                          const result = editor.applyParagraphPatch([change])
+                                          if (result.stale.length > 0) {
+                                            console.warn('[DiffPreview] Stale paragraph IDs:', result.stale)
+                                          }
+                                        }
+                                        setMessages(prev => prev.map(m => {
+                                          if (m.id !== msg.id) return m
+                                          const prevState = (m.toolData?.state ?? {}) as { resolutions?: Record<string, string> }
+                                          return {
+                                            ...m,
+                                            toolData: m.toolData ? {
+                                              ...m.toolData,
+                                              state: {
+                                                ...prevState,
+                                                resolutions: { ...(prevState.resolutions ?? {}), [paragraphId]: 'accepted' },
+                                              },
+                                            } : m.toolData,
+                                          }
+                                        }))
+                                      }}
+                                      onReject={(paragraphId) => {
+                                        setMessages(prev => prev.map(m => {
+                                          if (m.id !== msg.id) return m
+                                          const prevState = (m.toolData?.state ?? {}) as { resolutions?: Record<string, string> }
+                                          return {
+                                            ...m,
+                                            toolData: m.toolData ? {
+                                              ...m.toolData,
+                                              state: {
+                                                ...prevState,
+                                                resolutions: { ...(prevState.resolutions ?? {}), [paragraphId]: 'rejected' },
+                                              },
+                                            } : m.toolData,
+                                          }
+                                        }))
+                                      }}
+                                    />
+                                  </>
+                                )
+                              })()
+                            )}
+                            {msg.messageType === 'tool-answer-cited' && (
+                              (() => {
+                                const payload = msg.toolData.payload as AnswerWithCitationsPayload
+                                return (
+                                  <>
+                                    <p className="text-xs text-gray-800 leading-relaxed">{payload.answer}</p>
+                                    <CitationsBlock citations={payload.citations} />
+                                  </>
+                                )
+                              })()
+                            )}
+                            {/* ComplianceCard, AskUserCard — wired in Plan 07 */}
+                            {(msg.messageType === 'tool-compliance' || msg.messageType === 'tool-ask-user' || msg.messageType === 'tool-set-focus') && (
+                              <p className="text-xs text-gray-500">{msg.content}</p>
+                            )}
                           </div>
                         ) : (
                           <div
@@ -584,9 +661,7 @@ export default function AIChatPanel({
                     >
                       <div className="bg-gray-100/80 backdrop-blur-sm rounded-2xl rounded-tl-sm px-4 py-2.5 flex items-center gap-1.5">
                         {currentToolName ? (
-                          <span className="text-jamo-500 text-xs font-semibold">
-                            {TOOL_STATUS_LABELS[currentToolName as keyof typeof TOOL_STATUS_LABELS] ?? 'Working...'}
-                          </span>
+                          <ToolStatusLabel toolName={currentToolName} />
                         ) : (
                           <>
                             {[0, 1, 2].map(j => (
