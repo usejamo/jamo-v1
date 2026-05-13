@@ -421,6 +421,30 @@ Plans:
 
 ---
 
+### Phase 14.1: AI Chat Foundation (INSERTED)
+
+**Goal:** Replace the fragile keyword-based chat (detectIntent(), EDIT_KEYWORDS arrays) with a structured Claude tool-use architecture. The AI executes defined tools — paragraph-level edits, cited answers, compliance checks, section focus, user prompting — instead of parsing free-text output. Streaming logic, chat persistence, and the TipTap editor are all updated to support this. Ships independently and is immediately usable on its own.
+
+**Requirements covered:** REQ-6.1 through REQ-6.7
+
+**Depends on:** Phase 9 (Chat), Phase 8 (Workspace / TipTap)
+
+**Plans:** 9 plans
+
+Plans:
+- [ ] 14.1-01-PLAN.md — DB migrations (tool_data column + chat_sessions table) + [BLOCKING] schema push
+- [ ] 14.1-02-PLAN.md — Nyquist test stubs + retrieve-context K-param extension + chat.ts type expansion
+- [ ] 14.1-03-PLAN.md — chat-with-jamo full rewrite: tool-use streaming, 5 tool files, new SSE protocol
+- [ ] 14.1-04-PLAN.md — chatContext.ts upgrades (HTML content, sectionKeyToTitle, token budget) + TipTap UniqueID + applyParagraphPatch
+- [ ] 14.1-05-PLAN.md — AIChatPanel rewrite: tool SSE handling, dead code removal, sectionTitles prop
+- [ ] 14.1-06-PLAN.md — DiffPreview + CitationsBlock + ToolStatusLabel components
+- [ ] 14.1-07-PLAN.md — ComplianceCard + AskUserCard components
+- [ ] 14.1-08-PLAN.md — tool_data persistence: save, history reload, state mutation persistence
+- [ ] 14.1-09-PLAN.md — check_regulatory_compliance writes to proposal_sections.compliance_flags (D-08)
+
+
+---
+
 ## Milestone 2: Growth (Post-MVP)
 
 *Planned but not yet phased. Begin planning after Milestone 1 ships.*
