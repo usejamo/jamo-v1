@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../lib/supabase'
 import type { ChatMessage, GapResult, ProposeEditPayload, AnswerWithCitationsPayload, CompliancePayload, AskUserPayload } from '../types/chat'
 import type { ToolDataEnvelope, ChatMessageType } from '../types/chat'
+import type { Json } from '../types/database.types'
 import { ComplianceCard } from './chat/ComplianceCard'
 import { AskUserCard } from './chat/AskUserCard'
 import type { SectionEditorHandle } from '../types/workspace'
@@ -144,7 +145,7 @@ export default function AIChatPanel({
     if (!proposalId) return
     supabase
       .from('proposal_chats')
-      .select('id, role, content, message_type, created_at')
+      .select('id, role, content, message_type, created_at, section_target_id, tool_data')
       .eq('proposal_id', proposalId)
       .order('created_at', { ascending: true })
       .then(({ data }) => {
@@ -154,6 +155,13 @@ export default function AIChatPanel({
           role: row.role as ChatMessage['role'],
           content: row.content,
           messageType: (row.message_type ?? 'chat') as ChatMessage['messageType'],
+          // Reconstruct toolData from DB — null if not a tool message (backward compat)
+          toolData: row.tool_data ? (() => {
+            const td = row.tool_data as ToolDataEnvelope
+            // Guard: only process version 1 envelopes
+            if (td.version !== 1) return undefined
+            return td
+          })() : undefined,
         })))
       })
   }, [proposalId])
@@ -298,6 +306,23 @@ export default function AIChatPanel({
     onEditAccepted?.()
   }, [activeSectionKey, editorRefs, onEditAccepted])
 
+  // ── Persist tool_data state mutations back to DB ───────────────────────────
+
+  const persistToolDataState = useCallback(async (messageId: string, newState: Record<string, unknown>) => {
+    const msg = messages.find(m => m.id === messageId)
+    if (!msg?.toolData) return
+    try {
+      await supabase
+        .from('proposal_chats')
+        .update({
+          tool_data: { ...msg.toolData, state: newState } as unknown as Json,
+        })
+        .eq('id', messageId)
+    } catch {
+      // Silent fail per D-07 convention
+    }
+  }, [messages])
+
   // ── Live streaming handleSubmit ────────────────────────────────────────────
 
   const handleSubmit = useCallback(async (messageText?: string) => {
@@ -414,13 +439,27 @@ export default function AIChatPanel({
                 set_focus: 'tool-set-focus',
               }
               const messageType: ChatMessageType = toolMsgTypeMap[event.tool] ?? 'chat'
+              const toolResultContent = event.result?.overall_summary ?? event.result?.answer ?? event.result?.summary ?? event.result?.question ?? ''
+              const newMsgId = crypto.randomUUID()
               setMessages(prev => [...prev, {
-                id: crypto.randomUUID(),
+                id: newMsgId,
                 role: 'assistant',
-                content: event.result?.overall_summary ?? event.result?.answer ?? event.result?.summary ?? event.result?.question ?? '',
+                content: toolResultContent,
                 messageType,
                 toolData,
               }])
+              // Persist tool result message to DB (fire-and-forget, silent fail)
+              supabase.from('proposal_chats').insert({
+                proposal_id: proposalId,
+                org_id: orgId,
+                role: 'assistant' as const,
+                content: toolResultContent,
+                message_type: messageType,
+                section_target_id: activeSectionKey ?? null,
+                tool_data: toolData as unknown as Json,
+              }).then(({ error }) => {
+                if (error) console.warn('[AIChatPanel] Failed to persist tool result:', error.message)
+              })
               setCurrentToolName(null)
             } else if (event.type === 'error') {
               setMessages(prev => [...prev, {
@@ -450,7 +489,7 @@ export default function AIChatPanel({
       setCurrentToolName(null)
     }
 
-    // Persist assistant message
+    // Persist assistant message (plain text — tool results persisted inline in tool_result handler)
     if (fullContent) {
       const { error: assistantInsertError } = await supabase.from('proposal_chats').insert({
         proposal_id: proposalId,
@@ -459,6 +498,7 @@ export default function AIChatPanel({
         content: fullContent,
         section_target_id: activeSectionKey ?? null,
         message_type: 'chat',
+        tool_data: null,  // explicit null for plain text messages
       })
       if (assistantInsertError) console.error('[AIChatPanel] Failed to persist assistant message:', assistantInsertError)
     }
@@ -588,6 +628,12 @@ export default function AIChatPanel({
                                             } : m.toolData,
                                           }
                                         }))
+                                        // Persist accept resolution to DB (fire-and-forget)
+                                        const prevState = (msg.toolData?.state ?? {}) as { resolutions?: Record<string, string> }
+                                        persistToolDataState(msg.id, {
+                                          ...prevState,
+                                          resolutions: { ...(prevState.resolutions ?? {}), [paragraphId]: 'accepted' },
+                                        })
                                       }}
                                       onReject={(paragraphId) => {
                                         setMessages(prev => prev.map(m => {
@@ -604,6 +650,12 @@ export default function AIChatPanel({
                                             } : m.toolData,
                                           }
                                         }))
+                                        // Persist reject resolution to DB (fire-and-forget)
+                                        const prevState = (msg.toolData?.state ?? {}) as { resolutions?: Record<string, string> }
+                                        persistToolDataState(msg.id, {
+                                          ...prevState,
+                                          resolutions: { ...(prevState.resolutions ?? {}), [paragraphId]: 'rejected' },
+                                        })
                                       }}
                                     />
                                   </>
@@ -630,23 +682,27 @@ export default function AIChatPanel({
                                     payload={payload}
                                     dismissedIndices={state.dismissed_indices ?? []}
                                     onDismiss={(idx) => {
+                                      const prevState = (msg.toolData?.state ?? {}) as { dismissed_indices?: number[] }
+                                      const prevDismissed = prevState.dismissed_indices ?? []
+                                      const newDismissed = prevDismissed.includes(idx) ? prevDismissed : [...prevDismissed, idx]
                                       setMessages(prev => prev.map(m => {
                                         if (m.id !== msg.id) return m
-                                        const prevState = (m.toolData?.state ?? {}) as { dismissed_indices?: number[] }
-                                        const prevDismissed = prevState.dismissed_indices ?? []
                                         return {
                                           ...m,
                                           toolData: m.toolData ? {
                                             ...m.toolData,
                                             state: {
                                               ...prevState,
-                                              dismissed_indices: prevDismissed.includes(idx)
-                                                ? prevDismissed
-                                                : [...prevDismissed, idx],
+                                              dismissed_indices: newDismissed,
                                             },
                                           } : m.toolData,
                                         }
                                       }))
+                                      // Persist dismissed_indices to DB (fire-and-forget)
+                                      persistToolDataState(msg.id, {
+                                        ...prevState,
+                                        dismissed_indices: newDismissed,
+                                      })
                                     }}
                                   />
                                 )
@@ -679,6 +735,11 @@ export default function AIChatPanel({
                                           messageType: 'chat' as const,
                                         },
                                       ])
+                                      // Persist answered state to DB (fire-and-forget)
+                                      persistToolDataState(msg.id, {
+                                        ...(msg.toolData?.state ?? {}),
+                                        answered: text,
+                                      })
                                     }}
                                   />
                                 )
