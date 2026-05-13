@@ -1,8 +1,10 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../lib/supabase'
-import type { ChatMessage, GapResult, ProposeEditPayload, AnswerWithCitationsPayload } from '../types/chat'
+import type { ChatMessage, GapResult, ProposeEditPayload, AnswerWithCitationsPayload, CompliancePayload, AskUserPayload } from '../types/chat'
 import type { ToolDataEnvelope, ChatMessageType } from '../types/chat'
+import { ComplianceCard } from './chat/ComplianceCard'
+import { AskUserCard } from './chat/AskUserCard'
 import type { SectionEditorHandle } from '../types/workspace'
 import { buildContextPayload, detectGaps } from '../utils/chatContext'
 import { DiffPreview } from './chat/DiffPreview'
@@ -619,9 +621,68 @@ export default function AIChatPanel({
                                 )
                               })()
                             )}
-                            {/* ComplianceCard, AskUserCard — wired in Plan 07 */}
-                            {(msg.messageType === 'tool-compliance' || msg.messageType === 'tool-ask-user' || msg.messageType === 'tool-set-focus') && (
-                              <p className="text-xs text-gray-500">{msg.content}</p>
+                            {msg.messageType === 'tool-compliance' && (
+                              (() => {
+                                const payload = msg.toolData!.payload as CompliancePayload
+                                const state = msg.toolData!.state as { dismissed_indices?: number[] }
+                                return (
+                                  <ComplianceCard
+                                    payload={payload}
+                                    dismissedIndices={state.dismissed_indices ?? []}
+                                    onDismiss={(idx) => {
+                                      setMessages(prev => prev.map(m => {
+                                        if (m.id !== msg.id) return m
+                                        const prevState = (m.toolData?.state ?? {}) as { dismissed_indices?: number[] }
+                                        const prevDismissed = prevState.dismissed_indices ?? []
+                                        return {
+                                          ...m,
+                                          toolData: m.toolData ? {
+                                            ...m.toolData,
+                                            state: {
+                                              ...prevState,
+                                              dismissed_indices: prevDismissed.includes(idx)
+                                                ? prevDismissed
+                                                : [...prevDismissed, idx],
+                                            },
+                                          } : m.toolData,
+                                        }
+                                      }))
+                                    }}
+                                  />
+                                )
+                              })()
+                            )}
+                            {msg.messageType === 'tool-ask-user' && (
+                              (() => {
+                                const payload = msg.toolData!.payload as AskUserPayload
+                                const state = msg.toolData!.state as { answered?: string }
+                                return (
+                                  <AskUserCard
+                                    payload={payload}
+                                    answered={state.answered}
+                                    onAnswer={(text) => {
+                                      setMessages(prev => [
+                                        ...prev.map(m => {
+                                          if (m.id !== msg.id) return m
+                                          return {
+                                            ...m,
+                                            toolData: m.toolData ? {
+                                              ...m.toolData,
+                                              state: { ...(m.toolData.state ?? {}), answered: text },
+                                            } : m.toolData,
+                                          }
+                                        }),
+                                        {
+                                          id: crypto.randomUUID(),
+                                          role: 'user' as const,
+                                          content: text,
+                                          messageType: 'chat' as const,
+                                        },
+                                      ])
+                                    }}
+                                  />
+                                )
+                              })()
                             )}
                           </div>
                         ) : (
