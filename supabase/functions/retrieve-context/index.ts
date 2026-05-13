@@ -18,6 +18,8 @@ interface RetrieveRequest {
   orgId: string
   query: string
   therapeuticArea?: string
+  k_regulatory?: number   // optional — falls back to RETRIEVAL_K_REGULATORY
+  k_proposal?: number     // optional — falls back to RETRIEVAL_K_PROPOSALS
 }
 
 interface Chunk {
@@ -156,7 +158,11 @@ serve(async (req) => {
 
   try {
     // 1. Parse request
-    const { orgId, query, therapeuticArea } = await req.json() as RetrieveRequest
+    const { orgId, query, therapeuticArea, k_regulatory, k_proposal } = await req.json() as RetrieveRequest
+
+    // Resolve effective K values — cap at 20 to prevent DoS via unbounded pgvector queries (T-14.1-04)
+    const effectiveKRegulatory = Math.min(k_regulatory ?? RETRIEVAL_K_REGULATORY, 20)
+    const effectiveKProposals = Math.min(k_proposal ?? RETRIEVAL_K_PROPOSALS, 20)
 
     if (!orgId || !query) {
       return new Response(JSON.stringify({ error: 'orgId and query are required' }), {
@@ -194,7 +200,7 @@ serve(async (req) => {
       agencies_filter: agencies,
       therapeutic_areas_filter: therapeuticAreas,
       similarity_threshold: RETRIEVAL_SIMILARITY_THRESHOLD,
-      match_count: RETRIEVAL_K_REGULATORY * 2,
+      match_count: effectiveKRegulatory * 2,
     })
 
     if (regVecErr) {
@@ -207,7 +213,7 @@ serve(async (req) => {
       org_id_filter: orgId,
       agencies_filter: agencies,
       therapeutic_areas_filter: therapeuticAreas,
-      match_count: RETRIEVAL_K_REGULATORY * 2,
+      match_count: effectiveKRegulatory * 2,
     })
 
     if (regFtsErr) {
@@ -219,7 +225,7 @@ serve(async (req) => {
       query_embedding: queryVector,
       org_id_filter: orgId,
       similarity_threshold: RETRIEVAL_SIMILARITY_THRESHOLD,
-      match_count: RETRIEVAL_K_PROPOSALS * 2,
+      match_count: effectiveKProposals * 2,
     })
 
     if (propVecErr) {
@@ -230,7 +236,7 @@ serve(async (req) => {
     const { data: propFtsRows, error: propFtsErr } = await supabase.rpc('match_chunks_fts_proposals', {
       query_text: query,
       org_id_filter: orgId,
-      match_count: RETRIEVAL_K_PROPOSALS * 2,
+      match_count: effectiveKProposals * 2,
     })
 
     if (propFtsErr) {
@@ -241,13 +247,13 @@ serve(async (req) => {
     const regulatoryChunks = mergeHybridResults(
       (regVectorRows ?? []) as VectorResult[],
       (regFtsRows ?? []) as TextResult[],
-      RETRIEVAL_K_REGULATORY
+      effectiveKRegulatory
     )
 
     const proposalChunks = mergeHybridResults(
       (propVectorRows ?? []) as VectorResult[],
       (propFtsRows ?? []) as TextResult[],
-      RETRIEVAL_K_PROPOSALS
+      effectiveKProposals
     )
 
     // 10. Log warning if below minimum chunk count
