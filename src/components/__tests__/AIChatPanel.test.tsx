@@ -67,6 +67,7 @@ const defaultProps = {
   activeSectionKey: null as string | null,
   gapCount: 0,
   onGapsConsumed: vi.fn(),
+  sectionTitles: { understanding: 'Understanding' },
 }
 
 describe('AIChatPanel', () => {
@@ -91,15 +92,14 @@ describe('AIChatPanel', () => {
     expect(screen.queryByText('0')).toBeNull()
   })
 
-  it('calls setContent on accept of edit proposal', async () => {
-    const setContent = vi.fn()
-    const editorRefs = makeEditorRefs({ setContent })
+  it('renders tool-propose-edit placeholder card on tool_result event', async () => {
+    const editorRefs = makeEditorRefs()
 
-    // Stub fetch to return a streaming response with edit intent
+    // Stub fetch to return a streaming response with tool_result for propose_edit
     const mockStream = new ReadableStream({
       start(controller) {
-        controller.enqueue(new TextEncoder().encode('data: {"type":"intent","intent":"edit"}\n\n'))
-        controller.enqueue(new TextEncoder().encode('data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"New content"}}\n\n'))
+        controller.enqueue(new TextEncoder().encode('data: {"type":"tool_start","tool":"propose_edit"}\n\n'))
+        controller.enqueue(new TextEncoder().encode('data: {"type":"tool_result","tool":"propose_edit","result":{"section_key":"understanding","overall_summary":"Rewrote the section","changes":[]}}\n\n'))
         controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'))
         controller.close()
       },
@@ -122,17 +122,10 @@ describe('AIChatPanel', () => {
       await new Promise(r => setTimeout(r, 100))
     })
 
-    // Wait for the edit-proposal message to appear with Accept button
+    // Wait for the tool result placeholder card to appear (Plans 06/07 will replace this)
     await waitFor(() => {
-      expect(screen.queryByText('Accept')).toBeTruthy()
+      expect(screen.queryByText('Rewrote the section')).toBeTruthy()
     }, { timeout: 3000 })
-
-    // Click Accept
-    await act(async () => {
-      fireEvent.click(screen.getByText('Accept'))
-    })
-
-    expect(setContent).toHaveBeenCalledWith(expect.any(String))
   })
 
   it('streams content into message bubble without layout thrash', async () => {
@@ -155,10 +148,10 @@ describe('AIChatPanel', () => {
       await new Promise(r => setTimeout(r, 50))
     })
 
-    // Push streaming chunks
+    // Push streaming chunks using new text_delta SSE format
     await act(async () => {
       for (const chunk of chunks) {
-        const line = `data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"${chunk}"}}\n\n`
+        const line = `data: {"type":"text_delta","text":"${chunk}"}\n\n`
         controllerRef!.enqueue(new TextEncoder().encode(line))
         await new Promise(r => setTimeout(r, 10))
       }

@@ -2,6 +2,8 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../lib/supabase'
 import type { ChatMessage, GapResult } from '../types/chat'
+import { TOOL_STATUS_LABELS } from '../types/chat'
+import type { ToolDataEnvelope, ChatMessageType } from '../types/chat'
 import type { SectionEditorHandle } from '../types/workspace'
 import { buildContextPayload, detectGaps } from '../utils/chatContext'
 
@@ -15,48 +17,7 @@ interface Props {
   gapCount: number
   onGapsConsumed: () => void
   onEditAccepted?: () => void
-}
-
-// ── ChatEditPreview sub-component ──────────────────────────────────────────────
-
-function ChatEditPreview({
-  content,
-  isStreaming,
-  onAccept,
-  onReject,
-}: {
-  content: string
-  isStreaming: boolean
-  onAccept: () => void
-  onReject: () => void
-}) {
-  return (
-    <div className="rounded-lg border border-blue-500/30 bg-blue-950/20 p-3 text-sm">
-      <div
-        className="prose prose-invert prose-sm max-w-none mb-3"
-        dangerouslySetInnerHTML={{ __html: content }}
-      />
-      {!isStreaming && (
-        <div className="flex gap-2 mt-2">
-          <button
-            onClick={onAccept}
-            className="px-3 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium"
-          >
-            Accept
-          </button>
-          <button
-            onClick={onReject}
-            className="px-3 py-1 rounded bg-white/10 hover:bg-white/20 text-white/70 text-xs"
-          >
-            Reject
-          </button>
-        </div>
-      )}
-      {isStreaming && (
-        <p className="text-white/40 text-xs mt-1">Generating…</p>
-      )}
-    </div>
-  )
+  sectionTitles: Record<string, string>
 }
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
@@ -161,13 +122,14 @@ export default function AIChatPanel({
   gapCount,
   onGapsConsumed,
   onEditAccepted,
+  sectionTitles,
 }: Props) {
   const [expanded, setExpanded] = useState(true)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [streamingContent, setStreamingContent] = useState('')
   const [isStreaming, setIsStreaming] = useState(false)
-  const [currentIntent, setCurrentIntent] = useState<string>('general')
+  const [currentToolName, setCurrentToolName] = useState<string | null>(null)
   const [gapMessagesInjected, setGapMessagesInjected] = useState(false)
   const injectedGapCountRef = useRef(0)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -187,8 +149,7 @@ export default function AIChatPanel({
           id: row.id,
           role: row.role as ChatMessage['role'],
           content: row.content,
-          // edit-proposal is ephemeral — on reload show as plain chat (decision already made)
-          messageType: row.message_type === 'edit-proposal' ? 'chat' : (row.message_type ?? 'chat') as ChatMessage['messageType'],
+          messageType: (row.message_type ?? 'chat') as ChatMessage['messageType'],
         })))
       })
   }, [proposalId])
@@ -380,13 +341,10 @@ export default function AIChatPanel({
       targetSectionKey: activeSectionKey ?? (sections[0]?.section_key ?? ''),
       sections,
       chatHistory: messages,
+      sectionTitles,
     })
 
-    // Detect explain intent for chip shortcut
-    const intentHint = text.toLowerCase().includes('explain') ? 'explain' : null
-
     let fullContent = ''
-    let intent = 'general'
 
     try {
       const { data: { session } } = await supabase.auth.getSession()
@@ -398,7 +356,7 @@ export default function AIChatPanel({
           'Authorization': `Bearer ${session?.access_token ?? ''}`,
           'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string,
         },
-        body: JSON.stringify({ ...payload, intent_hint: intentHint }),
+        body: JSON.stringify(payload),
       })
       if (!response.ok) throw new Error(`Edge function error: ${response.status}`)
 
@@ -406,55 +364,89 @@ export default function AIChatPanel({
       const reader = response.body!.getReader()
       const decoder = new TextDecoder()
 
+      // New SSE event loop
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
         const chunk = decoder.decode(value, { stream: true })
-        const lines = chunk.split('\n').filter(l => l.startsWith('data: '))
+        const lines = chunk.split('\n').filter(line => line.startsWith('data: '))
         for (const line of lines) {
-          const raw = line.slice(6)
-          if (raw === '[DONE]') break
-          try {
-            const event = JSON.parse(raw)
-            // Intent metadata event (emitted first by Edge Function)
-            if (event.type === 'intent') {
-              intent = event.intent
-              setCurrentIntent(event.intent)
-              continue
+          const data = line.slice(6).trim()
+          if (data === '[DONE]') {
+            // Finalize streaming message
+            if (fullContent.trim()) {
+              setMessages(prev => [...prev, {
+                id: crypto.randomUUID(),
+                role: 'assistant',
+                content: fullContent,
+                messageType: 'chat' as ChatMessageType,
+              }])
             }
-            // Anthropic SDK content_block_delta event
-            if (event.type === 'content_block_delta' && event.delta?.type === 'text_delta') {
-              fullContent += event.delta.text
+            setStreamingContent('')
+            setIsStreaming(false)
+            setCurrentToolName(null)
+            break
+          }
+          try {
+            const event = JSON.parse(data)
+            if (event.type === 'tool_start') {
+              setCurrentToolName(event.tool)
+            } else if (event.type === 'text_delta') {
+              fullContent += event.text
               setStreamingContent(fullContent)
+            } else if (event.type === 'tool_result') {
+              const toolData: ToolDataEnvelope = {
+                tool: event.tool,
+                version: 1,
+                payload: event.result,
+                state: {},
+              }
+              // Determine message type from tool name
+              const toolMsgTypeMap: Record<string, ChatMessageType> = {
+                propose_edit: 'tool-propose-edit',
+                answer_with_citations: 'tool-answer-cited',
+                check_regulatory_compliance: 'tool-compliance',
+                ask_user: 'tool-ask-user',
+                set_focus: 'tool-set-focus',
+              }
+              const messageType: ChatMessageType = toolMsgTypeMap[event.tool] ?? 'chat'
+              setMessages(prev => [...prev, {
+                id: crypto.randomUUID(),
+                role: 'assistant',
+                content: event.result?.overall_summary ?? event.result?.answer ?? event.result?.summary ?? event.result?.question ?? '',
+                messageType,
+                toolData,
+              }])
+              setCurrentToolName(null)
+            } else if (event.type === 'error') {
+              setMessages(prev => [...prev, {
+                id: crypto.randomUUID(),
+                role: 'assistant',
+                content: 'Something went wrong. Try again.',
+                messageType: 'chat' as ChatMessageType,
+              }])
+              setIsStreaming(false)
+              setCurrentToolName(null)
             }
           } catch {
-            // Non-JSON line — skip
+            // Ignore parse errors on malformed SSE lines
           }
         }
       }
     } catch (err) {
       console.error('chat-with-jamo error:', err)
-      fullContent = 'Sorry, something went wrong. Please try again.'
+      setMessages(prev => [...prev, {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: 'Sorry, something went wrong. Please try again.',
+        messageType: 'chat' as ChatMessageType,
+      }])
+      setStreamingContent('')
+      setIsStreaming(false)
+      setCurrentToolName(null)
     }
 
-    // Strip markdown code fences if model wrapped the HTML (e.g. ```html ... ```)
-    if (intent === 'edit') {
-      const fenceMatch = fullContent.match(/^```(?:html)?\s*([\s\S]*?)```\s*$/i)
-      if (fenceMatch) fullContent = fenceMatch[1].trim()
-    }
-
-    // Merge streamed content into messages
-    const assistantMsg: ChatMessage = {
-      id: crypto.randomUUID(),
-      role: 'assistant',
-      content: fullContent,
-      messageType: intent === 'edit' ? 'edit-proposal' : (intent as ChatMessage['messageType']),
-    }
-    setMessages(prev => [...prev, assistantMsg])
-    setStreamingContent('')
-    setIsStreaming(false)
-
-    // Persist assistant message — edit-proposal stored as 'chat' so history never re-shows Accept/Reject
+    // Persist assistant message
     if (fullContent) {
       const { error: assistantInsertError } = await supabase.from('proposal_chats').insert({
         proposal_id: proposalId,
@@ -466,10 +458,7 @@ export default function AIChatPanel({
       })
       if (assistantInsertError) console.error('[AIChatPanel] Failed to persist assistant message:', assistantInsertError)
     }
-  }, [input, isStreaming, draftGenerated, proposalId, orgId, activeSectionKey, sections, messages])
-
-  // currentIntent used in rendering to determine streaming bubble style
-  const _currentIntent = currentIntent
+  }, [input, isStreaming, draftGenerated, proposalId, orgId, activeSectionKey, sections, messages, sectionTitles])
 
   return (
     // Outer shell: drives the width animation and acts as the aurora border host
@@ -553,16 +542,10 @@ export default function AIChatPanel({
                               />
                             ))}
                           </div>
-                        ) : msg.role === 'assistant' && msg.messageType === 'edit-proposal' ? (
-                          <div className="max-w-[88%]">
-                            <ChatEditPreview
-                              content={msg.content}
-                              isStreaming={false}
-                              onAccept={() => handleAcceptEdit(msg.id, msg.content)}
-                              onReject={() => setMessages(prev => prev.map(m =>
-                                m.id === msg.id ? { ...m, messageType: 'chat' as const } : m
-                              ))}
-                            />
+                        ) : msg.role === 'assistant' && msg.messageType?.startsWith('tool-') && msg.toolData ? (
+                          <div className="rounded-xl border border-gray-200 bg-white px-3 py-2.5 max-w-[88%]">
+                            <p className="text-xs text-gray-500">{msg.content || `Tool: ${msg.toolData.tool}`}</p>
+                            {/* TODO: Plans 06/07 replace this with DiffPreview, CitationsBlock, ComplianceCard, AskUserCard */}
                           </div>
                         ) : (
                           <div
@@ -586,20 +569,9 @@ export default function AIChatPanel({
                       animate={{ opacity: 1, y: 0 }}
                       className="flex justify-start"
                     >
-                      {_currentIntent === 'edit' ? (
-                        <div className="max-w-[88%]">
-                          <ChatEditPreview
-                            content={streamingContent}
-                            isStreaming={true}
-                            onAccept={() => {}}
-                            onReject={() => {}}
-                          />
-                        </div>
-                      ) : (
-                        <div className="max-w-[88%] rounded-2xl px-3.5 py-2.5 text-xs leading-relaxed bg-gray-100/80 backdrop-blur-sm text-gray-700 rounded-tl-sm">
-                          {streamingContent}
-                        </div>
-                      )}
+                      <div className="max-w-[88%] rounded-2xl px-3.5 py-2.5 text-xs leading-relaxed bg-gray-100/80 backdrop-blur-sm text-gray-700 rounded-tl-sm">
+                        {streamingContent}
+                      </div>
                     </motion.div>
                   )}
 
@@ -611,14 +583,22 @@ export default function AIChatPanel({
                       className="flex justify-start"
                     >
                       <div className="bg-gray-100/80 backdrop-blur-sm rounded-2xl rounded-tl-sm px-4 py-2.5 flex items-center gap-1.5">
-                        {[0, 1, 2].map(j => (
-                          <motion.span
-                            key={j}
-                            className="w-1.5 h-1.5 rounded-full bg-gray-400"
-                            animate={{ opacity: [0.3, 1, 0.3], y: [0, -3, 0] }}
-                            transition={{ duration: 0.9, repeat: Infinity, delay: j * 0.18 }}
-                          />
-                        ))}
+                        {currentToolName ? (
+                          <span className="text-jamo-500 text-xs font-semibold">
+                            {TOOL_STATUS_LABELS[currentToolName as keyof typeof TOOL_STATUS_LABELS] ?? 'Working...'}
+                          </span>
+                        ) : (
+                          <>
+                            {[0, 1, 2].map(j => (
+                              <motion.span
+                                key={j}
+                                className="w-1.5 h-1.5 rounded-full bg-gray-400"
+                                animate={{ opacity: [0.3, 1, 0.3], y: [0, -3, 0] }}
+                                transition={{ duration: 0.9, repeat: Infinity, delay: j * 0.18 }}
+                              />
+                            ))}
+                          </>
+                        )}
                       </div>
                     </motion.div>
                   )}
