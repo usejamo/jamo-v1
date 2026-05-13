@@ -137,6 +137,7 @@ export default function AIChatPanel({
   const [currentToolName, setCurrentToolName] = useState<string | null>(null)
   const [gapMessagesInjected, setGapMessagesInjected] = useState(false)
   const injectedGapCountRef = useRef(0)
+  const gapInjectionStartedRef = useRef(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -200,6 +201,7 @@ export default function AIChatPanel({
   useEffect(() => {
     if (gapCount > 0 && gapCount !== injectedGapCountRef.current) {
       setGapMessagesInjected(false)
+      gapInjectionStartedRef.current = false
     }
   }, [gapCount])
 
@@ -225,6 +227,8 @@ export default function AIChatPanel({
   }
 
   function injectGapMessages() {
+    if (gapInjectionStartedRef.current) return
+    gapInjectionStartedRef.current = true
     const gaps = detectGaps(
       sections.map(s => ({ section_key: s.section_key, content: s.content, status: '' }))
     )
