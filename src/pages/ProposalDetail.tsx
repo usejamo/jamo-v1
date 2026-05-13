@@ -324,6 +324,14 @@ export default function ProposalDetail() {
 
   const { state: genState, dispatch: genDispatch, generateAll, regenerateSection, stopGeneration } = useProposalGeneration(id ?? '')
 
+  const sectionTitles = useMemo(() => {
+    const map: Record<string, string> = {}
+    for (const s of proposalSections) {
+      map[s.section_key] = s.name ?? s.section_key.split('_').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+    }
+    return map
+  }, [proposalSections])
+
   const getLiveSections = useCallback((): ExportSection[] => {
     return proposalSections.map(s => ({
       name: s.name,
@@ -749,6 +757,7 @@ export default function ProposalDetail() {
         gapCount={gapCount}
         onGapsConsumed={() => setGapCount(0)}
         onEditAccepted={refetchSections}
+        sectionTitles={sectionTitles}
       />
 
     </div>
