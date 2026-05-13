@@ -14,6 +14,57 @@ export type Database = {
   }
   public: {
     Tables: {
+      chat_sessions: {
+        Row: {
+          active_task: Json | null
+          created_at: string | null
+          current_focus_section: string | null
+          id: string
+          last_updated: string | null
+          org_id: string
+          pending_actions: Json | null
+          proposal_id: string
+          resolved_items: Json | null
+        }
+        Insert: {
+          active_task?: Json | null
+          created_at?: string | null
+          current_focus_section?: string | null
+          id?: string
+          last_updated?: string | null
+          org_id: string
+          pending_actions?: Json | null
+          proposal_id: string
+          resolved_items?: Json | null
+        }
+        Update: {
+          active_task?: Json | null
+          created_at?: string | null
+          current_focus_section?: string | null
+          id?: string
+          last_updated?: string | null
+          org_id?: string
+          pending_actions?: Json | null
+          proposal_id?: string
+          resolved_items?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_sessions_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_sessions_proposal_id_fkey"
+            columns: ["proposal_id"]
+            isOneToOne: false
+            referencedRelation: "proposals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       chunks: {
         Row: {
           agency: string | null
@@ -114,6 +165,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      oauth_pending: {
+        Row: {
+          code_verifier: string
+          created_at: string
+          expires_at: string
+          org_id: string
+          state: string
+        }
+        Insert: {
+          code_verifier: string
+          created_at?: string
+          expires_at?: string
+          org_id: string
+          state: string
+        }
+        Update: {
+          code_verifier?: string
+          created_at?: string
+          expires_at?: string
+          org_id?: string
+          state?: string
+        }
+        Relationships: []
       }
       organizations: {
         Row: {
@@ -222,6 +297,7 @@ export type Database = {
           proposal_id: string
           role: string
           section_target_id: string | null
+          tool_data: Json | null
         }
         Insert: {
           content: string
@@ -232,6 +308,7 @@ export type Database = {
           proposal_id: string
           role: string
           section_target_id?: string | null
+          tool_data?: Json | null
         }
         Update: {
           content?: string
@@ -242,6 +319,7 @@ export type Database = {
           proposal_id?: string
           role?: string
           section_target_id?: string | null
+          tool_data?: Json | null
         }
         Relationships: [
           {
@@ -537,6 +615,47 @@ export type Database = {
           },
         ]
       }
+      salesforce_connections: {
+        Row: {
+          connected_at: string
+          id: string
+          instance_url: string
+          is_sandbox: boolean
+          org_id: string
+          sf_org_id: string
+          sf_username: string
+          vault_secret_id: string
+        }
+        Insert: {
+          connected_at?: string
+          id?: string
+          instance_url: string
+          is_sandbox?: boolean
+          org_id: string
+          sf_org_id: string
+          sf_username: string
+          vault_secret_id: string
+        }
+        Update: {
+          connected_at?: string
+          id?: string
+          instance_url?: string
+          is_sandbox?: boolean
+          org_id?: string
+          sf_org_id?: string
+          sf_username?: string
+          vault_secret_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "salesforce_connections_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       template_sections: {
         Row: {
           created_at: string
@@ -597,6 +716,7 @@ export type Database = {
           org_id: string | null
           parse_status: string
           source: string
+          style_inspection: Json | null
         }
         Insert: {
           created_at?: string
@@ -609,6 +729,7 @@ export type Database = {
           org_id?: string | null
           parse_status?: string
           source: string
+          style_inspection?: Json | null
         }
         Update: {
           created_at?: string
@@ -621,6 +742,7 @@ export type Database = {
           org_id?: string | null
           parse_status?: string
           source?: string
+          style_inspection?: Json | null
         }
         Relationships: [
           {
@@ -673,13 +795,6 @@ export type Database = {
             columns: ["proposal_id"]
             isOneToOne: false
             referencedRelation: "proposals"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "usage_events_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "user_profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -796,6 +911,15 @@ export type Database = {
           vector_score: number
         }[]
       }
+      vault_delete_sf_tokens: {
+        Args: { p_secret_id: string }
+        Returns: undefined
+      }
+      vault_get_sf_tokens: { Args: { p_secret_id: string }; Returns: Json }
+      vault_store_sf_tokens: {
+        Args: { p_name: string; p_payload: Json }
+        Returns: string
+      }
     }
     Enums: {
       [_ in never]: never
@@ -831,13 +955,13 @@ export type Tables<
     : never
   : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
         DefaultSchema["Views"])
-    ? (DefaultSchema["Tables"] &
-        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
-        Row: infer R
-      }
-      ? R
-      : never
+  ? (DefaultSchema["Tables"] &
+      DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+      Row: infer R
+    }
+    ? R
     : never
+  : never
 
 export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
@@ -857,12 +981,12 @@ export type TablesInsert<
     ? I
     : never
   : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-        Insert: infer I
-      }
-      ? I
-      : never
+  ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+      Insert: infer I
+    }
+    ? I
     : never
+  : never
 
 export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
@@ -882,12 +1006,12 @@ export type TablesUpdate<
     ? U
     : never
   : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-        Update: infer U
-      }
-      ? U
-      : never
+  ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+      Update: infer U
+    }
+    ? U
     : never
+  : never
 
 export type Enums<
   DefaultSchemaEnumNameOrOptions extends
@@ -903,8 +1027,8 @@ export type Enums<
 }
   ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
   : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
-    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
-    : never
+  ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+  : never
 
 export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
@@ -920,8 +1044,8 @@ export type CompositeTypes<
 }
   ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
   : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
-    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
-    : never
+  ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+  : never
 
 export const Constants = {
   public: {
