@@ -87,10 +87,16 @@ export interface WorkspaceState {
   consistency_check_ran: boolean
 }
 
+export interface PatchResult {
+  applied: number   // count of successfully applied changes
+  stale: string[]   // paragraph_ids that were not found in the doc
+}
+
 export interface SectionEditorHandle {
   insertContentAt: (pos: number, content: string) => void
   setContent: (html: string) => void
   getContent: () => string
+  applyParagraphPatch: (changes: import('./chat').ProposeEditChange[]) => PatchResult
 }
 
 export const DEFAULT_WORKSPACE_STATE: WorkspaceState = {

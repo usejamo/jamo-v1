@@ -135,7 +135,8 @@ describe('buildContextPayload', () => {
     expect(payload.org_id).toBe('org-1')
     expect(payload.user_message).toBe('Explain the budget')
     expect(payload.target_section.key).toBe('understanding')
-    expect(payload.target_section.content).not.toContain('<p>')
+    // target_section.content is HTML with paragraph IDs intact (NOT stripped) — AI uses these IDs for propose_edit
+    expect(payload.target_section.content).toContain('<p>')
     expect(payload.other_sections).toHaveLength(1)
     expect(payload.other_sections[0].key).toBe('budget')
     expect(payload.other_sections[0].summary.length).toBeLessThanOrEqual(200)

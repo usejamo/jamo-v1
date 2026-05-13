@@ -1,4 +1,5 @@
-import type { GapResult, ChatWithJamoRequest, ChatMessage } from '../types/chat'
+import type { GapResult, ChatWithJamoRequest } from '../types/chat'
+import type { ChatMessage } from '../types/chat'
 
 /**
  * Strip HTML tags from a string and trim whitespace.
@@ -8,8 +9,26 @@ export function stripHtml(html: string): string {
 }
 
 /**
+ * Convert a snake_case section key to a human-readable Title Case title.
+ * If the key exists in the optional map, that value takes precedence.
+ *
+ * @example
+ * sectionKeyToTitle('study_understanding') // → 'Study Understanding'
+ * sectionKeyToTitle('cover_letter', { cover_letter: 'Cover Letter (Customized)' }) // → 'Cover Letter (Customized)'
+ */
+export function sectionKeyToTitle(
+  key: string,
+  titleMap?: Record<string, string>
+): string {
+  if (titleMap && titleMap[key]) return titleMap[key]
+  return key
+    .split('_')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ')
+}
+
+/**
  * Detect content gaps in proposal sections.
- * Returns a GapResult for each section that has a placeholder, is thin (<200 chars), or errored.
  */
 export function detectGaps(
   sections: Array<{ section_key: string; content: string; status: string }>
@@ -19,7 +38,6 @@ export function detectGaps(
   for (const section of sections) {
     const sectionTitle = section.section_key
 
-    // Check for placeholder text
     const placeholderIdx = section.content.indexOf('[PLACEHOLDER')
     if (placeholderIdx !== -1) {
       const end = section.content.indexOf(']', placeholderIdx)
@@ -30,13 +48,11 @@ export function detectGaps(
       continue
     }
 
-    // Check for error status
     if (section.status === 'error') {
       gaps.push({ sectionKey: section.section_key, sectionTitle, reason: 'error', detail: 'Section failed to generate' })
       continue
     }
 
-    // Check for thin content
     const plainText = stripHtml(section.content)
     if (plainText.length < 200) {
       gaps.push({
@@ -52,12 +68,14 @@ export function detectGaps(
 }
 
 /**
- * Build a sliding window of chat history that fits within a character budget.
+ * Build a sliding window of chat history within a token-estimate budget.
+ * Token estimate: chars / 3.5 (fast approximation — no tokenizer needed).
+ * Default budget targets ~12k tokens = 42000 chars.
  * Walks messages backwards, includes whole messages, returns in original order.
  */
 export function buildSlidingWindow(
   messages: Array<{ role: string; content: string }>,
-  budgetChars = 8000
+  budgetChars = 42000
 ): Array<{ role: string; content: string }> {
   const collected: Array<{ role: string; content: string }> = []
   let used = 0
@@ -74,30 +92,11 @@ export function buildSlidingWindow(
 }
 
 /**
- * Convert a section key (snake_case) to a human-readable title.
- * Looks up a known map first; falls back to humanizing the key.
- */
-export function sectionKeyToTitle(key: string): string {
-  const knownTitles: Record<string, string> = {
-    executive_summary: 'Executive Summary',
-    background: 'Background',
-    objectives: 'Objectives',
-    methodology: 'Methodology',
-    safety_profile: 'Safety Profile',
-    efficacy_data: 'Efficacy Data',
-    regulatory_strategy: 'Regulatory Strategy',
-    clinical_overview: 'Clinical Overview',
-  }
-  if (knownTitles[key]) return knownTitles[key]
-  // Humanize: replace underscores with spaces and title-case each word
-  return key
-    .split('_')
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ')
-}
-
-/**
  * Build a structured context payload for the chat-with-jamo edge function.
+ *
+ * IMPORTANT: target_section.content is HTML with paragraph data-id attributes intact.
+ * Do NOT strip HTML here — the AI needs paragraph IDs to use propose_edit correctly.
+ * Only other_sections summaries are stripped (they are context-only, not edit targets).
  */
 export function buildContextPayload(args: {
   proposalId: string
@@ -106,18 +105,17 @@ export function buildContextPayload(args: {
   targetSectionKey: string
   sections: Array<{ section_key: string; content: string }>
   chatHistory: ChatMessage[]
+  sectionTitles?: Record<string, string>   // D-06 — from Sidebar useMemo
 }): ChatWithJamoRequest {
-  const { proposalId, orgId, userMessage, targetSectionKey, sections, chatHistory } = args
+  const { proposalId, orgId, userMessage, targetSectionKey, sections, chatHistory, sectionTitles } = args
 
   const targetSection = sections.find(s => s.section_key === targetSectionKey)
-  const targetPlainText = targetSection ? stripHtml(targetSection.content) : ''
-  const targetTitle = targetSectionKey
 
   const otherSections = sections
     .filter(s => s.section_key !== targetSectionKey)
     .map(s => ({
       key: s.section_key,
-      title: s.section_key,
+      title: sectionKeyToTitle(s.section_key, sectionTitles),
       summary: stripHtml(s.content).slice(0, 200),
     }))
 
@@ -130,8 +128,8 @@ export function buildContextPayload(args: {
     user_message: userMessage,
     target_section: {
       key: targetSectionKey,
-      title: targetTitle,
-      content: targetPlainText,
+      title: sectionKeyToTitle(targetSectionKey, sectionTitles),
+      content: targetSection?.content ?? '',   // HTML with paragraph IDs — NOT stripped
     },
     other_sections: otherSections,
     chat_history: slidingHistory as Array<{ role: 'user' | 'assistant'; content: string }>,
