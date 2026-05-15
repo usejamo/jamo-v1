@@ -442,6 +442,28 @@ Plans:
 - [ ] 14.1-08-PLAN.md — tool_data persistence: save, history reload, state mutation persistence
 - [ ] 14.1-09-PLAN.md — check_regulatory_compliance writes to proposal_sections.compliance_flags (D-08)
 
+---
+
+### Phase 14.2: AI Chat Co-pilot (INSERTED)
+
+**Goal:** Move paragraph-level diff review from the chat panel into the section editor via ProseMirror Decorations (Part A), then activate proactive co-pilot behavior with a server-generated action queue, multi-turn walkthroughs, and resume-on-reload (Part B).
+
+**Requirements covered:** REQ-9.1, REQ-9.2
+
+**Depends on:** Phase 14.1 (AI Chat Foundation)
+
+**Plans:** 8 plans
+
+Plans:
+- [ ] 14.2-01-PLAN.md — Wave 0 stubs + Realtime publication migration for chat_sessions
+- [ ] 14.2-02-PLAN.md — Type contracts: PendingEdit, ChangeResolution, CHANGE_TYPE_LABELS, PendingActionItem, ActiveTask
+- [ ] 14.2-03-PLAN.md — PendingEditsPlugin + decorations.tsx (ghost decoration factory + staleness detection)
+- [ ] 14.2-04-PLAN.md — Workspace reducer: pending_edits actions + persistToolDataState side effect
+- [ ] 14.2-05-PLAN.md — SectionEditorBlock wiring + EditSummaryCard + AIChatPanel Part A (scroll fix, insertChainRef removal, DiffPreview deletion)
+- [ ] 14.2-06-PLAN.md — analyze-proposal-gaps edge function + chat-with-jamo active_task integration
+- [ ] 14.2-07-PLAN.md — ActionQueue, ActionItem, ResumeTaskBanner, WalkthroughProgress + AIChatPanel Part B + detectGaps retirement
+- [ ] 14.2-08-PLAN.md — Human verification checkpoint: Part A and Part B end-to-end
+
 
 ---
 
