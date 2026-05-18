@@ -14,16 +14,19 @@ export interface EditSummaryCardProps {
 }
 
 export function EditSummaryCard({
-  payload, state, message_id: _messageId, onReviewInEditor, onAcceptAll, onRejectAll, onUpdateResolution,
+  payload, state, message_id, onReviewInEditor, onAcceptAll, onRejectAll, onUpdateResolution,
 }: EditSummaryCardProps): React.ReactElement | null {
   const [showDrillDown, setShowDrillDown] = useState(false)
 
   const changes = payload.changes
+  // Stable per-change identity — matches PendingEdit.id (`${message_id}-${change_index}`).
+  // paragraph_id is NOT unique: the model often anchors several changes to one paragraph.
+  const changeId = (i: number): string => `${message_id}-${i}`
   const counts = { accepted: 0, rejected: 0, auto_rejected_stale: 0, not_reached: 0, pending: 0 }
-  for (const change of changes) {
-    const res = (state.resolutions?.[change.paragraph_id] ?? 'pending') as keyof typeof counts
+  changes.forEach((_change, i) => {
+    const res = (state.resolutions?.[changeId(i)] ?? 'pending') as keyof typeof counts
     counts[res] = (counts[res] ?? 0) + 1
-  }
+  })
   const isTerminal = counts.pending === 0 && changes.length > 0
 
   // Regulatory hedge warning (AI-SPEC online guardrail 3)
@@ -103,22 +106,23 @@ export function EditSummaryCard({
 
       {showDrillDown && (
         <ul className="mt-2 space-y-1 border-t border-gray-100 pt-2" aria-label="Individual change resolutions">
-          {changes.map((change) => {
-            const res = (state.resolutions?.[change.paragraph_id] ?? 'pending') as string
+          {changes.map((change, i) => {
+            const id = changeId(i)
+            const res = (state.resolutions?.[id] ?? 'pending') as string
             const label = resolutionLabel[res] ?? resolutionLabel.pending
             return (
-              <li key={change.paragraph_id} className="flex items-center justify-between gap-2">
+              <li key={id} className="flex items-center justify-between gap-2">
                 <span className="text-xs text-gray-600 flex-1 truncate">{change.change_summary}</span>
                 {res === 'pending' && onUpdateResolution ? (
                   <span className="flex gap-1">
                     <button
                       className="text-[10px] bg-gray-900 text-white px-2 py-0.5 rounded hover:bg-gray-700"
-                      onClick={() => onUpdateResolution(change.paragraph_id, 'accepted')}
+                      onClick={() => onUpdateResolution(id, 'accepted')}
                       aria-label={`Accept: ${change.change_summary}`}
                     >Accept</button>
                     <button
                       className="text-[10px] text-gray-400 hover:text-gray-600 px-1 py-0.5 rounded hover:bg-gray-100"
-                      onClick={() => onUpdateResolution(change.paragraph_id, 'rejected')}
+                      onClick={() => onUpdateResolution(id, 'rejected')}
                       aria-label={`Reject: ${change.change_summary}`}
                     >Reject</button>
                   </span>

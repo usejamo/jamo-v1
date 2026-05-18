@@ -2,15 +2,16 @@ import { createContext, useContext, useReducer, type ReactNode, type Dispatch } 
 import { type WorkspaceState, type WorkspaceAction, DEFAULT_WORKSPACE_STATE } from '../types/workspace'
 
 /**
- * Maps PendingEdit[] to Record<paragraph_id, resolution> for DB persistence.
+ * Maps PendingEdit[] to Record<edit_id, resolution> for DB persistence.
+ * Keyed by the stable edit id (not paragraph_id) so multiple edits anchored to
+ * the same paragraph each keep their own resolution.
  * - Empty input → empty object (not an error)
- * - Duplicate paragraph_ids → last entry wins
  * - Already-resolved edits (non-pending) are included in the map
  */
 export function buildResolutionMap(
   edits: import('../types/workspace').PendingEdit[],
 ): Record<string, string> {
-  return Object.fromEntries(edits.map((e) => [e.paragraph_id, e.resolution]))
+  return Object.fromEntries(edits.map((e) => [e.id, e.resolution]))
 }
 
 export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction): WorkspaceState {
@@ -204,23 +205,27 @@ export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction)
       return { ...state, version_history_open: null }
 
     case 'SET_PENDING_EDITS': {
-      const { section_key, edits } = action.payload
+      const { section_key, message_id, edits } = action.payload
       const section = state.sections[section_key]
       if (!section) return state
+      // Merge: keep edits from other messages, replace only this message's set.
+      // Preserve each incoming edit's resolution — the caller supplies persisted
+      // resolutions when re-materializing a reviewed card; never force to pending.
+      const fromOtherMessages = section.pending_edits.filter((e) => e.message_id !== message_id)
       return {
         ...state,
         sections: {
           ...state.sections,
           [section_key]: {
             ...section,
-            pending_edits: edits.map((e) => ({ ...e, resolution: 'pending' as const })),
+            pending_edits: [...fromOtherMessages, ...edits],
           },
         },
       }
     }
 
     case 'ACCEPT_PENDING_EDIT': {
-      const { section_key, paragraph_id } = action.payload
+      const { section_key, edit_id } = action.payload
       const section = state.sections[section_key]
       if (!section) return state
       return {
@@ -230,7 +235,7 @@ export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction)
           [section_key]: {
             ...section,
             pending_edits: section.pending_edits.map((e) =>
-              e.paragraph_id === paragraph_id ? { ...e, resolution: 'accepted' as const } : e
+              e.id === edit_id ? { ...e, resolution: 'accepted' as const } : e
             ),
           },
         },
@@ -238,7 +243,7 @@ export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction)
     }
 
     case 'REJECT_PENDING_EDIT': {
-      const { section_key, paragraph_id } = action.payload
+      const { section_key, edit_id } = action.payload
       const section = state.sections[section_key]
       if (!section) return state
       return {
@@ -248,7 +253,7 @@ export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction)
           [section_key]: {
             ...section,
             pending_edits: section.pending_edits.map((e) =>
-              e.paragraph_id === paragraph_id ? { ...e, resolution: 'rejected' as const } : e
+              e.id === edit_id ? { ...e, resolution: 'rejected' as const } : e
             ),
           },
         },
@@ -291,16 +296,14 @@ export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction)
     }
 
     case 'BATCH_ACCEPT_PENDING_EDITS': {
-      // D-03: Batch Accept — marks all currently-pending edits as 'accepted' in one state update.
-      // SectionEditorBlock (Plan 05) watches the state change and builds ONE chained PM transaction.
+      // D-03: Batch Accept — marks the given edit IDs as 'accepted' in one state update.
+      // SectionEditorBlock watches the state change and builds ONE chained PM transaction.
       // PARTIAL BEHAVIOR: edits with resolution !== 'pending' are SILENTLY SKIPPED (not an error).
-      const { section_key, edits } = action.payload
+      const { section_key, edit_ids } = action.payload
       const section = state.sections[section_key]
       if (!section) return state
 
-      const pendingIds = new Set(
-        edits.filter((e) => e.resolution === 'pending').map((e) => e.paragraph_id)
-      )
+      const acceptIds = new Set(edit_ids)
 
       return {
         ...state,
@@ -309,7 +312,9 @@ export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction)
           [section_key]: {
             ...section,
             pending_edits: section.pending_edits.map((e) =>
-              pendingIds.has(e.paragraph_id) ? { ...e, resolution: 'accepted' as const } : e
+              acceptIds.has(e.id) && e.resolution === 'pending'
+                ? { ...e, resolution: 'accepted' as const }
+                : e
             ),
           },
         },

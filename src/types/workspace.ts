@@ -130,18 +130,17 @@ export type WorkspaceAction =
   | { type: 'OPEN_VERSION_HISTORY'; payload: string }
   | { type: 'CLOSE_VERSION_HISTORY' }
   | { type: 'SET_PENDING_EDITS'; payload: { section_key: string; message_id: string; edits: PendingEdit[] } }
-  | { type: 'ACCEPT_PENDING_EDIT'; payload: { section_key: string; paragraph_id: string } }
-  | { type: 'REJECT_PENDING_EDIT'; payload: { section_key: string; paragraph_id: string } }
+  | { type: 'ACCEPT_PENDING_EDIT'; payload: { section_key: string; edit_id: string } }
+  | { type: 'REJECT_PENDING_EDIT'; payload: { section_key: string; edit_id: string } }
   | { type: 'CLEAR_PENDING_EDITS'; payload: { section_key: string } }
   | { type: 'AUTO_REJECT_STALE_EDITS'; payload: { section_key: string; stale_ids: string[] } }
   /**
    * D-03: Batch Accept fires a single ProseMirror transaction wrapping all ghost commits.
-   * Payload carries the full edits array so SectionEditorBlock can iterate once and build
-   * one chained chain().deleteRange().insertContentAt()...run() — one undo step, not N.
-   * Only pending edits (resolution === 'pending') are processed; already-resolved edits are
-   * silently skipped (not an error).
+   * Payload carries the stable edit IDs to accept so SectionEditorBlock can build one
+   * chained transaction — one undo step, not N. Only edits still resolution === 'pending'
+   * are processed; already-resolved edits are silently skipped (not an error).
    */
-  | { type: 'BATCH_ACCEPT_PENDING_EDITS'; payload: { section_key: string; edits: PendingEdit[] } }
+  | { type: 'BATCH_ACCEPT_PENDING_EDITS'; payload: { section_key: string; edit_ids: string[] } }
 
 export interface WorkspaceState {
   sections: Record<string, SectionEditorState>

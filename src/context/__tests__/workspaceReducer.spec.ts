@@ -55,11 +55,16 @@ function makeState(sectionOverrides: Partial<SectionEditorState> = {}): Workspac
 // ── Reducer tests ─────────────────────────────────────────────────────────────
 
 describe('workspaceReducer — pending edits actions', () => {
-  it('14.2-A2-01: SET_PENDING_EDITS initializes pending_edits with resolution: pending', () => {
-    const state = makeState()
+  it('14.2-A2-01: SET_PENDING_EDITS preserves incoming resolutions and merges by message_id', () => {
+    // Section already holds an edit from a different message — it must survive.
+    const state = makeState({
+      pending_edits: [
+        makePendingEdit({ id: 'old-1', paragraph_id: 'para-9', message_id: 'msg-0', resolution: 'accepted' }),
+      ],
+    })
     const edits: PendingEdit[] = [
-      makePendingEdit({ id: 'e1', paragraph_id: 'para-1', resolution: 'accepted' }), // incoming resolution overridden to pending
-      makePendingEdit({ id: 'e2', paragraph_id: 'para-2', resolution: 'rejected' }), // incoming resolution overridden to pending
+      makePendingEdit({ id: 'e1', paragraph_id: 'para-1', message_id: 'msg-1', resolution: 'pending' }),
+      makePendingEdit({ id: 'e2', paragraph_id: 'para-2', message_id: 'msg-1', resolution: 'rejected' }),
     ]
 
     const next = workspaceReducer(state, {
@@ -68,12 +73,14 @@ describe('workspaceReducer — pending edits actions', () => {
     })
 
     const result = next.sections['exec_summary'].pending_edits
-    expect(result).toHaveLength(2)
-    expect(result[0].resolution).toBe('pending')
-    expect(result[1].resolution).toBe('pending')
+    // msg-0's edit is kept; msg-1's edits are added with their resolutions intact (not reset).
+    expect(result).toHaveLength(3)
+    expect(result.find((e) => e.id === 'old-1')?.resolution).toBe('accepted')
+    expect(result.find((e) => e.id === 'e1')?.resolution).toBe('pending')
+    expect(result.find((e) => e.id === 'e2')?.resolution).toBe('rejected')
   })
 
-  it('14.2-A2-02: ACCEPT_PENDING_EDIT sets resolution to accepted', () => {
+  it('14.2-A2-02: ACCEPT_PENDING_EDIT sets resolution to accepted by edit id', () => {
     const state = makeState({
       pending_edits: [
         makePendingEdit({ id: 'e1', paragraph_id: 'para-1', resolution: 'pending' }),
@@ -83,7 +90,7 @@ describe('workspaceReducer — pending edits actions', () => {
 
     const next = workspaceReducer(state, {
       type: 'ACCEPT_PENDING_EDIT',
-      payload: { section_key: 'exec_summary', paragraph_id: 'para-1' },
+      payload: { section_key: 'exec_summary', edit_id: 'e1' },
     })
 
     const result = next.sections['exec_summary'].pending_edits
@@ -91,7 +98,26 @@ describe('workspaceReducer — pending edits actions', () => {
     expect(result[1].resolution).toBe('pending') // unchanged
   })
 
-  it('14.2-A2-03: REJECT_PENDING_EDIT sets resolution to rejected', () => {
+  it('14.2-A2-02b: ACCEPT_PENDING_EDIT does not affect other edits sharing the same paragraph', () => {
+    // Two edits anchored to the SAME paragraph but with distinct ids.
+    const state = makeState({
+      pending_edits: [
+        makePendingEdit({ id: 'e1', paragraph_id: 'para-1', resolution: 'pending' }),
+        makePendingEdit({ id: 'e2', paragraph_id: 'para-1', resolution: 'pending' }),
+      ],
+    })
+
+    const next = workspaceReducer(state, {
+      type: 'ACCEPT_PENDING_EDIT',
+      payload: { section_key: 'exec_summary', edit_id: 'e1' },
+    })
+
+    const result = next.sections['exec_summary'].pending_edits
+    expect(result[0].resolution).toBe('accepted')
+    expect(result[1].resolution).toBe('pending') // same anchor, NOT accepted
+  })
+
+  it('14.2-A2-03: REJECT_PENDING_EDIT sets resolution to rejected by edit id', () => {
     const state = makeState({
       pending_edits: [
         makePendingEdit({ id: 'e1', paragraph_id: 'para-1', resolution: 'pending' }),
@@ -101,7 +127,7 @@ describe('workspaceReducer — pending edits actions', () => {
 
     const next = workspaceReducer(state, {
       type: 'REJECT_PENDING_EDIT',
-      payload: { section_key: 'exec_summary', paragraph_id: 'para-2' },
+      payload: { section_key: 'exec_summary', edit_id: 'e2' },
     })
 
     const result = next.sections['exec_summary'].pending_edits
@@ -109,8 +135,7 @@ describe('workspaceReducer — pending edits actions', () => {
     expect(result[1].resolution).toBe('rejected')
   })
 
-  it('14.2-A2-04: BATCH_ACCEPT_PENDING_EDITS skips already-resolved edits', () => {
-    // State has 3 edits: pending, rejected, pending
+  it('14.2-A2-04: BATCH_ACCEPT_PENDING_EDITS accepts the given ids, skips already-resolved', () => {
     const state = makeState({
       pending_edits: [
         makePendingEdit({ id: 'e1', paragraph_id: 'para-1', resolution: 'pending' }),
@@ -119,21 +144,14 @@ describe('workspaceReducer — pending edits actions', () => {
       ],
     })
 
-    // Payload includes all 3, but only the pending ones should be accepted
-    const edits: PendingEdit[] = [
-      makePendingEdit({ id: 'e1', paragraph_id: 'para-1', resolution: 'pending' }),
-      makePendingEdit({ id: 'e2', paragraph_id: 'para-2', resolution: 'rejected' }), // already resolved — SILENTLY SKIPPED
-      makePendingEdit({ id: 'e3', paragraph_id: 'para-3', resolution: 'pending' }),
-    ]
-
     const next = workspaceReducer(state, {
       type: 'BATCH_ACCEPT_PENDING_EDITS',
-      payload: { section_key: 'exec_summary', edits },
+      payload: { section_key: 'exec_summary', edit_ids: ['e1', 'e2', 'e3'] },
     })
 
     const result = next.sections['exec_summary'].pending_edits
     expect(result[0].resolution).toBe('accepted') // was pending → accepted
-    expect(result[1].resolution).toBe('rejected') // already rejected → silently skipped, unchanged
+    expect(result[1].resolution).toBe('rejected') // already rejected → silently skipped
     expect(result[2].resolution).toBe('accepted') // was pending → accepted
   })
 
@@ -143,25 +161,23 @@ describe('workspaceReducer — pending edits actions', () => {
     expect(buildResolutionMap([])).toEqual({})
   })
 
-  it('14.2-A2-06: buildResolutionMap — mixed resolutions (pending + resolved)', () => {
+  it('14.2-A2-06: buildResolutionMap — keyed by edit id, mixed resolutions', () => {
     const edits: PendingEdit[] = [
-      makePendingEdit({ paragraph_id: 'para-1', resolution: 'accepted' }),
-      makePendingEdit({ paragraph_id: 'para-2', resolution: 'pending' }),
+      makePendingEdit({ id: 'e1', paragraph_id: 'para-1', resolution: 'accepted' }),
+      makePendingEdit({ id: 'e2', paragraph_id: 'para-2', resolution: 'pending' }),
     ]
     const result = buildResolutionMap(edits)
-    expect(result).toEqual({
-      'para-1': 'accepted',
-      'para-2': 'pending',
-    })
+    expect(result).toEqual({ e1: 'accepted', e2: 'pending' })
   })
 
-  it('14.2-A2-07: buildResolutionMap — duplicate IDs last-write-wins', () => {
+  it('14.2-A2-07: buildResolutionMap — edits sharing a paragraph keep distinct entries', () => {
     const edits: PendingEdit[] = [
-      makePendingEdit({ paragraph_id: 'para-1', resolution: 'pending' }),
-      makePendingEdit({ paragraph_id: 'para-1', resolution: 'accepted' }), // last entry wins
+      makePendingEdit({ id: 'e1', paragraph_id: 'para-1', resolution: 'accepted' }),
+      makePendingEdit({ id: 'e2', paragraph_id: 'para-1', resolution: 'rejected' }), // same anchor, distinct edit
     ]
     const result = buildResolutionMap(edits)
-    expect(result['para-1']).toBe('accepted')
-    expect(Object.keys(result)).toHaveLength(1)
+    expect(result['e1']).toBe('accepted')
+    expect(result['e2']).toBe('rejected')
+    expect(Object.keys(result)).toHaveLength(2)
   })
 })

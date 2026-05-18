@@ -93,7 +93,7 @@ function buildGhostWidget(
     e.stopPropagation()
     dispatch({
       type: 'ACCEPT_PENDING_EDIT',
-      payload: { section_key: sectionKey, paragraph_id: change.paragraph_id },
+      payload: { section_key: sectionKey, edit_id: change.id },
     })
   })
 
@@ -106,7 +106,7 @@ function buildGhostWidget(
     e.stopPropagation()
     dispatch({
       type: 'REJECT_PENDING_EDIT',
-      payload: { section_key: sectionKey, paragraph_id: change.paragraph_id },
+      payload: { section_key: sectionKey, edit_id: change.id },
     })
   })
 
@@ -194,7 +194,7 @@ export function buildDecorations(
         () => buildGhostWidget(change, dispatch, sectionKey),
         {
           side: 1,
-          key: `ghost-${change.paragraph_id}-${change.change_index}`,
+          key: `ghost-${change.id}`,
         }
       )
     )

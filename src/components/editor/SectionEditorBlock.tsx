@@ -99,7 +99,7 @@ export const SectionEditorBlock = forwardRef<SectionEditorHandle, SectionEditorB
 
     useEffect(() => {
       if (!editor) return
-      const currentIds = pendingEdits.map((e) => e.paragraph_id + e.resolution).join(',')
+      const currentIds = pendingEdits.map((e) => e.id + e.resolution).join(',')
       if (currentIds === pendingEditsIdsRef.current) return
       pendingEditsIdsRef.current = currentIds
       editor.view.dispatch(
@@ -115,13 +115,13 @@ export const SectionEditorBlock = forwardRef<SectionEditorHandle, SectionEditorB
       const currentEdits = workspaceState.sections[sectionKey]?.pending_edits ?? []
 
       const newlyAccepted = currentEdits.filter((edit) => {
-        const prev = prevBatchResolutionsRef.current[edit.paragraph_id]
+        const prev = prevBatchResolutionsRef.current[edit.id]
         return prev !== 'accepted' && edit.resolution === 'accepted'
       })
 
       // Only handle when 2+ edits accepted simultaneously (batch case)
       if (newlyAccepted.length < 2) {
-        prevBatchResolutionsRef.current = Object.fromEntries(currentEdits.map((e) => [e.paragraph_id, e.resolution]))
+        prevBatchResolutionsRef.current = Object.fromEntries(currentEdits.map((e) => [e.id, e.resolution]))
         return
       }
 
@@ -182,7 +182,7 @@ export const SectionEditorBlock = forwardRef<SectionEditorHandle, SectionEditorB
         console.error('[PendingEdits] Batch accept transaction failed — state unchanged', err)
       }
 
-      prevBatchResolutionsRef.current = Object.fromEntries(currentEdits.map((e) => [e.paragraph_id, e.resolution]))
+      prevBatchResolutionsRef.current = Object.fromEntries(currentEdits.map((e) => [e.id, e.resolution]))
     }, [editor, workspaceState.sections[sectionKey]?.pending_edits]) // eslint-disable-line react-hooks/exhaustive-deps
 
     // ── Single-edit Accept PM transaction (ACCEPT_PENDING_EDIT path) ──────────────
@@ -193,14 +193,14 @@ export const SectionEditorBlock = forwardRef<SectionEditorHandle, SectionEditorB
       const currentEdits = workspaceState.sections[sectionKey]?.pending_edits ?? []
 
       const newlyAccepted = currentEdits.filter((edit) => {
-        const prev = prevResolutionsRef.current[edit.paragraph_id]
+        const prev = prevResolutionsRef.current[edit.id]
         return prev !== 'accepted' && edit.resolution === 'accepted'
       })
 
       // Batch case (2+) is handled by the batch-accept effect above — skip here
       // so edits are not applied twice.
       if (newlyAccepted.length >= 2) {
-        prevResolutionsRef.current = Object.fromEntries(currentEdits.map((e) => [e.paragraph_id, e.resolution]))
+        prevResolutionsRef.current = Object.fromEntries(currentEdits.map((e) => [e.id, e.resolution]))
         return
       }
 
@@ -242,7 +242,7 @@ export const SectionEditorBlock = forwardRef<SectionEditorHandle, SectionEditorB
           console.error('[PendingEdits] Single accept transaction failed', err)
         }
       }
-      prevResolutionsRef.current = Object.fromEntries(currentEdits.map((e) => [e.paragraph_id, e.resolution]))
+      prevResolutionsRef.current = Object.fromEntries(currentEdits.map((e) => [e.id, e.resolution]))
     }, [editor, workspaceState.sections[sectionKey]?.pending_edits]) // eslint-disable-line react-hooks/exhaustive-deps
 
     // Commit migrated placeholders to DB on first load if legacy [PLACEHOLDER: ...] strings were found

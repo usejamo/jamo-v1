@@ -669,8 +669,23 @@ export default function AIChatPanel({
                                 // in-session (not just after a reload from persisted tool_data).
                                 const liveEdits = (workspaceState.sections[payload.section_key]?.pending_edits ?? []).filter((e) => e.message_id === msg.id)
                                 const editState: ProposeEditState = liveEdits.length > 0
-                                  ? { ...persistedState, resolutions: { ...persistedState.resolutions, ...Object.fromEntries(liveEdits.map((e) => [e.paragraph_id, e.resolution])) } }
+                                  ? { ...persistedState, resolutions: { ...persistedState.resolutions, ...Object.fromEntries(liveEdits.map((e) => [e.id, e.resolution])) } }
                                   : persistedState
+                                // This message's edits with stable ids (`${msg.id}-${index}`).
+                                const buildEdits = (): PendingEdit[] => payload.changes.map((c, i) => ({
+                                  id: `${msg.id}-${i}`,
+                                  paragraph_id: c.paragraph_id,
+                                  section_key: payload.section_key,
+                                  operation: c.operation,
+                                  before_html: c.before_html,
+                                  after_html: c.after_html,
+                                  change_summary: c.change_summary,
+                                  resolution: ((editState.resolutions?.[`${msg.id}-${i}`] ?? 'pending') as ChangeResolution),
+                                  message_id: msg.id,
+                                  change_index: i,
+                                  created_at: new Date().toISOString(),
+                                }))
+                                const editIds = payload.changes.map((_c, i) => `${msg.id}-${i}`)
                                 return (
                                   <EditSummaryCard
                                     payload={payload}
@@ -678,41 +693,34 @@ export default function AIChatPanel({
                                     sectionKey={payload.section_key}
                                     message_id={msg.id}
                                     onReviewInEditor={() => {
-                                      const handle = editorRefs.current?.get(payload.section_key)
-                                      const edits: PendingEdit[] = payload.changes.map((c, i) => ({
-                                        id: `${msg.id}-${i}`,
-                                        paragraph_id: c.paragraph_id,
-                                        section_key: payload.section_key,
-                                        operation: c.operation,
-                                        before_html: c.before_html,
-                                        after_html: c.after_html,
-                                        change_summary: c.change_summary,
-                                        resolution: ((editState.resolutions?.[c.paragraph_id] ?? 'pending') as ChangeResolution),
-                                        message_id: msg.id,
-                                        change_index: i,
-                                        created_at: new Date().toISOString(),
-                                      }))
-                                      handle?.materializePendingEdits(msg.id, edits)
+                                      editorRefs.current?.get(payload.section_key)?.materializePendingEdits(msg.id, buildEdits())
                                     }}
                                     onAcceptAll={() => {
-                                      const currentEdits = workspaceState.sections[payload.section_key]?.pending_edits ?? []
+                                      // Materialize this message's edits if not already live, then
+                                      // accept only this message's edit ids (not the whole section).
+                                      if (liveEdits.length === 0) {
+                                        editorRefs.current?.get(payload.section_key)?.materializePendingEdits(msg.id, buildEdits())
+                                      }
                                       workspaceDispatch({
                                         type: 'BATCH_ACCEPT_PENDING_EDITS',
-                                        payload: { section_key: payload.section_key, edits: currentEdits },
+                                        payload: { section_key: payload.section_key, edit_ids: editIds },
                                       })
                                     }}
                                     onRejectAll={() => {
-                                      for (const change of payload.changes) {
+                                      if (liveEdits.length === 0) {
+                                        editorRefs.current?.get(payload.section_key)?.materializePendingEdits(msg.id, buildEdits())
+                                      }
+                                      for (const id of editIds) {
                                         workspaceDispatch({
                                           type: 'REJECT_PENDING_EDIT',
-                                          payload: { section_key: payload.section_key, paragraph_id: change.paragraph_id },
+                                          payload: { section_key: payload.section_key, edit_id: id },
                                         })
                                       }
                                     }}
                                     onUpdateResolution={(changeId, resolution) => {
                                       workspaceDispatch({
                                         type: resolution === 'accepted' ? 'ACCEPT_PENDING_EDIT' : 'REJECT_PENDING_EDIT',
-                                        payload: { section_key: payload.section_key, paragraph_id: changeId },
+                                        payload: { section_key: payload.section_key, edit_id: changeId },
                                       })
                                       // Persist resolution to DB (fire-and-forget)
                                       const prevState = (msg.toolData?.state ?? {}) as { resolutions?: Record<string, string> }

@@ -24,7 +24,7 @@ export function usePendingEditsSync({ pendingEdits, messageId }: UsePendingEdits
     if (!messageId || pendingEdits.length === 0) return
 
     // Compute a fingerprint of current resolutions to detect changes
-    const fingerprint = pendingEdits.map((e) => `${e.paragraph_id}:${e.resolution}`).join(',')
+    const fingerprint = pendingEdits.map((e) => `${e.id}:${e.resolution}`).join(',')
     if (fingerprint === lastSyncedRef.current) return
     lastSyncedRef.current = fingerprint
 
