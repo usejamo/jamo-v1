@@ -41,6 +41,10 @@ vi.mock('../../../hooks/useComplianceCheck', () => ({
   useComplianceCheck: vi.fn(() => ({ checkCompliance: vi.fn() })),
 }))
 
+vi.mock('../../../hooks/useSectionAIAction', () => ({
+  useSectionAIAction: vi.fn(() => ({ triggerAction: vi.fn() })),
+}))
+
 import { SectionEditorBlock } from '../SectionEditorBlock'
 import type { SectionEditorState } from '../../../types/workspace'
 
