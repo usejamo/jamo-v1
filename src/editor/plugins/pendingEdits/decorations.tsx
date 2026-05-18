@@ -69,6 +69,17 @@ function buildGhostWidget(
   badge.textContent = label.badge
   container.appendChild(badge)
 
+  // Proposed content preview — the user must see WHAT is being proposed.
+  // DOMParser does not execute scripts, so this is XSS-safe even though
+  // after_html is LLM-generated.
+  if (change.after_html) {
+    const preview = document.createElement('div')
+    preview.className = 'text-sm text-gray-700 mt-1 whitespace-pre-wrap'
+    const parsed = new DOMParser().parseFromString(change.after_html, 'text/html')
+    preview.textContent = parsed.body.textContent ?? ''
+    container.appendChild(preview)
+  }
+
   const buttonRow = document.createElement('div')
   buttonRow.className = 'flex gap-2 mt-1 items-center'
 

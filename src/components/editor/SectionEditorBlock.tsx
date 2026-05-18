@@ -42,6 +42,12 @@ export const SectionEditorBlock = forwardRef<SectionEditorHandle, SectionEditorB
     // Keep backward-compat alias for existing code that uses `dispatch`
     const dispatch = workspaceDispatch
 
+    // Live ref to workspace state. The PendingEditsPlugin's getState closure is
+    // captured once at editor creation; without this ref it would permanently
+    // read the mount-time state (empty pending_edits) and never render ghosts.
+    const workspaceStateRef = useRef(workspaceState)
+    workspaceStateRef.current = workspaceState
+
     const onStatusChange = useCallback(
       (status: 'idle' | 'saving' | 'saved') => {
         dispatch({ type: 'SET_AUTOSAVE_STATUS', payload: { section_key: sectionKey, status } })
@@ -68,7 +74,7 @@ export const SectionEditorBlock = forwardRef<SectionEditorHandle, SectionEditorB
         }),
         PendingEditsPlugin.configure({
           sectionKey: sectionKey,
-          getState: () => workspaceState.sections[sectionKey]?.pending_edits ?? [],
+          getState: () => workspaceStateRef.current.sections[sectionKey]?.pending_edits ?? [],
           dispatch: workspaceDispatch,
         }),
       ],

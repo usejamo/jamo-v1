@@ -662,7 +662,14 @@ export default function AIChatPanel({
                             {msg.messageType === 'tool-propose-edit' && (
                               (() => {
                                 const payload = msg.toolData.payload as ProposeEditPayload
-                                const editState: ProposeEditState = (msg.toolData.state as unknown as ProposeEditState) ?? { resolutions: {}, stale_ids: [] }
+                                const persistedState: ProposeEditState = (msg.toolData.state as unknown as ProposeEditState) ?? { resolutions: {}, stale_ids: [] }
+                                // When this message's edits are live in workspace state, derive
+                                // resolutions from them so Accept/Reject updates the card tally
+                                // in-session (not just after a reload from persisted tool_data).
+                                const liveEdits = (workspaceState.sections[payload.section_key]?.pending_edits ?? []).filter((e) => e.message_id === msg.id)
+                                const editState: ProposeEditState = liveEdits.length > 0
+                                  ? { ...persistedState, resolutions: { ...persistedState.resolutions, ...Object.fromEntries(liveEdits.map((e) => [e.paragraph_id, e.resolution])) } }
+                                  : persistedState
                                 return (
                                   <EditSummaryCard
                                     payload={payload}

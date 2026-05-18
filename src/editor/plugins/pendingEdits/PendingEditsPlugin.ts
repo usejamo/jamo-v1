@@ -2,7 +2,7 @@ import { Extension } from '@tiptap/core'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { DecorationSet } from '@tiptap/pm/view'
 import type { PendingEdit, WorkspaceAction } from '../../../types/workspace'
-import { buildDecorations } from './decorations'
+import { buildDecorations, unregisterGhostContent } from './decorations'
 
 export const PendingEditsPluginKey = new PluginKey<DecorationSet>('pendingEdits')
 
@@ -45,7 +45,14 @@ export const PendingEditsPlugin = Extension.create<PendingEditsOptions>({
 
             // Workspace state changed (SET_PENDING_EDITS, ACCEPT, REJECT etc.) — rebuild from scratch
             if (tr.getMeta(PendingEditsPluginKey) === 'refresh') {
-              const pending = getState().filter((c) => c.resolution === 'pending')
+              const all = getState()
+              // Resolved edits are no longer pending ghosts — drop them from the
+              // leak-detection registry so a later edit to the same paragraph is
+              // not falsely blocked by ghostContentLeakDetected.
+              for (const c of all) {
+                if (c.resolution !== 'pending' && c.after_html) unregisterGhostContent(c.after_html)
+              }
+              const pending = all.filter((c) => c.resolution === 'pending')
               if (pending.length === 0) return DecorationSet.empty
               return buildDecorations(pending, newState.doc, dispatch, sectionKey)
             }
