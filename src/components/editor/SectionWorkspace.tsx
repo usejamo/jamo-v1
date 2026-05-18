@@ -48,7 +48,9 @@ function SectionWorkspaceInner({ proposalId, sections, orgId, editorRefsRef, onA
         autosave_status: 'idle',
         compliance_flags: Array.isArray(s.compliance_flags) ? s.compliance_flags : [],
         compliance_checking: false,
+        issues: {},
         ai_action: null,
+        pending_edits: [],
       }
     }
     dispatch({ type: 'SET_SECTIONS', payload: sectionsMap })

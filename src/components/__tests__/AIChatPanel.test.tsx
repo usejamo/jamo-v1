@@ -90,6 +90,7 @@ function makeEditorRefs(handle?: Partial<SectionEditorHandle>) {
       insertContentAt: vi.fn(),
       getContent: vi.fn(() => '<p></p>'),
       setContent: vi.fn(),
+      materializePendingEdits: vi.fn(),
       ...handle,
     }
     map.set('understanding', fullHandle)

@@ -46,6 +46,7 @@ import type { SectionEditorState } from '../../../types/workspace'
 
 const baseEditorState: SectionEditorState = {
   section_key: 'executive_summary',
+  name: 'Executive Summary',
   content: '<p>Hello world</p>',
   last_saved_content: null,
   is_locked: false,
@@ -53,7 +54,9 @@ const baseEditorState: SectionEditorState = {
   autosave_status: 'idle',
   compliance_flags: [],
   compliance_checking: false,
+  issues: {},
   ai_action: null,
+  pending_edits: [],
 }
 
 describe('SectionEditorBlock', () => {
