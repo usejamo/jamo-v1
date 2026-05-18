@@ -162,7 +162,6 @@ export interface SectionEditorHandle {
   insertContentAt: (pos: number, content: string) => void
   setContent: (html: string) => void
   getContent: () => string
-  applyParagraphPatch: (changes: import('./chat').ProposeEditChange[]) => PatchResult
   /** Dispatches SET_PENDING_EDITS to workspace reducer, triggering PendingEditsPlugin refresh.
    *  Runs ghostContentLeakDetected guard before dispatch — blocks and logs if ghost leak detected.
    *  Both initial propose_edit arrival AND 'Review in editor →' use this as the single entry point. */

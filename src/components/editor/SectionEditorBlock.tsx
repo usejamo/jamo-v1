@@ -19,8 +19,7 @@ import { useSectionAIAction } from '../../hooks/useSectionAIAction'
 import { migratePlaceholders } from '../../lib/migratePlaceholders'
 import { PlaceholderMark } from './extensions/PlaceholderMark'
 import UniqueID from '@tiptap/extension-unique-id'
-import type { ProposeEditChange } from '../../types/chat'
-import type { PatchResult, PendingEdit } from '../../types/workspace'
+import type { PendingEdit } from '../../types/workspace'
 import { PendingEditsPlugin, PendingEditsPluginKey } from '../../editor/plugins/pendingEdits/PendingEditsPlugin'
 import { ghostContentLeakDetected } from '../../editor/plugins/pendingEdits/decorations'
 import { usePendingEditsSync } from '../../hooks/usePendingEditsSync'
@@ -361,93 +360,6 @@ export const SectionEditorBlock = forwardRef<SectionEditorHandle, SectionEditorB
       },
       getContent: () => {
         return editor?.getHTML() ?? ''
-      },
-      applyParagraphPatch(changes: ProposeEditChange[]): PatchResult {
-        if (!editor) return { applied: 0, stale: [] }
-
-        const stale: string[] = []
-        let applied = 0
-        let newParagraphId: string | undefined
-
-        for (const change of changes) {
-          if (change.operation === 'replace' || change.operation === 'delete') {
-            if (!change.paragraph_id) {
-              stale.push('(missing_id)')
-              continue
-            }
-            // Find node by data-id attribute at apply time (D-03 — never cache the reference)
-            let targetPos: number | null = null
-            let targetSize: number | null = null
-            editor.state.doc.descendants((node, pos) => {
-              if (targetPos !== null) return false
-              if (node.attrs?.id === change.paragraph_id) {
-                targetPos = pos
-                targetSize = node.nodeSize
-                return false
-              }
-            })
-
-            if (targetPos === null) {
-              stale.push(change.paragraph_id)
-              continue
-            }
-
-            if (change.operation === 'delete') {
-              const tr = editor.state.tr.delete(targetPos, targetPos + targetSize!)
-              tr.setMeta('addToHistory', true)
-              tr.setMeta('aiApplied', true)
-              editor.view.dispatch(tr)
-              applied++
-            } else if (change.operation === 'replace' && change.after_html) {
-              editor.chain()
-                .command(({ tr }) => { tr.setMeta('aiApplied', true); return true })
-                .insertContentAt(
-                  { from: targetPos, to: targetPos + targetSize! },
-                  change.after_html,
-                  { updateSelection: false }
-                )
-                .run()
-              applied++
-            }
-          } else if (change.operation === 'insert_after') {
-            if (!change.paragraph_id || !change.after_html) {
-              // New paragraph at end of section if no anchor
-              if (change.after_html) {
-                editor.chain()
-                  .command(({ tr }) => { tr.setMeta('aiApplied', true); return true })
-                  .insertContent(change.after_html)
-                  .run()
-                applied++
-              }
-              continue
-            }
-            // Find anchor node
-            let anchorPos: number | null = null
-            let anchorSize: number | null = null
-            editor.state.doc.descendants((node, pos) => {
-              if (anchorPos !== null) return false
-              if (node.attrs?.id === change.paragraph_id) {
-                anchorPos = pos
-                anchorSize = node.nodeSize
-                return false
-              }
-            })
-            if (anchorPos === null) {
-              stale.push(change.paragraph_id)
-              continue
-            }
-            // Insert after anchor — fresh UUID assigned automatically by UniqueID extension
-            editor.chain()
-              .command(({ tr }) => { tr.setMeta('aiApplied', true); return true })
-              .insertContentAt(anchorPos + anchorSize!, change.after_html, { updateSelection: false })
-              .run()
-            // Capture new node's ID so caller can chain sequential insert_after anchors
-            newParagraphId = editor.state.doc.nodeAt(anchorPos + anchorSize!)?.attrs?.id as string | undefined
-            applied++
-          }
-        }
-
-        return { applied, stale, newParagraphId }
       },
       materializePendingEdits,
     }), [materializePendingEdits]) // eslint-disable-line react-hooks/exhaustive-deps
