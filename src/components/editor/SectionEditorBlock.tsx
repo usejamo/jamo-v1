@@ -367,6 +367,7 @@ export const SectionEditorBlock = forwardRef<SectionEditorHandle, SectionEditorB
 
         const stale: string[] = []
         let applied = 0
+        let newParagraphId: string | undefined
 
         for (const change of changes) {
           if (change.operation === 'replace' || change.operation === 'delete') {
@@ -394,21 +395,28 @@ export const SectionEditorBlock = forwardRef<SectionEditorHandle, SectionEditorB
             if (change.operation === 'delete') {
               const tr = editor.state.tr.delete(targetPos, targetPos + targetSize!)
               tr.setMeta('addToHistory', true)
+              tr.setMeta('aiApplied', true)
               editor.view.dispatch(tr)
               applied++
             } else if (change.operation === 'replace' && change.after_html) {
-              editor.commands.insertContentAt(
-                { from: targetPos, to: targetPos + targetSize! },
-                change.after_html,
-                { updateSelection: false }
-              )
+              editor.chain()
+                .command(({ tr }) => { tr.setMeta('aiApplied', true); return true })
+                .insertContentAt(
+                  { from: targetPos, to: targetPos + targetSize! },
+                  change.after_html,
+                  { updateSelection: false }
+                )
+                .run()
               applied++
             }
           } else if (change.operation === 'insert_after') {
             if (!change.paragraph_id || !change.after_html) {
               // New paragraph at end of section if no anchor
               if (change.after_html) {
-                editor.commands.insertContent(change.after_html)
+                editor.chain()
+                  .command(({ tr }) => { tr.setMeta('aiApplied', true); return true })
+                  .insertContent(change.after_html)
+                  .run()
                 applied++
               }
               continue
@@ -429,12 +437,17 @@ export const SectionEditorBlock = forwardRef<SectionEditorHandle, SectionEditorB
               continue
             }
             // Insert after anchor — fresh UUID assigned automatically by UniqueID extension
-            editor.commands.insertContentAt(anchorPos + anchorSize!, change.after_html)
+            editor.chain()
+              .command(({ tr }) => { tr.setMeta('aiApplied', true); return true })
+              .insertContentAt(anchorPos + anchorSize!, change.after_html, { updateSelection: false })
+              .run()
+            // Capture new node's ID so caller can chain sequential insert_after anchors
+            newParagraphId = editor.state.doc.nodeAt(anchorPos + anchorSize!)?.attrs?.id as string | undefined
             applied++
           }
         }
 
-        return { applied, stale }
+        return { applied, stale, newParagraphId }
       },
       materializePendingEdits,
     }), [materializePendingEdits]) // eslint-disable-line react-hooks/exhaustive-deps
