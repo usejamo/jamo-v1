@@ -40,7 +40,7 @@ export function usePendingEditsSync({ pendingEdits, messageId }: UsePendingEdits
           .from('proposal_chats')
           .select('tool_data')
           .eq('id', messageId)
-          .single()
+          .maybeSingle()
 
         if (!data?.tool_data) return
 

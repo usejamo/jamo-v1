@@ -125,46 +125,60 @@ export const SectionEditorBlock = forwardRef<SectionEditorHandle, SectionEditorB
         return
       }
 
-      const editsWithPos: Array<{ edit: typeof newlyAccepted[0]; anchorFrom: number; anchorTo: number }> = []
-      for (const edit of newlyAccepted) {
-        let anchorFrom = -1; let anchorTo = -1
-        editor.state.doc.descendants((node, pos) => {
-          if (node.attrs?.id === edit.paragraph_id) { anchorFrom = pos; anchorTo = pos + node.nodeSize; return false }
-        })
-        if (anchorFrom !== -1) editsWithPos.push({ edit, anchorFrom, anchorTo })
-      }
-
-      if (editsWithPos.length === 0) {
-        prevBatchResolutionsRef.current = Object.fromEntries(currentEdits.map((e) => [e.paragraph_id, e.resolution]))
-        return
-      }
-
-      // Sort descending — process end of doc to start to preserve positions
-      editsWithPos.sort((a, b) => b.anchorFrom - a.anchorFrom)
+      // Apply in the model's intended order (change_index). Anchors are
+      // re-resolved against the evolving transaction so chained inserts — where
+      // edit N+1 is anchored to a paragraph edit N creates — apply correctly.
+      const ordered = [...newlyAccepted].sort(
+        (a, b) => (a.change_index ?? 0) - (b.change_index ?? 0)
+      )
 
       try {
-        let chain = editor.chain().command(({ tr }) => {
-          tr.setMeta('aiApplied', true)
-          tr.setMeta('addToHistory', true)
-          tr.setMeta(PendingEditsPluginKey, 'skip-refresh')
-          return true
-        })
-
-        for (const { edit, anchorFrom, anchorTo } of editsWithPos) {
-          if (edit.operation === 'delete') {
-            chain = chain.deleteRange({ from: anchorFrom, to: anchorTo })
-          } else {
-            const newHtml = edit.after_html ?? ''
-            if (newHtml) {
-              chain = chain.deleteRange({ from: anchorFrom, to: anchorTo }).insertContentAt(anchorFrom, newHtml)
+        editor.chain()
+          .command(({ tr }) => {
+            tr.setMeta('aiApplied', true)
+            tr.setMeta('addToHistory', true)
+            tr.setMeta(PendingEditsPluginKey, 'skip-refresh')
+            return true
+          })
+          .command(({ tr, commands }) => {
+            // cursor tracks the end of the last inserted content, so multiple
+            // edits anchored at the same paragraph stack in change_index order
+            // instead of reversing.
+            let cursor = -1
+            for (const edit of ordered) {
+              let from = -1; let to = -1
+              tr.doc.descendants((node, pos) => {
+                if (node.attrs?.id === edit.paragraph_id) { from = pos; to = pos + node.nodeSize; return false }
+              })
+              if (edit.operation === 'delete') {
+                if (from !== -1) commands.deleteRange({ from, to })
+                continue
+              }
+              const newHtml = edit.after_html ?? ''
+              if (!newHtml) continue
+              if (edit.operation === 'insert_after') {
+                // Insert AFTER the anchor — never delete it. Advance past any
+                // content already inserted in this batch so order is preserved;
+                // fall back to the document end when the anchor is not found.
+                const anchorPos = to !== -1 ? to : tr.doc.content.size
+                const insertAt = cursor !== -1 ? Math.max(anchorPos, cursor) : anchorPos
+                const sizeBefore = tr.doc.content.size
+                commands.insertContentAt(insertAt, newHtml)
+                cursor = insertAt + (tr.doc.content.size - sizeBefore)
+              } else {
+                // replace — swap the anchor paragraph's content in place
+                if (from !== -1) {
+                  commands.deleteRange({ from, to })
+                  commands.insertContentAt(from, newHtml)
+                }
+              }
             }
-          }
-        }
-
-        chain.run()  // ONE run() = one ProseMirror transaction = one undo step (D-03)
+            return true
+          })
+          .run()  // ONE run() = one ProseMirror transaction = one undo step (D-03)
       } catch (err) {
-        // Accept All atomicity: if PM transaction throws, ProseMirror has already aborted it.
-        // Surface error toast. State remains unchanged (reducer already applied, but PM didn't commit).
+        // Accept All atomicity: if the PM transaction throws, ProseMirror has
+        // already aborted it. State remains unchanged.
         console.error('[PendingEdits] Batch accept transaction failed — state unchanged', err)
       }
 
@@ -178,34 +192,54 @@ export const SectionEditorBlock = forwardRef<SectionEditorHandle, SectionEditorB
       if (!editor) return
       const currentEdits = workspaceState.sections[sectionKey]?.pending_edits ?? []
 
-      for (const edit of currentEdits) {
-        const prevRes = prevResolutionsRef.current[edit.paragraph_id]
-        if (prevRes !== 'accepted' && edit.resolution === 'accepted') {
-          // Only handle single-accept here; batch (2+) handled above
-          let anchorFrom = -1; let anchorTo = -1
-          editor.state.doc.descendants((node, pos) => {
-            if (node.attrs?.id === edit.paragraph_id) { anchorFrom = pos; anchorTo = pos + node.nodeSize; return false }
-          })
-          if (anchorFrom === -1) continue  // Stale anchor — skip
+      const newlyAccepted = currentEdits.filter((edit) => {
+        const prev = prevResolutionsRef.current[edit.paragraph_id]
+        return prev !== 'accepted' && edit.resolution === 'accepted'
+      })
 
-          try {
-            if (edit.operation === 'delete') {
+      // Batch case (2+) is handled by the batch-accept effect above — skip here
+      // so edits are not applied twice.
+      if (newlyAccepted.length >= 2) {
+        prevResolutionsRef.current = Object.fromEntries(currentEdits.map((e) => [e.paragraph_id, e.resolution]))
+        return
+      }
+
+      for (const edit of newlyAccepted) {
+        let anchorFrom = -1; let anchorTo = -1
+        editor.state.doc.descendants((node, pos) => {
+          if (node.attrs?.id === edit.paragraph_id) { anchorFrom = pos; anchorTo = pos + node.nodeSize; return false }
+        })
+
+        try {
+          if (edit.operation === 'delete') {
+            if (anchorFrom === -1) continue  // Stale anchor — skip
+            editor.chain()
+              .command(({ tr }) => { tr.setMeta('aiApplied', true); tr.setMeta('addToHistory', true); tr.setMeta(PendingEditsPluginKey, 'skip-refresh'); return true })
+              .deleteRange({ from: anchorFrom, to: anchorTo })
+              .run()
+          } else {
+            const newHtml = edit.after_html ?? ''
+            if (!newHtml) continue
+            if (edit.operation === 'insert_after') {
+              // Insert AFTER the anchor — never delete it. Fall back to the end
+              // of the document when the anchor cannot be found.
+              const insertAt = anchorTo !== -1 ? anchorTo : editor.state.doc.content.size
               editor.chain()
                 .command(({ tr }) => { tr.setMeta('aiApplied', true); tr.setMeta('addToHistory', true); tr.setMeta(PendingEditsPluginKey, 'skip-refresh'); return true })
-                .deleteRange({ from: anchorFrom, to: anchorTo })
+                .insertContentAt(insertAt, newHtml)
                 .run()
             } else {
-              const newHtml = edit.after_html ?? ''
-              if (!newHtml) continue
+              // replace — swap the anchor paragraph's content in place
+              if (anchorFrom === -1) continue  // Stale anchor — skip
               editor.chain()
                 .command(({ tr }) => { tr.setMeta('aiApplied', true); tr.setMeta('addToHistory', true); tr.setMeta(PendingEditsPluginKey, 'skip-refresh'); return true })
                 .deleteRange({ from: anchorFrom, to: anchorTo })
                 .insertContentAt(anchorFrom, newHtml)
                 .run()
             }
-          } catch (err) {
-            console.error('[PendingEdits] Single accept transaction failed', err)
           }
+        } catch (err) {
+          console.error('[PendingEdits] Single accept transaction failed', err)
         }
       }
       prevResolutionsRef.current = Object.fromEntries(currentEdits.map((e) => [e.paragraph_id, e.resolution]))

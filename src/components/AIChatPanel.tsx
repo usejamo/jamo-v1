@@ -469,6 +469,7 @@ export default function AIChatPanel({
               // Persist tool result message to DB (fire-and-forget, silent fail)
               // D-49: section_target_id must be set on ALL messages — walkthrough-driven and queue-triggered messages must include this field.
               supabase.from('proposal_chats').insert({
+                id: newMsgId,
                 proposal_id: proposalId,
                 org_id: orgId,
                 role: 'assistant' as const,
