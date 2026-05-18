@@ -23,6 +23,23 @@ import type { PendingEdit } from '../../types/workspace'
 import { PendingEditsPlugin, PendingEditsPluginKey } from '../../editor/plugins/pendingEdits/PendingEditsPlugin'
 import { ghostContentLeakDetected } from '../../editor/plugins/pendingEdits/decorations'
 import { usePendingEditsSync } from '../../hooks/usePendingEditsSync'
+import { DOMParser as PMDOMParser, type Schema } from '@tiptap/pm/model'
+
+/**
+ * ProseMirror content size that an after_html fragment occupies once inserted.
+ * Used to position consecutive single-accepts of insert_after edits anchored to
+ * the same paragraph — data-id matching is unreliable because the model often
+ * omits data-id attributes and UniqueID then assigns fresh ones on insert.
+ */
+function estimateContentSize(html: string | undefined, schema: Schema): number {
+  if (!html) return 0
+  try {
+    const body = new DOMParser().parseFromString(html, 'text/html').body
+    return PMDOMParser.fromSchema(schema).parseSlice(body).content.size
+  } catch {
+    return 0
+  }
+}
 
 interface SectionEditorBlockProps {
   sectionKey: string
@@ -182,6 +199,10 @@ export const SectionEditorBlock = forwardRef<SectionEditorHandle, SectionEditorB
         console.error('[PendingEdits] Batch accept transaction failed — state unchanged', err)
       }
 
+      // Rebuild decorations against the post-accept doc — the plugin-refresh
+      // effect ran before this accept committed, so any edit whose anchor was
+      // just created would otherwise never get its ghost widget.
+      editor.view.dispatch(editor.state.tr.setMeta(PendingEditsPluginKey, 'refresh'))
       prevBatchResolutionsRef.current = Object.fromEntries(currentEdits.map((e) => [e.id, e.resolution]))
     }, [editor, workspaceState.sections[sectionKey]?.pending_edits]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -223,7 +244,25 @@ export const SectionEditorBlock = forwardRef<SectionEditorHandle, SectionEditorB
             if (edit.operation === 'insert_after') {
               // Insert AFTER the anchor — never delete it. Fall back to the end
               // of the document when the anchor cannot be found.
-              const insertAt = anchorTo !== -1 ? anchorTo : editor.state.doc.content.size
+              let insertAt = anchorTo !== -1 ? anchorTo : editor.state.doc.content.size
+              if (anchorTo !== -1) {
+                // Single accepts are separate transactions, so advance past content
+                // already inserted by lower-change_index sibling insert_after edits
+                // anchored to the same paragraph — otherwise accepting one at a time
+                // stacks them in reverse order. Offset by the inserted size of each
+                // such sibling (summing only lower change_index keeps it correct
+                // regardless of the order the user accepts in).
+                let offset = 0
+                for (const sib of currentEdits) {
+                  if (sib.id === edit.id) continue
+                  if (sib.operation !== 'insert_after') continue
+                  if (sib.paragraph_id !== edit.paragraph_id) continue
+                  if (sib.resolution !== 'accepted') continue
+                  if ((sib.change_index ?? 0) >= (edit.change_index ?? 0)) continue
+                  offset += estimateContentSize(sib.after_html, editor.schema)
+                }
+                insertAt = anchorTo + offset
+              }
               editor.chain()
                 .command(({ tr }) => { tr.setMeta('aiApplied', true); tr.setMeta('addToHistory', true); tr.setMeta(PendingEditsPluginKey, 'skip-refresh'); return true })
                 .insertContentAt(insertAt, newHtml)
@@ -241,6 +280,11 @@ export const SectionEditorBlock = forwardRef<SectionEditorHandle, SectionEditorB
         } catch (err) {
           console.error('[PendingEdits] Single accept transaction failed', err)
         }
+      }
+      if (newlyAccepted.length > 0) {
+        // Rebuild decorations against the post-accept doc so a chained edit whose
+        // anchor was just created gets its ghost widget.
+        editor.view.dispatch(editor.state.tr.setMeta(PendingEditsPluginKey, 'refresh'))
       }
       prevResolutionsRef.current = Object.fromEntries(currentEdits.map((e) => [e.id, e.resolution]))
     }, [editor, workspaceState.sections[sectionKey]?.pending_edits]) // eslint-disable-line react-hooks/exhaustive-deps
