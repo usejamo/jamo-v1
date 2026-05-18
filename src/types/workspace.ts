@@ -153,8 +153,9 @@ export interface WorkspaceState {
 }
 
 export interface PatchResult {
-  applied: number   // count of successfully applied changes
-  stale: string[]   // paragraph_ids that were not found in the doc
+  applied: number       // count of successfully applied changes
+  stale: string[]       // paragraph_ids that were not found in the doc
+  newParagraphId?: string  // ID of the most recently inserted paragraph (insert_after only)
 }
 
 export interface SectionEditorHandle {

@@ -13,6 +13,8 @@ import { DocumentList } from '../components/DocumentList'
 import { useProposals } from '../context/ProposalsContext'
 import { useProposalModal } from '../context/ProposalModalContext'
 import { useAuth } from '../context/AuthContext'
+import { useSidebar } from '../context/SidebarContext'
+import Sidebar from '../components/Sidebar'
 import { useProposalGeneration } from '../hooks/useProposalGeneration'
 import { GenerationHeader } from '../components/GenerationHeader'
 import { GenerationControls } from '../components/GenerationControls'
@@ -20,7 +22,7 @@ import type { GenerateSectionPayloadV2 } from '../types/generation'
 import type { SectionEditorHandle, ComplianceFlag } from '../types/workspace'
 import SectionWorkspace from '../components/editor/SectionWorkspace'
 import { supabase } from '../lib/supabase'
-import { detectGaps } from '../utils/chatContext'
+
 import { exportDocx, ExportBlockedError } from '../lib/exportDocx'
 import type { ExportSection, PlaceholderItem } from '../lib/exportDocx'
 import { ExportBlockedModal } from '../components/ExportBlockedModal'
@@ -261,6 +263,7 @@ export default function ProposalDetail() {
   const { proposals, loading: proposalsLoading, updateStatus } = useProposals()
   const { openModal, showToast } = useProposalModal()
   const { profile, user } = useAuth()
+  const { setSidebarNode } = useSidebar()
   const proposal = proposals.find(p => p.id === id)
 
   // Fetch proposal_sections from Supabase for SectionWorkspace
@@ -319,8 +322,14 @@ export default function ProposalDetail() {
   // Phase 9: editor refs for chat injection
   const editorRefsMap = useRef<Map<string, SectionEditorHandle>>(new Map())
   const consistencyCheckRef = useRef<(() => void) | null>(null)
-  const [gapCount, setGapCount] = useState(0)
+  const [pendingActionsCount, setPendingActionsCount] = useState(0)
   const [activeSectionKey, setActiveSectionKey] = useState<string | null>(null)
+
+  // Wire pendingActionsCount into Sidebar badge via SidebarContext
+  useEffect(() => {
+    setSidebarNode(<Sidebar pendingActionsCount={pendingActionsCount} />)
+    return () => setSidebarNode(null)
+  }, [pendingActionsCount, setSidebarNode])
 
   const { state: genState, dispatch: genDispatch, generateAll, regenerateSection, stopGeneration } = useProposalGeneration(id ?? '')
 
@@ -363,21 +372,7 @@ export default function ProposalDetail() {
     refetchSections()
   }, [id, genState?.completedCount, genState?.isGenerating, refetchSections])
 
-  // Gap analysis — fires whenever proposalSections updates (after load or after regen)
-  useEffect(() => {
-    if (genState?.isGenerating) return
-    if (!proposalSections?.length) return
-
-    const sections = proposalSections.map(s => ({
-      section_key: s.section_key,
-      content: s.content ?? '',
-      status: s.status ?? '',
-    }))
-    const gaps = detectGaps(sections)
-    setGapCount(gaps.length)
-  }, [genState?.isGenerating, proposalSections])
-
-  const isStreamingMode = genState.isGenerating
+const isStreamingMode = genState.isGenerating
   const existingDocs: MockDoc[] = id ? (docsByProposal[id] ?? []) : []
 
   const rfpDoc = existingDocs.find(d => d.type === 'rfp')?.name ?? 'RFP Document'
@@ -754,10 +749,10 @@ export default function ProposalDetail() {
         sections={proposalSections ?? []}
         editorRefs={editorRefsMap}
         activeSectionKey={activeSectionKey}
-        gapCount={gapCount}
-        onGapsConsumed={() => setGapCount(0)}
         onEditAccepted={refetchSections}
+        onPendingActionsCountChange={setPendingActionsCount}
         sectionTitles={sectionTitles}
+        onSectionFocusChange={setActiveSectionKey}
       />
 
     </div>

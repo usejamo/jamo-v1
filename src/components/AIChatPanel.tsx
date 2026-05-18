@@ -1,19 +1,21 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../lib/supabase'
-import type { ChatMessage, GapResult, ProposeEditPayload, ProposeEditState, AnswerWithCitationsPayload, CompliancePayload, AskUserPayload } from '../types/chat'
+import type { ChatMessage, ProposeEditPayload, ProposeEditState, AnswerWithCitationsPayload, CompliancePayload, AskUserPayload } from '../types/chat'
 import type { ToolDataEnvelope, ChatMessageType } from '../types/chat'
+import type { PendingActionItem, ActiveTask } from '../types/chat'
 import type { Json } from '../types/database.types'
 import { ComplianceCard } from './chat/ComplianceCard'
 import { AskUserCard } from './chat/AskUserCard'
 import type { SectionEditorHandle, PendingEdit, ChangeResolution } from '../types/workspace'
-import { buildContextPayload, detectGaps } from '../utils/chatContext'
-// DiffPreview import sites enumerated before deletion: grep -r "DiffPreview" src/ → found 1 site: src/components/AIChatPanel.tsx (this file). No other import sites.
-// DiffPreview has been replaced by EditSummaryCard in this file.
+import { buildContextPayload } from '../utils/chatContext'
 import { EditSummaryCard } from './chat/EditSummaryCard'
 import { CitationsBlock } from './chat/CitationsBlock'
 import { ToolStatusLabel } from './chat/ToolStatusLabel'
 import { useSectionWorkspace } from '../context/SectionWorkspaceContext'
+import { ActionQueue } from './chat/ActionQueue'
+import { WalkthroughProgress } from './chat/WalkthroughProgress'
+import { useAuth } from '../context/AuthContext'
 
 interface Props {
   proposalId: string
@@ -22,10 +24,11 @@ interface Props {
   sections: Array<{ section_key: string; content: string; title?: string }>
   editorRefs: React.MutableRefObject<Map<string, SectionEditorHandle>>
   activeSectionKey?: string | null
-  gapCount: number
-  onGapsConsumed: () => void
   onEditAccepted?: () => void
   sectionTitles: Record<string, string>
+  onSectionFocusChange?: (key: string | null) => void
+  /** Callback to expose pendingActions count to parent (for Sidebar badge) */
+  onPendingActionsCountChange?: (count: number) => void
 }
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
@@ -48,7 +51,7 @@ function SparkleIcon({ className = 'w-4 h-4' }: { className?: string }) {
 
 // ── Spectrum sparkle button (ROYGBIV pulse) ───────────────────────────────────
 
-function SpectrumSparkle({ onToggle, gapCount }: { onToggle: () => void; gapCount?: number }) {
+function SpectrumSparkle({ onToggle, pendingActionsCount }: { onToggle: () => void; pendingActionsCount?: number }) {
   return (
     <div className="relative">
       <motion.div
@@ -69,9 +72,9 @@ function SpectrumSparkle({ onToggle, gapCount }: { onToggle: () => void; gapCoun
           <SparkleIcon className="w-3.5 h-3.5 text-red-500" />
         </div>
       </motion.div>
-      {gapCount != null && gapCount > 0 && (
+      {pendingActionsCount != null && pendingActionsCount > 0 && (
         <span className="absolute -top-1 -right-1 min-w-[16px] h-4 rounded-full bg-orange-500 text-white text-[10px] font-bold flex items-center justify-center px-1 animate-pulse">
-          {gapCount}
+          {pendingActionsCount}
         </span>
       )}
     </div>
@@ -94,14 +97,14 @@ function AuroraBorder({ children, fast, className = '' }: {
 
 // ── Rail (collapsed) view ─────────────────────────────────────────────────────
 
-function Rail({ onExpand, processing, gapCount }: { onExpand: () => void; processing: boolean; gapCount: number }) {
+function Rail({ onExpand, processing, pendingActionsCount }: { onExpand: () => void; processing: boolean; pendingActionsCount: number }) {
   return (
     <div
       onClick={onExpand}
       title="Open jamo AI (⌘J)"
       className="flex flex-col items-center h-full pt-4 pb-3 gap-3 cursor-pointer hover:bg-black/[0.03] transition-colors"
     >
-      <SpectrumSparkle onToggle={onExpand} gapCount={gapCount} />
+      <SpectrumSparkle onToggle={onExpand} pendingActionsCount={pendingActionsCount} />
 
       {/* Pulsing dot + label */}
       <div className="mt-auto mb-2 flex flex-col items-center gap-1.5">
@@ -127,24 +130,115 @@ export default function AIChatPanel({
   sections,
   editorRefs,
   activeSectionKey,
-  gapCount,
-  onGapsConsumed,
   onEditAccepted: _onEditAccepted,
   sectionTitles,
+  onSectionFocusChange: _onSectionFocusChange,
+  onPendingActionsCountChange,
 }: Props) {
   const { state: workspaceState, dispatch: workspaceDispatch } = useSectionWorkspace()
+  const { user } = useAuth()
+  const userId = user?.id ?? ''
+
   const [expanded, setExpanded] = useState(true)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [streamingContent, setStreamingContent] = useState('')
   const [isStreaming, setIsStreaming] = useState(false)
   const [currentToolName, setCurrentToolName] = useState<string | null>(null)
-  const [gapMessagesInjected, setGapMessagesInjected] = useState(false)
-  const injectedGapCountRef = useRef(0)
-  const gapInjectionStartedRef = useRef(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const lastMessageCountRef = useRef<number>(0)
+
+  // ── Part B state ───────────────────────────────────────────────────────────
+  const [pendingActions, setPendingActions] = useState<PendingActionItem[]>([])
+  const [activeTask, setActiveTask] = useState<ActiveTask | null>(null)
+  const [crossTabUpdate, setCrossTabUpdate] = useState(false)
+  const [isAnalyzing, setIsAnalyzing] = useState(false)
+
+  // Notify parent of pendingActions count changes (for Sidebar badge)
+  useEffect(() => {
+    const activeCount = pendingActions.filter(a => !a.dismissed).length
+    onPendingActionsCountChange?.(activeCount)
+  }, [pendingActions, onPendingActionsCountChange])
+
+  // ── Mount fetch from chat_sessions (direct column, D-45) ──────────────────
+  useEffect(() => {
+    if (!proposalId || !userId) return
+    supabase
+      .from('chat_sessions')
+      .select('pending_actions, active_task')  // active_task is a DIRECT column (not metadata->active_task)
+      .eq('proposal_id', proposalId)
+      .eq('user_id', userId)  // D-45: per-user session
+      .single()
+      .then(({ data }) => {
+        if (data?.pending_actions) setPendingActions(data.pending_actions as unknown as PendingActionItem[])
+        if (data?.active_task) setActiveTask(data.active_task as unknown as ActiveTask)
+      })
+  }, [proposalId, userId])
+
+  // ── Realtime subscription contract ────────────────────────────────────────
+  // Table: chat_sessions
+  // Filter: proposal_id=eq.${proposalId} (server-side filter)
+  // Event: UPDATE only
+  // Auth: Supabase client uses user's JWT — RLS enforces row-level isolation
+  // Client-side guard: if (row.user_id && row.user_id !== userId) return (belt-and-suspenders)
+  // Cleanup: supabase.removeChannel(channel) on component unmount
+  // Reconnect: Supabase client handles automatically
+  useEffect(() => {
+    if (!proposalId || !userId) return
+
+    const channel = supabase
+      .channel(`chat_sessions:${proposalId}:${userId}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'chat_sessions',
+        filter: `proposal_id=eq.${proposalId}`,  // server-side filter
+      }, (payload) => {
+        const row = payload.new as {
+          pending_actions?: PendingActionItem[]
+          active_task?: ActiveTask | null
+          user_id?: string
+        }
+
+        // Belt-and-suspenders: discard updates for other users in same org
+        if (row.user_id && row.user_id !== userId) return
+
+        if (row.pending_actions !== undefined) setPendingActions(row.pending_actions ?? [])
+
+        if ('active_task' in row) {
+          const newTask = row.active_task ?? null
+          // Cross-tab update: if active_task changed and we didn't initiate it, show banner
+          setActiveTask((prev) => {
+            if (prev?.last_updated !== newTask?.last_updated && newTask !== null) {
+              setCrossTabUpdate(true)
+            }
+            return newTask
+          })
+        }
+      })
+      .subscribe()
+
+    // Cleanup: unsubscribe on unmount — Supabase client handles reconnect automatically
+    return () => { void supabase.removeChannel(channel) }
+  }, [proposalId, userId])
+
+  // ── In-flight analysis guard (is_analyzing) ───────────────────────────────
+  const triggerAnalysis = useCallback(async (sectionSummaries: Array<{ section_key: string; content: string }>) => {
+    if (isAnalyzing) return  // In-flight guard — prevents overlapping runs
+    setIsAnalyzing(true)
+    try {
+      await supabase.functions.invoke('analyze-proposal-gaps', {
+        body: { proposal_id: proposalId, sections: sectionSummaries, run_id: globalThis.crypto.randomUUID() }
+        // Note: user_id NOT in body — edge function derives from JWT
+      })
+    } finally {
+      setIsAnalyzing(false)
+    }
+  }, [isAnalyzing, proposalId])
+
+  // Expose triggerAnalysis for potential future use (suppresses unused warning)
+  void triggerAnalysis
 
   // Load chat history from Supabase on mount
   useEffect(() => {
@@ -177,12 +271,12 @@ export default function AIChatPanel({
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'j') {
         e.preventDefault()
-        handlePanelToggle()
+        setExpanded(prev => !prev)
       }
     }
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [])
 
   // Auto-scroll only when message count increases (scroll bug fix — D-scroll)
   useEffect(() => {
@@ -206,101 +300,6 @@ export default function AIChatPanel({
     if (expanded) setTimeout(() => inputRef.current?.focus(), 320)
   }, [expanded])
 
-  // Reset injection flag only when gap count genuinely changes from what was last injected.
-  // Do NOT track gapCount resets to 0 (from onGapsConsumed) — those are cosmetic badge clears,
-  // not new gaps. Comparing against injectedGapCountRef (set at injection time) prevents
-  // re-injection when repeated re-fetches bring gapCount back from 0 to the same N.
-  useEffect(() => {
-    if (gapCount > 0 && gapCount !== injectedGapCountRef.current) {
-      setGapMessagesInjected(false)
-      gapInjectionStartedRef.current = false
-    }
-  }, [gapCount])
-
-  // Inject gap messages immediately if panel is already open when gaps are detected
-  useEffect(() => {
-    if (expanded && gapCount > 0 && !gapMessagesInjected) {
-      injectGapMessages()
-      setGapMessagesInjected(true)
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [expanded, gapCount, gapMessagesInjected])
-
-  // ── Gap message injection ──────────────────────────────────────────────────
-
-  function formatGapMessage(gap: GapResult): string {
-    if (gap.reason === 'placeholder') {
-      return `**${gap.sectionTitle}** has an unfilled placeholder: "${gap.detail}". What should go here?`
-    }
-    if (gap.reason === 'thin') {
-      return `**${gap.sectionTitle}** looks thin (${gap.detail}). Want me to expand it?`
-    }
-    return `**${gap.sectionTitle}** failed to generate. Want me to try again?`
-  }
-
-  function injectGapMessages() {
-    if (gapInjectionStartedRef.current) return
-    gapInjectionStartedRef.current = true
-    const gaps = detectGaps(
-      sections.map(s => ({ section_key: s.section_key, content: s.content, status: '' }))
-    )
-    if (gaps.length === 0) return
-
-    const capped = gaps.slice(0, 2)
-    const hasMore = gaps.length > 2
-    const stamp = Date.now()
-
-    const gapMsgs: ChatMessage[] = capped.map((gap, i) => ({
-      id: `gap-${i}-${stamp}`,
-      role: 'assistant' as const,
-      content: formatGapMessage(gap),
-      messageType: 'gap' as const,
-    }))
-
-    if (hasMore) {
-      const remainCount = gaps.length - 2
-      gapMsgs.push({
-        id: `gap-consolidate-${stamp}`,
-        role: 'assistant' as const,
-        content: `There ${remainCount === 1 ? 'is' : 'are'} also ${remainCount} smaller gap${remainCount === 1 ? '' : 's'} — want me to walk through those next?`,
-        messageType: 'gap' as const,
-      })
-    }
-
-    const openingMessage: ChatMessage = {
-      id: `gap-intro-${stamp}`,
-      role: 'assistant' as const,
-      content: `I found ${gaps.length} thing${gaps.length === 1 ? '' : 's'} worth addressing before you finalize this.`,
-      messageType: 'gap' as const,
-    }
-
-    injectedGapCountRef.current = gaps.length
-    setMessages(prev => [...prev, openingMessage, ...gapMsgs])
-    onGapsConsumed()
-  }
-
-  function handlePanelToggle() {
-    setExpanded(prev => {
-      const next = !prev
-      if (next && gapCount > 0 && !gapMessagesInjected) {
-        // Schedule gap injection after state update
-        setTimeout(() => {
-          injectGapMessages()
-          setGapMessagesInjected(true)
-        }, 0)
-      }
-      return next
-    })
-  }
-
-  function handlePanelOpen() {
-    if (gapCount > 0 && !gapMessagesInjected) {
-      injectGapMessages()
-      setGapMessagesInjected(true)
-    }
-    setExpanded(true)
-  }
-
   // ── Persist tool_data state mutations back to DB ───────────────────────────
 
   const persistToolDataState = useCallback(async (messageId: string, newState: Record<string, unknown>) => {
@@ -318,9 +317,9 @@ export default function AIChatPanel({
     }
   }, [messages])
 
-  // ── Live streaming handleSubmit ────────────────────────────────────────────
+  // ── Live streaming handleSendMessage ──────────────────────────────────────
 
-  const handleSubmit = useCallback(async (messageText?: string) => {
+  const handleSendMessage = useCallback(async (messageText?: string, _ctaPayload?: Record<string, unknown>) => {
     const text = messageText ?? input.trim()
     if (!text || isStreaming) return
     setInput('')
@@ -347,6 +346,7 @@ export default function AIChatPanel({
     setStreamingContent('')
 
     // Persist user message
+    // D-49: section_target_id must be set on ALL messages — walkthrough-driven and queue-triggered messages must include this field.
     const { error: userInsertError } = await supabase.from('proposal_chats').insert({
       proposal_id: proposalId,
       org_id: orgId,
@@ -467,6 +467,7 @@ export default function AIChatPanel({
               }
 
               // Persist tool result message to DB (fire-and-forget, silent fail)
+              // D-49: section_target_id must be set on ALL messages — walkthrough-driven and queue-triggered messages must include this field.
               supabase.from('proposal_chats').insert({
                 proposal_id: proposalId,
                 org_id: orgId,
@@ -522,6 +523,8 @@ export default function AIChatPanel({
     }
   }, [input, isStreaming, draftGenerated, proposalId, orgId, activeSectionKey, sections, messages, sectionTitles])
 
+  const pendingActionsCount = pendingActions.filter(a => !a.dismissed).length
+
   return (
     // Outer shell: drives the width animation and acts as the aurora border host
     <motion.div
@@ -545,7 +548,7 @@ export default function AIChatPanel({
                 transition={{ duration: 0.15 }}
                 className="h-full"
               >
-                <Rail onExpand={handlePanelOpen} processing={isStreaming} gapCount={gapCount} />
+                <Rail onExpand={() => setExpanded(true)} processing={isStreaming} pendingActionsCount={pendingActionsCount} />
               </motion.div>
             ) : (
               <motion.div
@@ -558,7 +561,7 @@ export default function AIChatPanel({
               >
                 {/* Header */}
                 <div className="flex items-center gap-2.5 px-4 py-3.5 border-b border-white/60 shrink-0">
-                  <SpectrumSparkle onToggle={() => setExpanded(false)} />
+                  <SpectrumSparkle onToggle={() => setExpanded(false)} pendingActionsCount={pendingActionsCount} />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-gray-900 leading-none">jamo AI</p>
                     <p className="text-xs text-gray-400 mt-0.5">Proposal assistant</p>
@@ -582,12 +585,62 @@ export default function AIChatPanel({
                   </div>
                 </div>
 
+                {/* Active walkthrough header */}
+                {activeTask && activeTask.status === 'active' && (
+                  <WalkthroughProgress
+                    activeTask={activeTask}
+                    onStopWalkthrough={() => {
+                      setActiveTask(null)
+                      void supabase.from('chat_sessions')
+                        .update({ active_task: { ...activeTask, status: 'discarded', stage: 'discarded', completed_at: new Date().toISOString() } as unknown as Json })
+                        .eq('proposal_id', proposalId)
+                        .eq('user_id', userId)  // D-45
+                    }}
+                  />
+                )}
+
+                {/* Cross-tab update banner */}
+                {crossTabUpdate && (
+                  <div className="bg-blue-50 border-b border-blue-200 px-3 py-2 flex items-center justify-between">
+                    <span className="text-xs text-blue-700">Walkthrough updated in another tab.</span>
+                    <button
+                      className="text-[10px] text-blue-500 hover:text-blue-700"
+                      onClick={() => setCrossTabUpdate(false)}
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                )}
+
+                {/* Action Queue — above chat history */}
+                <ActionQueue
+                  actions={pendingActions.filter(a => !a.dismissed)}
+                  activeTaskSectionTitle={activeTask?.section_title ?? null}
+                  isWalkthroughActive={!!activeTask && activeTask.status === 'active'}
+                  onCtaClick={(action) => {
+                    handleSendMessage(`[Action: ${action.cta_tool}] ${action.title}`, action.cta_payload)
+                  }}
+                  onDismiss={(actionId) => {
+                    setPendingActions(prev => prev.map(a => a.id === actionId ? { ...a, dismissed: true } : a))
+                  }}
+                  onUndoDismiss={(actionId) => {
+                    setPendingActions(prev => prev.map(a => a.id === actionId ? { ...a, dismissed: false } : a))
+                  }}
+                  onContinueWalkthrough={() => {
+                    const lastAskUserMsg = [...messages].reverse().find(m => m.messageType === 'tool-ask-user')
+                    if (lastAskUserMsg) {
+                      document.getElementById(`msg-${lastAskUserMsg.id}`)?.scrollIntoView({ behavior: 'smooth' })
+                    }
+                  }}
+                />
+
                 {/* Messages */}
                 <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2.5 min-h-0">
                   <AnimatePresence initial={false}>
                     {messages.map((msg, i) => (
                       <motion.div
                         key={msg.id}
+                        id={`msg-${msg.id}`}
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.22, delay: i === 0 ? 0 : 0 }}
@@ -809,7 +862,7 @@ export default function AIChatPanel({
                 <div className="px-3 pb-2 flex flex-wrap gap-1.5 shrink-0">
                   {activeSectionKey && (
                     <button
-                      onClick={() => handleSubmit('Explain this section')}
+                      onClick={() => handleSendMessage('Explain this section')}
                       disabled={isStreaming}
                       className="text-xs text-gray-600 bg-white/70 hover:bg-white border border-gray-200 hover:border-gray-300 px-2.5 py-1 rounded-full transition-colors disabled:opacity-40"
                     >
@@ -817,14 +870,14 @@ export default function AIChatPanel({
                     </button>
                   )}
                   <button
-                    onClick={() => handleSubmit('What gaps should I address?')}
+                    onClick={() => handleSendMessage('What gaps should I address?')}
                     disabled={isStreaming}
                     className="text-xs text-gray-600 bg-white/70 hover:bg-white border border-gray-200 hover:border-gray-300 px-2.5 py-1 rounded-full transition-colors disabled:opacity-40"
                   >
                     Review gaps
                   </button>
                   <button
-                    onClick={() => handleSubmit('How can I strengthen this proposal?')}
+                    onClick={() => handleSendMessage('How can I strengthen this proposal?')}
                     disabled={isStreaming}
                     className="text-xs text-gray-600 bg-white/70 hover:bg-white border border-gray-200 hover:border-gray-300 px-2.5 py-1 rounded-full transition-colors disabled:opacity-40"
                   >
@@ -841,11 +894,11 @@ export default function AIChatPanel({
                       placeholder="Ask jamo to edit..."
                       value={input}
                       onChange={e => setInput(e.target.value)}
-                      onKeyDown={e => { if (e.key === 'Enter') handleSubmit(input) }}
+                      onKeyDown={e => { if (e.key === 'Enter') handleSendMessage(input) }}
                       disabled={isStreaming}
                     />
                     <button
-                      onClick={() => handleSubmit(input)}
+                      onClick={() => handleSendMessage(input)}
                       disabled={!input.trim() || isStreaming}
                       className="w-6 h-6 p-0 rounded-lg bg-gray-900 hover:bg-gray-700 disabled:opacity-30 flex items-center justify-center transition-colors shrink-0"
                     >

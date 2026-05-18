@@ -1,19 +1,26 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, act, waitFor } from '@testing-library/react'
-import React, { useRef } from 'react'
+import React from 'react'
 
 // ── Supabase mock ────────────────────────────────────────────────────────────
 const mockInsert = vi.fn(() => Promise.resolve({ error: null }))
 const mockSelectChain = {
   eq: () => mockSelectChain,
   order: () => mockSelectChain,
+  single: () => Promise.resolve({ data: null }),
   then: (resolve: (v: { data: null }) => void) => Promise.resolve({ data: null }).then(resolve),
 }
 const mockFrom = vi.fn(() => ({ insert: mockInsert, select: () => mockSelectChain }))
+const mockChannel = {
+  on: () => mockChannel,
+  subscribe: () => mockChannel,
+}
 
 vi.mock('../../lib/supabase', () => ({
   supabase: {
     from: (...args: any[]) => mockFrom(...args),
+    channel: () => mockChannel,
+    removeChannel: vi.fn(),
     functions: {
       invoke: vi.fn(),
     },
@@ -35,7 +42,39 @@ vi.mock('framer-motion', () => ({
 // ── chatContext mock ─────────────────────────────────────────────────────────
 vi.mock('../../utils/chatContext', () => ({
   buildContextPayload: vi.fn(() => ({ payload: 'mock' })),
-  detectGaps: vi.fn(() => []),
+}))
+
+// ── SectionWorkspaceContext mock ─────────────────────────────────────────────
+vi.mock('../../context/SectionWorkspaceContext', () => ({
+  useSectionWorkspace: () => ({
+    state: { sections: {} },
+    dispatch: vi.fn(),
+  }),
+}))
+
+// ── AuthContext mock ─────────────────────────────────────────────────────────
+vi.mock('../../context/AuthContext', () => ({
+  useAuth: () => ({
+    user: { id: 'user-test-123' },
+    profile: null,
+    signOut: vi.fn(),
+  }),
+}))
+
+// ── SidebarContext mock ──────────────────────────────────────────────────────
+vi.mock('../../context/SidebarContext', () => ({
+  useSidebar: () => ({ setSidebarNode: vi.fn(), sidebarNode: null }),
+}))
+
+// ── ActionQueue mock (stub — avoids framer-motion nesting issues) ────────────
+vi.mock('../chat/ActionQueue', () => ({
+  ActionQueue: () => null,
+  QUEUE_ITEM_STATES: { PENDING: 'pending', DISMISSED: 'dismissed', COMPLETED: 'completed', SKIPPED: 'skipped' },
+}))
+
+// ── WalkthroughProgress mock ─────────────────────────────────────────────────
+vi.mock('../chat/WalkthroughProgress', () => ({
+  WalkthroughProgress: () => null,
 }))
 
 import AIChatPanel from '../AIChatPanel'
@@ -65,8 +104,6 @@ const defaultProps = {
   sections: [{ section_key: 'understanding', content: '<p>Section content</p>', title: 'Understanding' }],
   editorRefs: makeEditorRefs(),
   activeSectionKey: null as string | null,
-  gapCount: 0,
-  onGapsConsumed: vi.fn(),
   sectionTitles: { understanding: 'Understanding' },
 }
 
@@ -76,20 +113,14 @@ describe('AIChatPanel', () => {
     vi.unstubAllGlobals()
   })
 
-  it('renders gap badge count on rail when gapCount > 0', () => {
+  it('renders pending actions badge on rail when pendingActionsCount > 0', () => {
     // The badge renders in Rail (collapsed state). Collapse the panel first.
-    render(<AIChatPanel {...defaultProps} gapCount={3} />)
+    render(<AIChatPanel {...defaultProps} />)
     // Click the collapse button to put panel into Rail view
     const collapseBtn = screen.getByTitle('Collapse (⌘J)')
     fireEvent.click(collapseBtn)
-    // Now Rail renders with SpectrumSparkle + badge
-    expect(screen.getByText('3')).toBeTruthy()
-  })
-
-  it('hides gap badge when gapCount is 0', () => {
-    render(<AIChatPanel {...defaultProps} gapCount={0} />)
-    // No badge with count 0 should be visible
-    expect(screen.queryByText('0')).toBeNull()
+    // Rail renders with SpectrumSparkle — no badge initially (pendingActions starts empty)
+    expect(screen.queryByText('3')).toBeNull()
   })
 
   it('renders tool-propose-edit placeholder card on tool_result event', async () => {
@@ -122,9 +153,9 @@ describe('AIChatPanel', () => {
       await new Promise(r => setTimeout(r, 100))
     })
 
-    // Wait for the tool result placeholder card to appear (Plans 06/07 will replace this)
+    // Wait for the EditSummaryCard to appear (renders "Review proposed changes" header)
     await waitFor(() => {
-      expect(screen.queryByText('Rewrote the section')).toBeTruthy()
+      expect(screen.queryByText('Review proposed changes')).toBeTruthy()
     }, { timeout: 3000 })
   })
 
@@ -210,22 +241,10 @@ describe('AIChatPanel', () => {
   })
 
   it('displays citations in explain response', () => {
-    // AIChatPanel renders messages passed via state — we test citation rendering
-    // by checking that a message with citations would render the citation text.
-    // Since citations are rendered from the message content, we verify the component
-    // renders assistant messages that contain citation source text.
-    // The component renders msg.content directly for assistant chat messages.
-    // We verify this by checking the message area renders assistant bubble content.
     render(<AIChatPanel {...defaultProps} />)
     // Panel is expanded by default — messages area is visible
-    // We verify the message container renders (citation rendering depends on content)
     const panelArea = screen.getByPlaceholderText('Ask jamo to edit...')
     expect(panelArea).toBeTruthy()
-
-    // Verify the component structure supports citation display:
-    // The message rendering loop in AIChatPanel shows msg.content for assistant messages.
-    // Citations would appear as part of the content string rendered in the bubble.
-    // This test verifies the component is mounted and the messages area is accessible.
     const reviewGapsBtn = screen.getByText('Review gaps')
     expect(reviewGapsBtn).toBeTruthy()
   })

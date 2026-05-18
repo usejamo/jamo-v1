@@ -153,7 +153,7 @@ export interface ChatWithJamoRequest {
   other_sections: Array<{
     key: string
     title: string                  // human-readable
-    summary: string                // first 200 chars plain text
+    content: string                // full HTML with paragraph data-id attributes
   }>
   chat_history: Array<{
     role: 'user' | 'assistant'

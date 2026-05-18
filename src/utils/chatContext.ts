@@ -28,11 +28,17 @@ export function sectionKeyToTitle(
 }
 
 /**
- * Detect content gaps in proposal sections.
+ * @deprecated Replaced by server-side `analyze-proposal-gaps` edge function in Phase 14.2.
+ * Kept behind VITE_ENABLE_CLIENT_GAPS=true feature flag.
+ * detectGaps() call sites found in:
+ *   - src/components/AIChatPanel.tsx (injectGapMessages — removed in Plan 07)
+ *   - src/pages/ProposalDetail.tsx (gap analysis useEffect — removed in Plan 07)
+ * Remove in Phase 14.3+ after server-side detection is proven stable.
  */
 export function detectGaps(
   sections: Array<{ section_key: string; content: string; status: string }>
 ): GapResult[] {
+  if (import.meta.env.VITE_ENABLE_CLIENT_GAPS !== 'true') return []
   const gaps: GapResult[] = []
 
   for (const section of sections) {
@@ -116,7 +122,7 @@ export function buildContextPayload(args: {
     .map(s => ({
       key: s.section_key,
       title: sectionKeyToTitle(s.section_key, sectionTitles),
-      summary: stripHtml(s.content).slice(0, 200),
+      content: s.content,   // full HTML with paragraph IDs — Claude may propose edits to any section
     }))
 
   const historyForWindow = chatHistory.map(m => ({ role: m.role, content: m.content }))

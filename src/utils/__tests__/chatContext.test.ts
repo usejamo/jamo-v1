@@ -17,53 +17,26 @@ describe('stripHtml', () => {
 })
 
 describe('detectGaps', () => {
-  it('returns placeholder gaps for sections containing [PLACEHOLDER', () => {
+  // detectGaps() is @deprecated (Phase 14.2) — guarded by VITE_ENABLE_CLIENT_GAPS feature flag.
+  // In production (flag absent), all calls return []. Tests verify the feature-flag-off behavior.
+  // Detailed gap-detection behavior is now covered by analyze-proposal-gaps edge function tests.
+
+  it('returns empty array when VITE_ENABLE_CLIENT_GAPS is not set (default production behavior)', () => {
+    // Flag is not set in test env — function should return [] immediately
     const sections = [
       { section_key: 'understanding', content: '[PLACEHOLDER: Add study details]', status: 'complete' },
     ]
     const gaps = detectGaps(sections)
-    expect(gaps).toHaveLength(1)
-    expect(gaps[0].reason).toBe('placeholder')
-    expect(gaps[0].sectionKey).toBe('understanding')
-    expect(gaps[0].detail).toContain('[PLACEHOLDER')
+    expect(gaps).toHaveLength(0)
   })
 
-  it('returns thin section gaps for content under 200 chars', () => {
-    const sections = [
-      { section_key: 'budget', content: 'Short budget.', status: 'complete' },
-    ]
-    const gaps = detectGaps(sections)
-    expect(gaps).toHaveLength(1)
-    expect(gaps[0].reason).toBe('thin')
-    expect(gaps[0].detail).toContain('13')
-  })
-
-  it('returns error section gaps when status is error', () => {
-    const sections = [
-      { section_key: 'timeline', content: '', status: 'error' },
-    ]
-    const gaps = detectGaps(sections)
-    expect(gaps).toHaveLength(1)
-    expect(gaps[0].reason).toBe('error')
-    expect(gaps[0].detail).toBe('Section failed to generate')
-  })
-
-  it('returns empty array for healthy sections', () => {
+  it('returns empty array for healthy sections (flag off)', () => {
     const healthyContent = 'A'.repeat(300)
     const sections = [
       { section_key: 'understanding', content: healthyContent, status: 'complete' },
     ]
     const gaps = detectGaps(sections)
     expect(gaps).toHaveLength(0)
-  })
-
-  it('returns multiple gaps for multiple issues', () => {
-    const sections = [
-      { section_key: 'understanding', content: '[PLACEHOLDER: fix]', status: 'complete' },
-      { section_key: 'timeline', content: '', status: 'error' },
-    ]
-    const gaps = detectGaps(sections)
-    expect(gaps).toHaveLength(2)
   })
 })
 
@@ -139,7 +112,8 @@ describe('buildContextPayload', () => {
     expect(payload.target_section.content).toContain('<p>')
     expect(payload.other_sections).toHaveLength(1)
     expect(payload.other_sections[0].key).toBe('budget')
-    expect(payload.other_sections[0].summary.length).toBeLessThanOrEqual(200)
+    // other_sections.content is full HTML with paragraph IDs — AI may propose edits to any section
+    expect(typeof payload.other_sections[0].content).toBe('string')
     expect(payload.chat_history).toHaveLength(1)
   })
 })

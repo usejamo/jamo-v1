@@ -14,7 +14,12 @@ const navItems: NavItem[] = [
   { to: '/proposals', label: 'Proposals', icon: ProposalsIcon },
 ]
 
-export default function Sidebar() {
+interface SidebarProps {
+  /** Number of active (non-dismissed) pending action items — drives the badge in the rail */
+  pendingActionsCount?: number
+}
+
+export default function Sidebar({ pendingActionsCount = 0 }: SidebarProps) {
   const { signOut } = useAuth()
   const navigate = useNavigate()
   const [collapsed, setCollapsed] = useState(false)
@@ -69,7 +74,19 @@ export default function Sidebar() {
                 }
               >
                 <item.icon />
-                {!collapsed && item.label}
+                {!collapsed && (
+                  <span className="flex-1 flex items-center justify-between">
+                    {item.label}
+                    {item.label === 'Proposals' && pendingActionsCount > 0 && (
+                      <span className="min-w-[18px] h-[18px] rounded-full bg-orange-500 text-white text-[10px] font-bold flex items-center justify-center px-1">
+                        {pendingActionsCount}
+                      </span>
+                    )}
+                  </span>
+                )}
+                {collapsed && item.label === 'Proposals' && pendingActionsCount > 0 && (
+                  <span className="absolute top-0 right-0 w-2 h-2 rounded-full bg-orange-500" />
+                )}
               </NavLink>
             </li>
           ))}

@@ -32,6 +32,7 @@ function resolutionPlugin(markType: MarkType): Plugin {
     appendTransaction(transactions: readonly Transaction[], _oldState: any, newState: any) {
       const docChanged = transactions.some((tr: Transaction) => tr.docChanged)
       if (!docChanged) return null
+      if (transactions.some((tr: Transaction) => tr.getMeta('aiApplied'))) return null
 
       // Collect IDs of placeholders touched by any transaction
       const touchedIds = new Set<string>()
