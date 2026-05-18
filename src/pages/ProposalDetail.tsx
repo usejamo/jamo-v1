@@ -21,6 +21,7 @@ import { GenerationControls } from '../components/GenerationControls'
 import type { GenerateSectionPayloadV2 } from '../types/generation'
 import type { SectionEditorHandle, ComplianceFlag } from '../types/workspace'
 import SectionWorkspace from '../components/editor/SectionWorkspace'
+import { SectionWorkspaceProvider } from '../context/SectionWorkspaceContext'
 import { supabase } from '../lib/supabase'
 
 import { exportDocx, ExportBlockedError } from '../lib/exportDocx'
@@ -476,6 +477,7 @@ const isStreamingMode = genState.isGenerating
   }
 
   return (
+    <SectionWorkspaceProvider>
     <div data-testid="proposal-detail" className="flex gap-5 flex-1 min-h-0" style={{ height: 'calc(100vh - 4rem)' }}>
 
       {/* ── Left: flex-col wrapper so header sits above the scroll area ── */}
@@ -756,5 +758,6 @@ const isStreamingMode = genState.isGenerating
       />
 
     </div>
+    </SectionWorkspaceProvider>
   )
 }

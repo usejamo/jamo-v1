@@ -3,7 +3,7 @@ import { SectionEditorBlock } from './SectionEditorBlock'
 import { SectionNavPanel } from './SectionNavPanel'
 import { VersionHistoryOverlay } from './VersionHistoryOverlay'
 import { ConsistencyCheckBanner } from './ConsistencyCheckBanner'
-import { SectionWorkspaceProvider, useSectionWorkspace } from '../../context/SectionWorkspaceContext'
+import { useSectionWorkspace } from '../../context/SectionWorkspaceContext'
 import type { SectionEditorHandle, SectionEditorState, ComplianceFlag, ConsistencyFlag } from '../../types/workspace'
 import { useComplianceCheck } from '../../hooks/useComplianceCheck'
 import { supabase } from '../../lib/supabase'
@@ -286,8 +286,6 @@ function SectionWorkspaceInner({ proposalId, sections, orgId, editorRefsRef, onA
 
 export default function SectionWorkspace({ proposalId, sections, orgId, editorRefsRef, onActiveSectionChange, externalScrollRef, consistencyCheckRef }: SectionWorkspaceProps) {
   return (
-    <SectionWorkspaceProvider>
-      <SectionWorkspaceInner proposalId={proposalId} sections={sections} orgId={orgId} editorRefsRef={editorRefsRef} onActiveSectionChange={onActiveSectionChange} externalScrollRef={externalScrollRef} consistencyCheckRef={consistencyCheckRef} />
-    </SectionWorkspaceProvider>
+    <SectionWorkspaceInner proposalId={proposalId} sections={sections} orgId={orgId} editorRefsRef={editorRefsRef} onActiveSectionChange={onActiveSectionChange} externalScrollRef={externalScrollRef} consistencyCheckRef={consistencyCheckRef} />
   )
 }

@@ -61,6 +61,7 @@ vi.mock('../../../context/AuthContext', () => ({
 }))
 
 import SectionWorkspace from '../SectionWorkspace'
+import { SectionWorkspaceProvider } from '../../../context/SectionWorkspaceContext'
 
 const sections = [
   { section_key: 'executive_summary', name: 'Executive Summary', content: '<p>Summary content</p>', is_locked: false, status: 'complete', last_saved_content: null },
@@ -70,7 +71,9 @@ const sections = [
 describe('SectionWorkspace', () => {
   it('renders three-panel layout with left nav, center editor, right slot', () => {
     const { container } = render(
-      <SectionWorkspace proposalId="proposal-1" sections={sections} orgId="org-1" />
+      <SectionWorkspaceProvider>
+        <SectionWorkspace proposalId="proposal-1" sections={sections} orgId="org-1" />
+      </SectionWorkspaceProvider>
     )
     // Three-panel layout: nav + editors + right slot
     expect(container.firstChild).not.toBeNull()
@@ -81,7 +84,9 @@ describe('SectionWorkspace', () => {
 
   it('renders SectionEditorBlock for each section in proposal', () => {
     render(
-      <SectionWorkspace proposalId="proposal-1" sections={sections} orgId="org-1" />
+      <SectionWorkspaceProvider>
+        <SectionWorkspace proposalId="proposal-1" sections={sections} orgId="org-1" />
+      </SectionWorkspaceProvider>
     )
     // Each section has an editor-content block
     const editorBlocks = screen.getAllByTestId('editor-content')
