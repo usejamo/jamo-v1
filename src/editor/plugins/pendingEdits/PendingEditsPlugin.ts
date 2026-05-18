@@ -2,7 +2,7 @@ import { Extension } from '@tiptap/core'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { DecorationSet } from '@tiptap/pm/view'
 import type { PendingEdit, WorkspaceAction } from '../../../types/workspace'
-import { buildDecorations, unregisterGhostContent } from './decorations'
+import { buildDecorations, unregisterGhostContent, collectFutureAnchorIds } from './decorations'
 
 export const PendingEditsPluginKey = new PluginKey<DecorationSet>('pendingEdits')
 
@@ -60,8 +60,14 @@ export const PendingEditsPlugin = Extension.create<PendingEditsOptions>({
             // Staleness detection — only when doc changed AND pending edits exist.
             // T-14.2-03-03: Walk gated on tr.docChanged && pending.length > 0 (~0.1ms cost).
             if (tr.docChanged) {
-              const pending = getState().filter((c) => c.resolution === 'pending')
+              const allEdits = getState()
+              const pending = allEdits.filter((c) => c.resolution === 'pending')
               if (pending.length > 0) {
+                // A pending edit anchored to an id that a still-live sibling's
+                // after_html will create is "chained", not stale. Once that
+                // sibling is rejected the id leaves this set, so the chained
+                // edit then correctly becomes stale.
+                const futureIds = collectFutureAnchorIds(allEdits)
                 const staleIds: string[] = []
                 for (const change of pending) {
                   if (!change.paragraph_id) continue
@@ -72,7 +78,7 @@ export const PendingEditsPlugin = Extension.create<PendingEditsOptions>({
                       return false
                     }
                   })
-                  if (!found) staleIds.push(change.paragraph_id)
+                  if (!found && !futureIds.has(change.paragraph_id)) staleIds.push(change.paragraph_id)
                 }
 
                 if (staleIds.length > 0) {

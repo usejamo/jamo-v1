@@ -23,6 +23,35 @@ export function ghostContentLeakDetected(editorHtml: string, _pending: PendingEd
   return false
 }
 
+/** data-id values of block nodes declared in an after_html fragment. */
+export function extractDataIds(html: string | undefined): string[] {
+  if (!html) return []
+  try {
+    const body = new DOMParser().parseFromString(html, 'text/html').body
+    return [...body.querySelectorAll('[data-id]')]
+      .map((el) => el.getAttribute('data-id'))
+      .filter((id): id is string => !!id)
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Ids that a still-live edit's after_html will create. A pending edit anchored
+ * to one of these is "chained" — its anchor does not exist yet but a sibling
+ * edit (still pending or already accepted) will create it, so it must not be
+ * treated as stale or dropped. Rejected edits are excluded so a chained edit
+ * cascades to stale once its parent is rejected.
+ */
+export function collectFutureAnchorIds(edits: PendingEdit[]): Set<string> {
+  const ids = new Set<string>()
+  for (const e of edits) {
+    if (e.resolution === 'rejected' || e.resolution === 'auto_rejected_stale') continue
+    for (const did of extractDataIds(e.after_html)) ids.add(did)
+  }
+  return ids
+}
+
 // For insert_after without paragraph_id: anchor to last paragraph in doc
 function findLastParagraphPos(doc: PMNode): { pos: number; end: number } | null {
   let lastPos: { pos: number; end: number } | null = null

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import { Schema, Node as PMNode } from '@tiptap/pm/model'
-import { buildDecorations, ghostContentLeakDetected, registerGhostContent, unregisterGhostContent } from '../pendingEdits/decorations'
+import { buildDecorations, ghostContentLeakDetected, registerGhostContent, unregisterGhostContent, extractDataIds, collectFutureAnchorIds } from '../pendingEdits/decorations'
 import type { PendingEdit } from '../../../types/workspace'
 
 // Minimal schema for testing — paragraph with optional id attr
@@ -200,5 +200,36 @@ describe('decorations — staleness detection', () => {
       // or return empty if no fallback applies
       expect(decoSet.find().length).toBe(0)
     }).not.toThrow()
+  })
+})
+
+describe('decorations — chained-edit anchor detection', () => {
+  it('14.2-A4-09: extractDataIds collects data-id values from an after_html fragment', () => {
+    expect(extractDataIds('<h3 data-id="h1">A</h3><p data-id="p1">B</p>')).toEqual(['h1', 'p1'])
+  })
+
+  it('14.2-A4-10: extractDataIds returns empty for fragments without data-id or undefined', () => {
+    expect(extractDataIds('<p>no ids here</p>')).toEqual([])
+    expect(extractDataIds(undefined)).toEqual([])
+  })
+
+  it('14.2-A4-11: collectFutureAnchorIds gathers ids a pending or accepted edit will create', () => {
+    const edits = [
+      makePendingEdit({ id: 'e1', resolution: 'pending', after_html: '<p data-id="new-a">A</p>' }),
+      makePendingEdit({ id: 'e2', resolution: 'accepted', after_html: '<p data-id="new-b">B</p>' }),
+    ]
+    const ids = collectFutureAnchorIds(edits)
+    expect(ids.has('new-a')).toBe(true)
+    expect(ids.has('new-b')).toBe(true)
+  })
+
+  it('14.2-A4-12: collectFutureAnchorIds excludes rejected/stale edits so chained children cascade to stale', () => {
+    const edits = [
+      makePendingEdit({ id: 'e1', resolution: 'rejected', after_html: '<p data-id="orphan-anchor">A</p>' }),
+      makePendingEdit({ id: 'e2', resolution: 'auto_rejected_stale', after_html: '<p data-id="stale-anchor">B</p>' }),
+    ]
+    const ids = collectFutureAnchorIds(edits)
+    expect(ids.has('orphan-anchor')).toBe(false)
+    expect(ids.has('stale-anchor')).toBe(false)
   })
 })

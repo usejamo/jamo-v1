@@ -21,7 +21,7 @@ import { PlaceholderMark } from './extensions/PlaceholderMark'
 import UniqueID from '@tiptap/extension-unique-id'
 import type { PendingEdit } from '../../types/workspace'
 import { PendingEditsPlugin, PendingEditsPluginKey } from '../../editor/plugins/pendingEdits/PendingEditsPlugin'
-import { ghostContentLeakDetected } from '../../editor/plugins/pendingEdits/decorations'
+import { ghostContentLeakDetected, collectFutureAnchorIds } from '../../editor/plugins/pendingEdits/decorations'
 import { usePendingEditsSync } from '../../hooks/usePendingEditsSync'
 import { DOMParser as PMDOMParser, type Schema } from '@tiptap/pm/model'
 
@@ -390,7 +390,11 @@ export const SectionEditorBlock = forwardRef<SectionEditorHandle, SectionEditorB
         return  // No-op — same edits already materialized
       }
 
-      // Error path 3: validate each edit before applying — skip stale paragraph IDs
+      // Error path 3: validate each edit before applying — skip stale paragraph IDs.
+      // Chained edits anchor to a paragraph an earlier edit in the same batch
+      // creates, so an anchor missing from the doc is still valid when a sibling
+      // edit's after_html declares that data-id.
+      const futureIds = collectFutureAnchorIds(edits)
       const validEdits = edits.filter((edit) => {
         if (!edit.paragraph_id) {
           // insert_after without paragraph_id is valid — it anchors to last paragraph
@@ -400,11 +404,10 @@ export const SectionEditorBlock = forwardRef<SectionEditorHandle, SectionEditorB
         editor.state.doc.descendants((node) => {
           if (node.attrs?.id === edit.paragraph_id) { found = true; return false }
         })
-        if (!found) {
-          console.warn('[PendingEdits] Skipping edit — paragraph_id not found in doc', { edit, sectionKey })
-          return false
-        }
-        return true
+        if (found) return true
+        if (futureIds.has(edit.paragraph_id)) return true  // chained — anchor created by a sibling edit
+        console.warn('[PendingEdits] Skipping edit — paragraph_id not found in doc', { edit, sectionKey })
+        return false
       })
 
       // Error path 4: malformed tool payload (basic shape validation)
