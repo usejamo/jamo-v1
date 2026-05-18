@@ -56,7 +56,7 @@ describe('SectionStreamCard', () => {
     // Amber mark element exists
     const mark = document.querySelector('mark.bg-amber-100')
     expect(mark).toBeTruthy()
-    expect(mark?.textContent).toBe('[PLACEHOLDER: study phase]')
+    expect(mark?.textContent).toBe('[study phase]')
   })
 
   it('shows error message and Retry button when status is error', () => {
