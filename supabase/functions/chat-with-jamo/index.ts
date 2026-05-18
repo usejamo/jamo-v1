@@ -5,7 +5,7 @@ import { answerWithCitationsTool, handleAnswerWithCitations } from "./tools/answ
 import { checkRegulatoryComplianceTool, handleCheckCompliance } from "./tools/check-regulatory-compliance.ts"
 import { askUserTool, handleAskUser } from "./tools/ask-user.ts"
 import { setFocusTool, handleSetFocus } from "./tools/set-focus.ts"
-import { buildSystemPrompt, buildHistory } from "./context.ts"
+import { buildSystemPrompt, buildHistory, buildActiveTaskContext } from "./context.ts"
 import { fetchRagContext, RAG_K, DEFAULT_RAG_K } from "./rag.ts"
 
 const corsHeaders = {
@@ -33,6 +33,7 @@ Deno.serve(async (req) => {
       org_id,
       user_message,
       session_id,
+      user_id,
       target_section,
       other_sections = [],
       chat_history = [],
@@ -45,17 +46,63 @@ Deno.serve(async (req) => {
       )
     }
 
+    // ── Read active_task from chat_sessions — D-45: include user_id filter ──
+    // active_task is a DIRECT column on chat_sessions (NOT metadata->active_task)
+    let effectiveActiveTask: Record<string, unknown> | null = null
+    if (proposal_id && user_id) {
+      const { data: sessionData } = await createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_ANON_KEY")!
+      )
+        .from('chat_sessions')
+        .select('pending_actions, active_task, last_updated')  // active_task is a direct column, NOT metadata->active_task
+        .eq('proposal_id', proposal_id)
+        .eq('user_id', user_id)  // D-45: per-user session — required
+        .single()
+
+      const activeTask = (sessionData?.active_task as Record<string, unknown> | null) ?? null
+
+      // Auto-expire stale active_task (>7 days)
+      effectiveActiveTask = activeTask
+      if (activeTask?.last_updated) {
+        const ageDays = (Date.now() - new Date(activeTask.last_updated as string).getTime()) / (1000 * 60 * 60 * 24)
+        if (ageDays > 7) {
+          effectiveActiveTask = null
+          void createClient(
+            Deno.env.get("SUPABASE_URL")!,
+            Deno.env.get("SUPABASE_ANON_KEY")!
+          )
+            .from('chat_sessions')
+            .update({ active_task: null })
+            .eq('proposal_id', proposal_id)
+            .eq('user_id', user_id)  // D-45
+        }
+      }
+    }
+
     // RAG retrieval runs in parallel with message assembly (AI-SPEC async-first pattern)
     // Use DEFAULT_RAG_K initially — model decides tool; K is for context richness, not routing
     const [ragContext] = await Promise.all([
       fetchRagContext(org_id, user_message, DEFAULT_RAG_K),
     ])
 
-    const systemPrompt = ragContext.ragBlock
-      ? `${buildSystemPrompt(tools, target_section, other_sections)}\n\n${ragContext.ragBlock}`
-      : buildSystemPrompt(tools, target_section, other_sections)
+    const activeTaskBlock = buildActiveTaskContext(effectiveActiveTask)
+    const baseSystemPrompt = buildSystemPrompt(tools, target_section, other_sections)
+    const systemPrompt = [
+      baseSystemPrompt,
+      activeTaskBlock,
+      ragContext.ragBlock,
+    ].filter(Boolean).join("\n\n")
 
     const anthropic = new Anthropic({ apiKey: Deno.env.get("ANTHROPIC_API_KEY") ?? "" })
+
+    // Create user-scoped supabase client for session writes (needs auth header if available)
+    const authHeader = req.headers.get("Authorization")
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      authHeader ? { global: { headers: { Authorization: authHeader } } } : {}
+    )
 
     const stream = anthropic.messages.stream({
       model: "claude-sonnet-4-6",
@@ -116,6 +163,15 @@ Deno.serve(async (req) => {
                 switch (currentToolName) {
                   case "propose_edit":
                     toolResult = handleProposeEdit(toolInput as Parameters<typeof handleProposeEdit>[0])
+                    // Update active_task stage to 'drafting' during walkthrough (fire-and-forget)
+                    if (effectiveActiveTask && effectiveActiveTask.stage === 'gathering_inputs' && proposal_id && user_id) {
+                      void supabase.from('chat_sessions')
+                        .update({
+                          active_task: { ...effectiveActiveTask, stage: 'drafting', last_updated: new Date().toISOString() },
+                        })
+                        .eq('proposal_id', proposal_id)
+                        .eq('user_id', user_id)  // D-45
+                    }
                     break
                   case "answer_with_citations":
                     toolResult = handleAnswerWithCitations(
@@ -141,6 +197,26 @@ Deno.serve(async (req) => {
                       org_id,
                       session_id
                     )
+                    // Write active_task on set_focus dispatch (fire-and-forget)
+                    if (proposal_id && user_id) {
+                      const newTask = {
+                        type: 'walkthrough',
+                        status: 'active',
+                        section_key: toolInput.section_key,
+                        section_title: toolInput.section_key,  // Plan 07 will resolve title from proposal sections
+                        stage: 'gathering_inputs',
+                        collected_inputs: {},
+                        pending_paragraph_ids: [],
+                        accepted_paragraph_ids: [],
+                        content_hash: '',
+                        started_at: new Date().toISOString(),
+                        last_updated: new Date().toISOString(),
+                      }
+                      void supabase.from('chat_sessions')
+                        .update({ active_task: newTask })  // direct column, not metadata
+                        .eq('proposal_id', proposal_id)
+                        .eq('user_id', user_id)  // D-45
+                    }
                     break
                   default:
                     toolResult = toolInput
