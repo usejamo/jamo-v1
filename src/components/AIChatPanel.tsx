@@ -169,7 +169,7 @@ export default function AIChatPanel({
       .select('pending_actions, active_task')  // active_task is a DIRECT column (not metadata->active_task)
       .eq('proposal_id', proposalId)
       .eq('user_id', userId)  // D-45: per-user session
-      .single()
+      .maybeSingle()
       .then(({ data }) => {
         if (data?.pending_actions) setPendingActions(data.pending_actions as unknown as PendingActionItem[])
         if (data?.active_task) setActiveTask(data.active_task as unknown as ActiveTask)

@@ -8,6 +8,7 @@ const mockSelectChain = {
   eq: () => mockSelectChain,
   order: () => mockSelectChain,
   single: () => Promise.resolve({ data: null }),
+  maybeSingle: () => Promise.resolve({ data: null }),
   then: (resolve: (v: { data: null }) => void) => Promise.resolve({ data: null }).then(resolve),
 }
 const mockFrom = vi.fn(() => ({ insert: mockInsert, select: () => mockSelectChain }))
@@ -50,6 +51,7 @@ vi.mock('../../context/SectionWorkspaceContext', () => ({
     state: { sections: {} },
     dispatch: vi.fn(),
   }),
+  SectionWorkspaceProvider: ({ children }: { children: any }) => children,
 }))
 
 // ── AuthContext mock ─────────────────────────────────────────────────────────
@@ -78,6 +80,7 @@ vi.mock('../chat/WalkthroughProgress', () => ({
 }))
 
 import AIChatPanel from '../AIChatPanel'
+import { SectionWorkspaceProvider } from '../../context/SectionWorkspaceContext'
 import type { SectionEditorHandle } from '../../types/workspace'
 import { supabase } from '../../lib/supabase'
 
@@ -108,6 +111,9 @@ const defaultProps = {
   sectionTitles: { understanding: 'Understanding' },
 }
 
+const renderWithWorkspace = (ui: React.ReactElement) =>
+  render(<SectionWorkspaceProvider>{ui}</SectionWorkspaceProvider>)
+
 describe('AIChatPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -116,7 +122,7 @@ describe('AIChatPanel', () => {
 
   it('renders pending actions badge on rail when pendingActionsCount > 0', () => {
     // The badge renders in Rail (collapsed state). Collapse the panel first.
-    render(<AIChatPanel {...defaultProps} />)
+    renderWithWorkspace(<AIChatPanel {...defaultProps} />)
     // Click the collapse button to put panel into Rail view
     const collapseBtn = screen.getByTitle('Collapse (⌘J)')
     fireEvent.click(collapseBtn)
@@ -138,7 +144,7 @@ describe('AIChatPanel', () => {
     })
     vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce({ ok: true, body: mockStream }))
 
-    render(
+    renderWithWorkspace(
       <AIChatPanel
         {...defaultProps}
         editorRefs={editorRefs}
@@ -170,7 +176,7 @@ describe('AIChatPanel', () => {
     })
     vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce({ ok: true, body: mockStream }))
 
-    render(<AIChatPanel {...defaultProps} />)
+    renderWithWorkspace(<AIChatPanel {...defaultProps} />)
 
     const input = screen.getByPlaceholderText('Ask jamo to edit...')
     fireEvent.change(input, { target: { value: 'Hello' } })
@@ -200,12 +206,12 @@ describe('AIChatPanel', () => {
   })
 
   it('shows explain chip when activeSectionKey is set', () => {
-    render(<AIChatPanel {...defaultProps} activeSectionKey="understanding" />)
+    renderWithWorkspace(<AIChatPanel {...defaultProps} activeSectionKey="understanding" />)
     expect(screen.getByText('Explain this section')).toBeTruthy()
   })
 
   it('hides explain chip when no section targeted', () => {
-    render(<AIChatPanel {...defaultProps} activeSectionKey={null} />)
+    renderWithWorkspace(<AIChatPanel {...defaultProps} activeSectionKey={null} />)
     expect(screen.queryByText('Explain this section')).toBeNull()
   })
 
@@ -219,7 +225,7 @@ describe('AIChatPanel', () => {
     })
     vi.mocked(supabase.functions.invoke).mockResolvedValueOnce({ data: mockStream, error: null } as any)
 
-    render(<AIChatPanel {...defaultProps} />)
+    renderWithWorkspace(<AIChatPanel {...defaultProps} />)
 
     const input = screen.getByPlaceholderText('Ask jamo to edit...')
     fireEvent.change(input, { target: { value: 'Test message' } })
@@ -242,7 +248,7 @@ describe('AIChatPanel', () => {
   })
 
   it('displays citations in explain response', () => {
-    render(<AIChatPanel {...defaultProps} />)
+    renderWithWorkspace(<AIChatPanel {...defaultProps} />)
     // Panel is expanded by default — messages area is visible
     const panelArea = screen.getByPlaceholderText('Ask jamo to edit...')
     expect(panelArea).toBeTruthy()
