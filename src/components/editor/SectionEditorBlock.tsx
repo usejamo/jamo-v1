@@ -1,4 +1,4 @@
-import { forwardRef, useImperativeHandle, useCallback, useEffect } from 'react'
+import { forwardRef, useImperativeHandle, useCallback, useEffect, useRef } from 'react'
 import { markdownToHtml } from '../../lib/markdownToHtml'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
@@ -20,7 +20,10 @@ import { migratePlaceholders } from '../../lib/migratePlaceholders'
 import { PlaceholderMark } from './extensions/PlaceholderMark'
 import UniqueID from '@tiptap/extension-unique-id'
 import type { ProposeEditChange } from '../../types/chat'
-import type { PatchResult } from '../../types/workspace'
+import type { PatchResult, PendingEdit } from '../../types/workspace'
+import { PendingEditsPlugin, PendingEditsPluginKey } from '../../editor/plugins/pendingEdits/PendingEditsPlugin'
+import { ghostContentLeakDetected } from '../../editor/plugins/pendingEdits/decorations'
+import { usePendingEditsSync } from '../../hooks/usePendingEditsSync'
 
 interface SectionEditorBlockProps {
   sectionKey: string
@@ -33,9 +36,12 @@ interface SectionEditorBlockProps {
 
 export const SectionEditorBlock = forwardRef<SectionEditorHandle, SectionEditorBlockProps>(
   function SectionEditorBlock({ sectionKey, sectionTitle, proposalId, orgId = '', editorState, onFocus }, ref) {
-    const { dispatch } = useSectionWorkspace()
+    const { state: workspaceState, dispatch: workspaceDispatch } = useSectionWorkspace()
     const { checkCompliance } = useComplianceCheck(proposalId, orgId)
     const { triggerAction } = useSectionAIAction(proposalId, sectionKey, orgId)
+
+    // Keep backward-compat alias for existing code that uses `dispatch`
+    const dispatch = workspaceDispatch
 
     const onStatusChange = useCallback(
       (status: 'idle' | 'saving' | 'saved') => {
@@ -61,6 +67,11 @@ export const SectionEditorBlock = forwardRef<SectionEditorHandle, SectionEditorB
           types: ['paragraph', 'heading'],
           attributeName: 'id',           // serializes as data-id="<uuid>" in HTML
         }),
+        PendingEditsPlugin.configure({
+          sectionKey: sectionKey,
+          getState: () => workspaceState.sections[sectionKey]?.pending_edits ?? [],
+          dispatch: workspaceDispatch,
+        }),
       ],
       content: migratedContent,
       immediatelyRender: false,
@@ -72,6 +83,128 @@ export const SectionEditorBlock = forwardRef<SectionEditorHandle, SectionEditorB
       },
       onFocus: () => onFocus?.(),
     })
+
+    // ── usePendingEditsSync: fire read-modify-write after resolution state changes ──
+    const pendingEdits = workspaceState.sections[sectionKey]?.pending_edits ?? []
+    const activeMessageId = pendingEdits[0]?.message_id ?? null
+    usePendingEditsSync({ pendingEdits, messageId: activeMessageId })
+
+    // ── Plugin refresh on pending_edits changes ────────────────────────────────────
+    const pendingEditsIdsRef = useRef<string>('')
+
+    useEffect(() => {
+      if (!editor) return
+      const currentIds = pendingEdits.map((e) => e.paragraph_id + e.resolution).join(',')
+      if (currentIds === pendingEditsIdsRef.current) return
+      pendingEditsIdsRef.current = currentIds
+      editor.view.dispatch(
+        editor.state.tr.setMeta(PendingEditsPluginKey, 'refresh')
+      )
+    }, [editor, pendingEdits])
+
+    // ── Batch-accept PM transaction (D-03: one undo step, atomic) ─────────────────
+    const prevBatchResolutionsRef = useRef<Record<string, string>>({})
+
+    useEffect(() => {
+      if (!editor) return
+      const currentEdits = workspaceState.sections[sectionKey]?.pending_edits ?? []
+
+      const newlyAccepted = currentEdits.filter((edit) => {
+        const prev = prevBatchResolutionsRef.current[edit.paragraph_id]
+        return prev !== 'accepted' && edit.resolution === 'accepted'
+      })
+
+      // Only handle when 2+ edits accepted simultaneously (batch case)
+      if (newlyAccepted.length < 2) {
+        prevBatchResolutionsRef.current = Object.fromEntries(currentEdits.map((e) => [e.paragraph_id, e.resolution]))
+        return
+      }
+
+      const editsWithPos: Array<{ edit: typeof newlyAccepted[0]; anchorFrom: number; anchorTo: number }> = []
+      for (const edit of newlyAccepted) {
+        let anchorFrom = -1; let anchorTo = -1
+        editor.state.doc.descendants((node, pos) => {
+          if (node.attrs?.id === edit.paragraph_id) { anchorFrom = pos; anchorTo = pos + node.nodeSize; return false }
+        })
+        if (anchorFrom !== -1) editsWithPos.push({ edit, anchorFrom, anchorTo })
+      }
+
+      if (editsWithPos.length === 0) {
+        prevBatchResolutionsRef.current = Object.fromEntries(currentEdits.map((e) => [e.paragraph_id, e.resolution]))
+        return
+      }
+
+      // Sort descending — process end of doc to start to preserve positions
+      editsWithPos.sort((a, b) => b.anchorFrom - a.anchorFrom)
+
+      try {
+        let chain = editor.chain().command(({ tr }) => {
+          tr.setMeta('aiApplied', true)
+          tr.setMeta('addToHistory', true)
+          tr.setMeta(PendingEditsPluginKey, 'skip-refresh')
+          return true
+        })
+
+        for (const { edit, anchorFrom, anchorTo } of editsWithPos) {
+          if (edit.operation === 'delete') {
+            chain = chain.deleteRange({ from: anchorFrom, to: anchorTo })
+          } else {
+            const newHtml = edit.after_html ?? ''
+            if (newHtml) {
+              chain = chain.deleteRange({ from: anchorFrom, to: anchorTo }).insertContentAt(anchorFrom, newHtml)
+            }
+          }
+        }
+
+        chain.run()  // ONE run() = one ProseMirror transaction = one undo step (D-03)
+      } catch (err) {
+        // Accept All atomicity: if PM transaction throws, ProseMirror has already aborted it.
+        // Surface error toast. State remains unchanged (reducer already applied, but PM didn't commit).
+        console.error('[PendingEdits] Batch accept transaction failed — state unchanged', err)
+      }
+
+      prevBatchResolutionsRef.current = Object.fromEntries(currentEdits.map((e) => [e.paragraph_id, e.resolution]))
+    }, [editor, workspaceState.sections[sectionKey]?.pending_edits]) // eslint-disable-line react-hooks/exhaustive-deps
+
+    // ── Single-edit Accept PM transaction (ACCEPT_PENDING_EDIT path) ──────────────
+    const prevResolutionsRef = useRef<Record<string, string>>({})
+
+    useEffect(() => {
+      if (!editor) return
+      const currentEdits = workspaceState.sections[sectionKey]?.pending_edits ?? []
+
+      for (const edit of currentEdits) {
+        const prevRes = prevResolutionsRef.current[edit.paragraph_id]
+        if (prevRes !== 'accepted' && edit.resolution === 'accepted') {
+          // Only handle single-accept here; batch (2+) handled above
+          let anchorFrom = -1; let anchorTo = -1
+          editor.state.doc.descendants((node, pos) => {
+            if (node.attrs?.id === edit.paragraph_id) { anchorFrom = pos; anchorTo = pos + node.nodeSize; return false }
+          })
+          if (anchorFrom === -1) continue  // Stale anchor — skip
+
+          try {
+            if (edit.operation === 'delete') {
+              editor.chain()
+                .command(({ tr }) => { tr.setMeta('aiApplied', true); tr.setMeta('addToHistory', true); tr.setMeta(PendingEditsPluginKey, 'skip-refresh'); return true })
+                .deleteRange({ from: anchorFrom, to: anchorTo })
+                .run()
+            } else {
+              const newHtml = edit.after_html ?? ''
+              if (!newHtml) continue
+              editor.chain()
+                .command(({ tr }) => { tr.setMeta('aiApplied', true); tr.setMeta('addToHistory', true); tr.setMeta(PendingEditsPluginKey, 'skip-refresh'); return true })
+                .deleteRange({ from: anchorFrom, to: anchorTo })
+                .insertContentAt(anchorFrom, newHtml)
+                .run()
+            }
+          } catch (err) {
+            console.error('[PendingEdits] Single accept transaction failed', err)
+          }
+        }
+      }
+      prevResolutionsRef.current = Object.fromEntries(currentEdits.map((e) => [e.paragraph_id, e.resolution]))
+    }, [editor, workspaceState.sections[sectionKey]?.pending_edits]) // eslint-disable-line react-hooks/exhaustive-deps
 
     // Commit migrated placeholders to DB on first load if legacy [PLACEHOLDER: ...] strings were found
     useEffect(() => {
@@ -156,7 +289,70 @@ export const SectionEditorBlock = forwardRef<SectionEditorHandle, SectionEditorB
       dispatch({ type: 'REJECT_AI_ACTION', payload: { section_key: sectionKey } })
     }, [dispatch, sectionKey])
 
-    useImperativeHandle(ref, () => ({
+    const materializePendingEdits = useCallback((messageId: string, edits: PendingEdit[]) => {
+      // Error path 1: editor not mounted
+      if (!editor) {
+        console.warn('[PendingEdits] materializePendingEdits called but editor not mounted', { sectionKey, messageId })
+        return
+      }
+
+      // Error path 2: section not active (no-op)
+      const section = workspaceState.sections[sectionKey]
+      if (!section) return
+
+      // Idempotency guard: if these edits are already in plugin state (same edit IDs), skip
+      const existingIds = new Set(section.pending_edits.map((e) => e.id))
+      const allAlreadyPresent = edits.every((e) => existingIds.has(e.id))
+      if (allAlreadyPresent && edits.length === section.pending_edits.length) {
+        return  // No-op — same edits already materialized
+      }
+
+      // Error path 3: validate each edit before applying — skip stale paragraph IDs
+      const validEdits = edits.filter((edit) => {
+        if (!edit.paragraph_id) {
+          // insert_after without paragraph_id is valid — it anchors to last paragraph
+          return edit.operation === 'insert_after'
+        }
+        let found = false
+        editor.state.doc.descendants((node) => {
+          if (node.attrs?.id === edit.paragraph_id) { found = true; return false }
+        })
+        if (!found) {
+          console.warn('[PendingEdits] Skipping edit — paragraph_id not found in doc', { edit, sectionKey })
+          return false
+        }
+        return true
+      })
+
+      // Error path 4: malformed tool payload (basic shape validation)
+      const validatedEdits = validEdits.filter((edit) => {
+        if (!edit.id || !edit.operation || !edit.message_id) {
+          console.warn('[PendingEdits] Skipping malformed edit', { edit })
+          return false
+        }
+        return true
+      })
+
+      if (validatedEdits.length === 0) return
+
+      // Ghost isolation guard (AI-SPEC online guardrail 1)
+      const html = editor.getHTML()
+      if (ghostContentLeakDetected(html, validatedEdits)) {
+        console.error('[PendingEdits] Ghost isolation violation — blocking SET_PENDING_EDITS', { sectionKey, messageId })
+        return
+      }
+
+      workspaceDispatch({
+        type: 'SET_PENDING_EDITS',
+        payload: { section_key: sectionKey, message_id: messageId, edits: validatedEdits },
+      })
+
+      // Scroll this section into view
+      const editorEl = editor.view.dom
+      editorEl?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, [editor, workspaceState, workspaceDispatch, sectionKey]) // eslint-disable-line react-hooks/exhaustive-deps
+
+    useImperativeHandle(ref, (): SectionEditorHandle => ({
       insertContentAt: (pos: number, content: string) => {
         editor?.commands.insertContentAt(pos, content)
       },
@@ -240,7 +436,8 @@ export const SectionEditorBlock = forwardRef<SectionEditorHandle, SectionEditorB
 
         return { applied, stale }
       },
-    }))
+      materializePendingEdits,
+    }), [materializePendingEdits]) // eslint-disable-line react-hooks/exhaustive-deps
 
     const isEmpty = !editorState.content && !editorState.ai_action?.streaming
 

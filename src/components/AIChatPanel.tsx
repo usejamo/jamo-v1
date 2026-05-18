@@ -1,16 +1,19 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../lib/supabase'
-import type { ChatMessage, GapResult, ProposeEditPayload, AnswerWithCitationsPayload, CompliancePayload, AskUserPayload } from '../types/chat'
+import type { ChatMessage, GapResult, ProposeEditPayload, ProposeEditState, AnswerWithCitationsPayload, CompliancePayload, AskUserPayload } from '../types/chat'
 import type { ToolDataEnvelope, ChatMessageType } from '../types/chat'
 import type { Json } from '../types/database.types'
 import { ComplianceCard } from './chat/ComplianceCard'
 import { AskUserCard } from './chat/AskUserCard'
-import type { SectionEditorHandle } from '../types/workspace'
+import type { SectionEditorHandle, PendingEdit, ChangeResolution } from '../types/workspace'
 import { buildContextPayload, detectGaps } from '../utils/chatContext'
-import { DiffPreview } from './chat/DiffPreview'
+// DiffPreview import sites enumerated before deletion: grep -r "DiffPreview" src/ → found 1 site: src/components/AIChatPanel.tsx (this file). No other import sites.
+// DiffPreview has been replaced by EditSummaryCard in this file.
+import { EditSummaryCard } from './chat/EditSummaryCard'
 import { CitationsBlock } from './chat/CitationsBlock'
 import { ToolStatusLabel } from './chat/ToolStatusLabel'
+import { useSectionWorkspace } from '../context/SectionWorkspaceContext'
 
 interface Props {
   proposalId: string
@@ -126,9 +129,10 @@ export default function AIChatPanel({
   activeSectionKey,
   gapCount,
   onGapsConsumed,
-  onEditAccepted,
+  onEditAccepted: _onEditAccepted,
   sectionTitles,
 }: Props) {
+  const { state: workspaceState, dispatch: workspaceDispatch } = useSectionWorkspace()
   const [expanded, setExpanded] = useState(true)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
@@ -140,6 +144,7 @@ export default function AIChatPanel({
   const gapInjectionStartedRef = useRef(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const lastMessageCountRef = useRef<number>(0)
 
   // Load chat history from Supabase on mount
   useEffect(() => {
@@ -179,10 +184,17 @@ export default function AIChatPanel({
     return () => document.removeEventListener('keydown', handler)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-scroll on new message or streaming content
+  // Auto-scroll only when message count increases (scroll bug fix — D-scroll)
   useEffect(() => {
+    if (messages.length <= lastMessageCountRef.current) return
+    lastMessageCountRef.current = messages.length
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, streamingContent])
+  }, [messages])
+
+  // Auto-scroll during streaming
+  useEffect(() => {
+    if (streamingContent) bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [streamingContent])
 
   // Scroll to bottom when panel expands — delayed so messages are rendered first
   useEffect(() => {
@@ -288,27 +300,6 @@ export default function AIChatPanel({
     }
     setExpanded(true)
   }
-
-  // ── Accept/Reject edit proposals ───────────────────────────────────────────
-
-  const handleAcceptEdit = useCallback((messageId: string, content: string) => {
-    // Use active section, or fall back to first available editor
-    const targetKey = activeSectionKey ?? [...editorRefs.current.keys()][0]
-    if (!targetKey) {
-      console.warn('No editor section available to apply edit')
-      return
-    }
-    const handle = editorRefs.current.get(targetKey)
-    if (!handle) {
-      console.warn('Editor handle not found for section:', targetKey)
-      return
-    }
-    handle.setContent(content)
-    setMessages(prev => prev.map(m =>
-      m.id === messageId ? { ...m, messageType: 'chat' as const } : m
-    ))
-    onEditAccepted?.()
-  }, [activeSectionKey, editorRefs, onEditAccepted])
 
   // ── Persist tool_data state mutations back to DB ───────────────────────────
 
@@ -452,6 +443,29 @@ export default function AIChatPanel({
                 messageType,
                 toolData,
               }])
+
+              // Initial propose_edit arrival — route through materializePendingEdits (BLOCKER 5).
+              // materializePendingEdits runs ghostContentLeakDetected + stale paragraph check before dispatch.
+              // IMPORTANT: Do NOT dispatch SET_PENDING_EDITS directly here.
+              if (event.tool === 'propose_edit' && event.result?.section_key) {
+                const propPayload = event.result as ProposeEditPayload
+                const edits: PendingEdit[] = propPayload.changes.map((c, i) => ({
+                  id: `${newMsgId}-${i}`,
+                  paragraph_id: c.paragraph_id,
+                  section_key: propPayload.section_key,
+                  operation: c.operation,
+                  before_html: c.before_html,
+                  after_html: c.after_html,
+                  change_summary: c.change_summary,
+                  resolution: 'pending' as ChangeResolution,
+                  message_id: newMsgId,
+                  change_index: i,
+                  created_at: new Date().toISOString(),
+                }))
+                const handle = editorRefs.current?.get(propPayload.section_key)
+                handle?.materializePendingEdits(newMsgId, edits)
+              }
+
               // Persist tool result message to DB (fire-and-forget, silent fail)
               supabase.from('proposal_chats').insert({
                 proposal_id: proposalId,
@@ -595,74 +609,58 @@ export default function AIChatPanel({
                             {msg.messageType === 'tool-propose-edit' && (
                               (() => {
                                 const payload = msg.toolData.payload as ProposeEditPayload
-                                const state = msg.toolData.state as { resolutions?: Record<string, string>; stale_ids?: string[] }
-                                const acceptedIds = Object.entries(state.resolutions ?? {})
-                                  .filter(([, v]) => v === 'accepted').map(([k]) => k)
-                                const rejectedIds = Object.entries(state.resolutions ?? {})
-                                  .filter(([, v]) => v === 'rejected').map(([k]) => k)
+                                const editState: ProposeEditState = (msg.toolData.state as unknown as ProposeEditState) ?? { resolutions: {}, stale_ids: [] }
                                 return (
-                                  <>
-                                    {payload.overall_summary && (
-                                      <p className="text-xs text-gray-600 mb-2">{payload.overall_summary}</p>
-                                    )}
-                                    <DiffPreview
-                                      changes={payload.changes}
-                                      acceptedIds={acceptedIds}
-                                      rejectedIds={rejectedIds}
-                                      staleIds={state.stale_ids ?? []}
-                                      onAccept={(paragraphId, change) => {
-                                        const editor = editorRefs.current.get(activeSectionKey ?? payload.section_key)
-                                        if (editor) {
-                                          const result = editor.applyParagraphPatch([change])
-                                          if (result.stale.length > 0) {
-                                            console.warn('[DiffPreview] Stale paragraph IDs:', result.stale)
-                                          }
-                                        }
-                                        setMessages(prev => prev.map(m => {
-                                          if (m.id !== msg.id) return m
-                                          const prevState = (m.toolData?.state ?? {}) as { resolutions?: Record<string, string> }
-                                          return {
-                                            ...m,
-                                            toolData: m.toolData ? {
-                                              ...m.toolData,
-                                              state: {
-                                                ...prevState,
-                                                resolutions: { ...(prevState.resolutions ?? {}), [paragraphId]: 'accepted' },
-                                              },
-                                            } : m.toolData,
-                                          }
-                                        }))
-                                        // Persist accept resolution to DB (fire-and-forget)
-                                        const prevState = (msg.toolData?.state ?? {}) as { resolutions?: Record<string, string> }
-                                        persistToolDataState(msg.id, {
-                                          ...prevState,
-                                          resolutions: { ...(prevState.resolutions ?? {}), [paragraphId]: 'accepted' },
+                                  <EditSummaryCard
+                                    payload={payload}
+                                    state={editState}
+                                    sectionKey={payload.section_key}
+                                    message_id={msg.id}
+                                    onReviewInEditor={() => {
+                                      const handle = editorRefs.current?.get(payload.section_key)
+                                      const edits: PendingEdit[] = payload.changes.map((c, i) => ({
+                                        id: `${msg.id}-${i}`,
+                                        paragraph_id: c.paragraph_id,
+                                        section_key: payload.section_key,
+                                        operation: c.operation,
+                                        before_html: c.before_html,
+                                        after_html: c.after_html,
+                                        change_summary: c.change_summary,
+                                        resolution: ((editState.resolutions?.[c.paragraph_id] ?? 'pending') as ChangeResolution),
+                                        message_id: msg.id,
+                                        change_index: i,
+                                        created_at: new Date().toISOString(),
+                                      }))
+                                      handle?.materializePendingEdits(msg.id, edits)
+                                    }}
+                                    onAcceptAll={() => {
+                                      const currentEdits = workspaceState.sections[payload.section_key]?.pending_edits ?? []
+                                      workspaceDispatch({
+                                        type: 'BATCH_ACCEPT_PENDING_EDITS',
+                                        payload: { section_key: payload.section_key, edits: currentEdits },
+                                      })
+                                    }}
+                                    onRejectAll={() => {
+                                      for (const change of payload.changes) {
+                                        workspaceDispatch({
+                                          type: 'REJECT_PENDING_EDIT',
+                                          payload: { section_key: payload.section_key, paragraph_id: change.paragraph_id },
                                         })
-                                      }}
-                                      onReject={(paragraphId) => {
-                                        setMessages(prev => prev.map(m => {
-                                          if (m.id !== msg.id) return m
-                                          const prevState = (m.toolData?.state ?? {}) as { resolutions?: Record<string, string> }
-                                          return {
-                                            ...m,
-                                            toolData: m.toolData ? {
-                                              ...m.toolData,
-                                              state: {
-                                                ...prevState,
-                                                resolutions: { ...(prevState.resolutions ?? {}), [paragraphId]: 'rejected' },
-                                              },
-                                            } : m.toolData,
-                                          }
-                                        }))
-                                        // Persist reject resolution to DB (fire-and-forget)
-                                        const prevState = (msg.toolData?.state ?? {}) as { resolutions?: Record<string, string> }
-                                        persistToolDataState(msg.id, {
-                                          ...prevState,
-                                          resolutions: { ...(prevState.resolutions ?? {}), [paragraphId]: 'rejected' },
-                                        })
-                                      }}
-                                    />
-                                  </>
+                                      }
+                                    }}
+                                    onUpdateResolution={(changeId, resolution) => {
+                                      workspaceDispatch({
+                                        type: resolution === 'accepted' ? 'ACCEPT_PENDING_EDIT' : 'REJECT_PENDING_EDIT',
+                                        payload: { section_key: payload.section_key, paragraph_id: changeId },
+                                      })
+                                      // Persist resolution to DB (fire-and-forget)
+                                      const prevState = (msg.toolData?.state ?? {}) as { resolutions?: Record<string, string> }
+                                      persistToolDataState(msg.id, {
+                                        ...prevState,
+                                        resolutions: { ...(prevState.resolutions ?? {}), [changeId]: resolution },
+                                      })
+                                    }}
+                                  />
                                 )
                               })()
                             )}
