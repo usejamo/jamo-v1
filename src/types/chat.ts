@@ -32,6 +32,20 @@ export const TOOL_STATUS_LABELS: Record<ToolName, string> = {
   set_focus: 'Working...',
 }
 
+// ── Change type labels for ghost decorations (D-10) ───────────────────────────
+// ChangeType uses the same string values as ProposeEditChange.operation (direct assignability).
+// Mapping: 'replace' → badge 'EDIT', 'insert_after' → badge 'INSERT', 'delete' → badge 'DELETE'
+// Operation→ChangeType alignment: operation: 'replace' → ChangeType 'replace' (badge: 'EDIT')
+//                                  operation: 'insert_after' → ChangeType 'insert_after' (badge: 'INSERT')
+//                                  operation: 'delete' → ChangeType 'delete' (badge: 'DELETE')
+export type ChangeType = 'replace' | 'insert_after' | 'delete'
+
+export const CHANGE_TYPE_LABELS: Record<ChangeType, { badge: string; aria: string }> = {
+  replace:      { badge: 'EDIT',   aria: 'Proposed edit replacing the following paragraph' },
+  insert_after: { badge: 'INSERT', aria: 'Proposed new paragraph to insert here' },
+  delete:       { badge: 'DELETE', aria: 'Proposed deletion of the following paragraph' },
+}
+
 // ── Message types ──────────────────────────────────────────────────────────────
 
 export type ChatMessageType =
@@ -68,6 +82,8 @@ export interface ComplianceIssue {
   severity: 'critical' | 'warning' | 'info'
   message: string
   rule_reference?: string
+  /** Optional proposed fix — compliance cards with fixes materialize ghosts via SET_PENDING_EDITS */
+  changes?: ProposeEditChange[]
 }
 
 export interface CompliancePayload {
@@ -106,7 +122,7 @@ export interface ToolDataEnvelope {
 // ── Per-paragraph accept/reject state (within ToolDataEnvelope.state) ─────────
 
 export interface ProposeEditState {
-  resolutions: Record<string, 'accepted' | 'rejected' | 'pending'>
+  resolutions: Record<string, 'accepted' | 'rejected' | 'auto_rejected_stale' | 'not_reached' | 'pending'>
   stale_ids: string[]
 }
 
@@ -153,8 +169,75 @@ export interface ChatRow {
   org_id: string
   role: 'user' | 'assistant'
   content: string
+  // D-49: must be set on ALL messages including walkthrough-driven and queue-triggered messages.
   section_target_id: string | null
   message_type: ChatMessageType
   tool_data?: ToolDataEnvelope | null
   created_at?: string
+}
+
+// ── Action queue item (chat_sessions.pending_actions JSONB) ───────────────────
+
+export type ActionItemType = 'gap' | 'conflict' | 'compliance' | 'missing'
+
+export type ActionItemCtaTool = 'propose_edit' | 'check_regulatory_compliance' | 'answer_with_citations'
+
+export interface PendingActionItem {
+  id: string
+  type: ActionItemType
+  /** Must match a section_key in the workspace — D-29: section name visible in item text */
+  section_key: string
+  /** Which proposal this action item belongs to — for de-duplication across runs */
+  proposal_id: string
+  /** Run ID from analyze-proposal-gaps — D-34: only latest run's results are shown */
+  run_id: string
+  title: string          // format: "[Section Name] — [description]" per D-29
+  description: string
+  /** 1 = compliance (highest), 2 = conflict, 3 = gap, 4 = missing — D-18 fixed priority */
+  priority: 1 | 2 | 3 | 4
+  cta_label: string
+  cta_tool: ActionItemCtaTool
+  cta_payload: Record<string, unknown>
+  /** Why Haiku flagged this issue — surfaced in drill-down if present */
+  rationale?: string
+  /** Haiku confidence 0–1 — used for internal sorting before priority caps are applied */
+  confidence?: number
+  /** ISO timestamp when this item was first generated */
+  created_at: string
+  /** ISO timestamp of last update (e.g., after resurfacing) */
+  updated_at: string
+  dismissed?: boolean
+  resurfaced?: boolean
+  /** Hash of relevant content at dismiss time — D-22 */
+  content_hash?: string
+}
+
+// ── Active walkthrough task (chat_sessions.active_task JSONB) ─────────────────
+
+export type WalkthroughStage = 'gathering_inputs' | 'drafting' | 'complete' | 'discarded'
+
+/** Terminal states for queue items */
+export type QueueItemTerminalState = 'dismissed' | 'completed' | 'skipped'
+
+export interface ActiveTask {
+  type: 'walkthrough'
+  /** Task lifecycle status */
+  status: 'active' | 'completed' | 'discarded'
+  section_key: string
+  section_title: string
+  stage: WalkthroughStage
+  collected_inputs: Record<string, string>
+  /** Change IDs (paragraph_id values) not yet resolved by the user */
+  pending_paragraph_ids: string[]
+  /** Change IDs the user has accepted */
+  accepted_paragraph_ids: string[]
+  /** SHA-256 (first 8 chars) of section content at walkthrough start — D-38 drift detection */
+  content_hash: string
+  /** ISO timestamp when this walkthrough task was started */
+  started_at: string
+  /** ISO timestamp when task reached 'completed' or 'discarded' state */
+  completed_at?: string
+  /** The PendingActionItem.id that triggered this walkthrough — for back-linking */
+  source_action_item_id?: string
+  last_updated: string
 }
