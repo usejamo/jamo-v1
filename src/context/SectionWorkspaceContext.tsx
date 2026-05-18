@@ -1,7 +1,19 @@
 import { createContext, useContext, useReducer, type ReactNode, type Dispatch } from 'react'
 import { type WorkspaceState, type WorkspaceAction, DEFAULT_WORKSPACE_STATE } from '../types/workspace'
 
-function workspaceReducer(state: WorkspaceState, action: WorkspaceAction): WorkspaceState {
+/**
+ * Maps PendingEdit[] to Record<paragraph_id, resolution> for DB persistence.
+ * - Empty input → empty object (not an error)
+ * - Duplicate paragraph_ids → last entry wins
+ * - Already-resolved edits (non-pending) are included in the map
+ */
+export function buildResolutionMap(
+  edits: import('../types/workspace').PendingEdit[],
+): Record<string, string> {
+  return Object.fromEntries(edits.map((e) => [e.paragraph_id, e.resolution]))
+}
+
+export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction): WorkspaceState {
   switch (action.type) {
     case 'SET_SECTIONS':
       return { ...state, sections: action.payload }
@@ -190,6 +202,119 @@ function workspaceReducer(state: WorkspaceState, action: WorkspaceAction): Works
 
     case 'CLOSE_VERSION_HISTORY':
       return { ...state, version_history_open: null }
+
+    case 'SET_PENDING_EDITS': {
+      const { section_key, edits } = action.payload
+      const section = state.sections[section_key]
+      if (!section) return state
+      return {
+        ...state,
+        sections: {
+          ...state.sections,
+          [section_key]: {
+            ...section,
+            pending_edits: edits.map((e) => ({ ...e, resolution: 'pending' as const })),
+          },
+        },
+      }
+    }
+
+    case 'ACCEPT_PENDING_EDIT': {
+      const { section_key, paragraph_id } = action.payload
+      const section = state.sections[section_key]
+      if (!section) return state
+      return {
+        ...state,
+        sections: {
+          ...state.sections,
+          [section_key]: {
+            ...section,
+            pending_edits: section.pending_edits.map((e) =>
+              e.paragraph_id === paragraph_id ? { ...e, resolution: 'accepted' as const } : e
+            ),
+          },
+        },
+      }
+    }
+
+    case 'REJECT_PENDING_EDIT': {
+      const { section_key, paragraph_id } = action.payload
+      const section = state.sections[section_key]
+      if (!section) return state
+      return {
+        ...state,
+        sections: {
+          ...state.sections,
+          [section_key]: {
+            ...section,
+            pending_edits: section.pending_edits.map((e) =>
+              e.paragraph_id === paragraph_id ? { ...e, resolution: 'rejected' as const } : e
+            ),
+          },
+        },
+      }
+    }
+
+    case 'CLEAR_PENDING_EDITS': {
+      const { section_key } = action.payload
+      const section = state.sections[section_key]
+      if (!section) return state
+      return {
+        ...state,
+        sections: {
+          ...state.sections,
+          [section_key]: { ...section, pending_edits: [] },
+        },
+      }
+    }
+
+    case 'AUTO_REJECT_STALE_EDITS': {
+      // Trigger path: plugin staleness detection → queueMicrotask → SectionEditorBlock effect dispatches this.
+      // The plugin does NOT dispatch directly inside apply(). This reducer just handles the action.
+      const { section_key, stale_ids } = action.payload
+      const section = state.sections[section_key]
+      if (!section) return state
+      return {
+        ...state,
+        sections: {
+          ...state.sections,
+          [section_key]: {
+            ...section,
+            pending_edits: section.pending_edits.map((e) =>
+              stale_ids.includes(e.paragraph_id)
+                ? { ...e, resolution: 'auto_rejected_stale' as const }
+                : e
+            ),
+          },
+        },
+      }
+    }
+
+    case 'BATCH_ACCEPT_PENDING_EDITS': {
+      // D-03: Batch Accept — marks all currently-pending edits as 'accepted' in one state update.
+      // SectionEditorBlock (Plan 05) watches the state change and builds ONE chained PM transaction.
+      // PARTIAL BEHAVIOR: edits with resolution !== 'pending' are SILENTLY SKIPPED (not an error).
+      const { section_key, edits } = action.payload
+      const section = state.sections[section_key]
+      if (!section) return state
+
+      const pendingIds = new Set(
+        edits.filter((e) => e.resolution === 'pending').map((e) => e.paragraph_id)
+      )
+
+      return {
+        ...state,
+        sections: {
+          ...state.sections,
+          [section_key]: {
+            ...section,
+            pending_edits: section.pending_edits.map((e) =>
+              pendingIds.has(e.paragraph_id) ? { ...e, resolution: 'accepted' as const } : e
+            ),
+          },
+        },
+      }
+    }
 
     default:
       return state
