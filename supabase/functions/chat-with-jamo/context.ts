@@ -63,3 +63,16 @@ export function buildHistory(
     { role: "user" as const, content: userMessage },
   ]
 }
+
+export function buildActiveTaskContext(activeTask: Record<string, unknown> | null): string {
+  if (!activeTask || activeTask.stage === 'complete' || activeTask.stage === 'discarded') {
+    return ""
+  }
+  return `[ACTIVE WALKTHROUGH]
+Section: ${activeTask.section_key}
+Stage: ${activeTask.stage}
+Collected inputs: ${JSON.stringify(activeTask.collected_inputs)}
+Pending changes: ${(activeTask.pending_paragraph_ids as string[])?.length ?? 0} unresolved
+
+Continue the walkthrough from where you left off. Do not restart from the beginning.`
+}
