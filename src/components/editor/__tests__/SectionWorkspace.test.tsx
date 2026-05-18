@@ -63,8 +63,8 @@ vi.mock('../../../context/AuthContext', () => ({
 import SectionWorkspace from '../SectionWorkspace'
 
 const sections = [
-  { section_key: 'executive_summary', content: '<p>Summary content</p>', is_locked: false, status: 'complete', last_saved_content: null },
-  { section_key: 'budget', content: '<p>Budget content</p>', is_locked: false, status: 'complete', last_saved_content: null },
+  { section_key: 'executive_summary', name: 'Executive Summary', content: '<p>Summary content</p>', is_locked: false, status: 'complete', last_saved_content: null },
+  { section_key: 'budget', name: 'Budget & Pricing', content: '<p>Budget content</p>', is_locked: false, status: 'complete', last_saved_content: null },
 ]
 
 describe('SectionWorkspace', () => {
