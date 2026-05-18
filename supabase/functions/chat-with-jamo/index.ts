@@ -52,8 +52,8 @@ Deno.serve(async (req) => {
     ])
 
     const systemPrompt = ragContext.ragBlock
-      ? `${buildSystemPrompt(tools)}\n\n${ragContext.ragBlock}`
-      : buildSystemPrompt(tools)
+      ? `${buildSystemPrompt(tools, target_section, other_sections)}\n\n${ragContext.ragBlock}`
+      : buildSystemPrompt(tools, target_section, other_sections)
 
     const anthropic = new Anthropic({ apiKey: Deno.env.get("ANTHROPIC_API_KEY") ?? "" })
 
