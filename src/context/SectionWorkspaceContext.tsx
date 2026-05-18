@@ -13,7 +13,7 @@ export function buildResolutionMap(
   return Object.fromEntries(edits.map((e) => [e.paragraph_id, e.resolution]))
 }
 
-function workspaceReducer(state: WorkspaceState, action: WorkspaceAction): WorkspaceState {
+export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction): WorkspaceState {
   switch (action.type) {
     case 'SET_SECTIONS':
       return { ...state, sections: action.payload }
