@@ -108,8 +108,7 @@ export const SectionEditorBlock = forwardRef<SectionEditorHandle, SectionEditorB
 
     // ── usePendingEditsSync: fire read-modify-write after resolution state changes ──
     const pendingEdits = workspaceState.sections[sectionKey]?.pending_edits ?? []
-    const activeMessageId = pendingEdits[0]?.message_id ?? null
-    usePendingEditsSync({ pendingEdits, messageId: activeMessageId })
+    usePendingEditsSync({ pendingEdits })
 
     // ── Plugin refresh on pending_edits changes ────────────────────────────────────
     const pendingEditsIdsRef = useRef<string>('')
