@@ -2,7 +2,8 @@ import { Extension } from '@tiptap/core'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { DecorationSet } from '@tiptap/pm/view'
 import type { PendingEdit, WorkspaceAction } from '../../../types/workspace'
-import { buildDecorations, unregisterGhostContent, collectFutureAnchorIds } from './decorations'
+import type { Node as PMNode } from '@tiptap/pm/model'
+import { buildDecorations, unregisterGhostContent, collectFutureAnchorIds, computeAnchorHash } from './decorations'
 
 export const PendingEditsPluginKey = new PluginKey<DecorationSet>('pendingEdits')
 
@@ -71,14 +72,28 @@ export const PendingEditsPlugin = Extension.create<PendingEditsOptions>({
                 const staleIds: string[] = []
                 for (const change of pending) {
                   if (!change.paragraph_id) continue
-                  let found = false
+                  let anchorNode: PMNode | null = null
                   newState.doc.descendants((node) => {
+                    if (anchorNode) return false
                     if (node.attrs?.id === change.paragraph_id) {
-                      found = true
+                      anchorNode = node
                       return false
                     }
                   })
-                  if (!found && !futureIds.has(change.paragraph_id)) staleIds.push(change.paragraph_id)
+                  // Stale if the anchored paragraph was removed entirely...
+                  if (!anchorNode) {
+                    if (!futureIds.has(change.paragraph_id)) staleIds.push(change.paragraph_id)
+                    continue
+                  }
+                  // ...or if it still exists but its content changed since the ghost
+                  // was materialized (anchor_hash mismatch) — e.g. the user edited the
+                  // paragraph a replace edit would otherwise silently overwrite.
+                  if (
+                    change.anchor_hash &&
+                    computeAnchorHash(anchorNode, change.paragraph_id) !== change.anchor_hash
+                  ) {
+                    staleIds.push(change.paragraph_id)
+                  }
                 }
 
                 if (staleIds.length > 0) {

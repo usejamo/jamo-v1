@@ -286,7 +286,7 @@ export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction)
           [section_key]: {
             ...section,
             pending_edits: section.pending_edits.map((e) =>
-              stale_ids.includes(e.paragraph_id)
+              stale_ids.includes(e.paragraph_id) && e.resolution === 'pending'
                 ? { ...e, resolution: 'auto_rejected_stale' as const }
                 : e
             ),

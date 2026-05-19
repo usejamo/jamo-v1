@@ -21,9 +21,9 @@ import { PlaceholderMark } from './extensions/PlaceholderMark'
 import UniqueID from '@tiptap/extension-unique-id'
 import type { PendingEdit } from '../../types/workspace'
 import { PendingEditsPlugin, PendingEditsPluginKey } from '../../editor/plugins/pendingEdits/PendingEditsPlugin'
-import { ghostContentLeakDetected, collectFutureAnchorIds } from '../../editor/plugins/pendingEdits/decorations'
+import { ghostContentLeakDetected, collectFutureAnchorIds, computeAnchorHash } from '../../editor/plugins/pendingEdits/decorations'
 import { usePendingEditsSync } from '../../hooks/usePendingEditsSync'
-import { DOMParser as PMDOMParser, type Schema } from '@tiptap/pm/model'
+import { DOMParser as PMDOMParser, type Schema, type Node as PMNode } from '@tiptap/pm/model'
 
 /**
  * ProseMirror content size that an after_html fragment occupies once inserted.
@@ -420,16 +420,31 @@ export const SectionEditorBlock = forwardRef<SectionEditorHandle, SectionEditorB
 
       if (validatedEdits.length === 0) return
 
+      // Capture each anchor paragraph's content hash at materialization time so
+      // staleness detection can later tell if the user edited it before review.
+      // Edits whose anchor isn't in the doc yet (chained edits) get their hash
+      // on a later materialization once the anchor exists.
+      const editsWithHash = validatedEdits.map((edit) => {
+        if (!edit.paragraph_id) return edit
+        let anchorNode: PMNode | null = null
+        editor.state.doc.descendants((node) => {
+          if (anchorNode) return false
+          if (node.attrs?.id === edit.paragraph_id) { anchorNode = node; return false }
+        })
+        if (!anchorNode) return edit
+        return { ...edit, anchor_hash: computeAnchorHash(anchorNode, edit.paragraph_id) }
+      })
+
       // Ghost isolation guard (AI-SPEC online guardrail 1)
       const html = editor.getHTML()
-      if (ghostContentLeakDetected(html, validatedEdits)) {
+      if (ghostContentLeakDetected(html, editsWithHash)) {
         console.error('[PendingEdits] Ghost isolation violation — blocking SET_PENDING_EDITS', { sectionKey, messageId })
         return
       }
 
       workspaceDispatch({
         type: 'SET_PENDING_EDITS',
-        payload: { section_key: sectionKey, message_id: messageId, edits: validatedEdits },
+        payload: { section_key: sectionKey, message_id: messageId, edits: editsWithHash },
       })
 
       // Scroll this section into view
