@@ -7,6 +7,7 @@ import type { PendingActionItem, ActiveTask } from '../types/chat'
 import type { Json } from '../types/database.types'
 import { ComplianceCard } from './chat/ComplianceCard'
 import { AskUserCard } from './chat/AskUserCard'
+import { InlineMarkdown } from './chat/InlineMarkdown'
 import type { SectionEditorHandle, PendingEdit, ChangeResolution } from '../types/workspace'
 import { buildContextPayload } from '../utils/chatContext'
 import { EditSummaryCard } from './chat/EditSummaryCard'
@@ -822,7 +823,7 @@ export default function AIChatPanel({
                                 : 'bg-gray-100/80 backdrop-blur-sm text-gray-700 rounded-tl-sm'
                             }`}
                           >
-                            {msg.content}
+                            <InlineMarkdown text={msg.content} />
                           </div>
                         )}
                       </motion.div>
@@ -837,7 +838,7 @@ export default function AIChatPanel({
                       className="flex justify-start"
                     >
                       <div className="max-w-[88%] rounded-2xl px-3.5 py-2.5 text-xs leading-relaxed bg-gray-100/80 backdrop-blur-sm text-gray-700 rounded-tl-sm">
-                        {streamingContent}
+                        <InlineMarkdown text={streamingContent} />
                       </div>
                     </motion.div>
                   )}
