@@ -788,29 +788,26 @@ export default function AIChatPanel({
                                     payload={payload}
                                     answered={state.answered}
                                     onAnswer={(text) => {
-                                      setMessages(prev => [
-                                        ...prev.map(m => {
-                                          if (m.id !== msg.id) return m
-                                          return {
-                                            ...m,
-                                            toolData: m.toolData ? {
-                                              ...m.toolData,
-                                              state: { ...(m.toolData.state ?? {}), answered: text },
-                                            } : m.toolData,
-                                          }
-                                        }),
-                                        {
-                                          id: crypto.randomUUID(),
-                                          role: 'user' as const,
-                                          content: text,
-                                          messageType: 'chat' as const,
-                                        },
-                                      ])
+                                      // Mark this ask_user card as answered (collapses its input).
+                                      setMessages(prev => prev.map(m => {
+                                        if (m.id !== msg.id) return m
+                                        return {
+                                          ...m,
+                                          toolData: m.toolData ? {
+                                            ...m.toolData,
+                                            state: { ...(m.toolData.state ?? {}), answered: text },
+                                          } : m.toolData,
+                                        }
+                                      }))
                                       // Persist answered state to DB (fire-and-forget)
                                       persistToolDataState(msg.id, {
                                         ...(msg.toolData?.state ?? {}),
                                         answered: text,
                                       })
+                                      // Send the answer to the AI so it actually continues the
+                                      // task — handleSendMessage adds the user message, persists
+                                      // it, and invokes the model.
+                                      void handleSendMessage(text)
                                     }}
                                   />
                                 )
