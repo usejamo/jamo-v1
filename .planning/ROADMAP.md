@@ -464,6 +464,21 @@ Plans:
 - [ ] 14.2-07-PLAN.md — ActionQueue, ActionItem, ResumeTaskBanner, WalkthroughProgress + AIChatPanel Part B + detectGaps retirement
 - [ ] 14.2-08-PLAN.md — Human verification checkpoint: Part A and Part B end-to-end
 
+### Phase 14.2.1: Part B Trigger Wiring (INSERTED)
+
+**Goal:** Wire the dead triggerAnalysis stub in AIChatPanel.tsx so the Part B proactive co-pilot surface (ActionQueue, WalkthroughProgress, Sidebar gap badge) actually populates. Subscribe to proposal_sections Realtime UPDATEs (D-30, debounced 3s, content-hash skip) and fire once on panel open when no prior chat_sessions row exists (D-35). No edge function or schema changes.
+
+**Requirements covered:** (no new REQ-IDs — closes verification gap from 14.2-08-PLAN.md Steps 12, 14-26)
+
+**Depends on:** Phase 14.2 (AI Chat Co-pilot)
+
+**Plans:** 2 plans
+
+Plans:
+- [x] 14.2.1-01-PLAN.md — useGapAnalysisTrigger hook (D-30 Realtime + D-35 initial fire, debounce, hash-skip, 429-silent) + unit tests
+- [x] 14.2.1-02-PLAN.md — Wire useGapAnalysisTrigger into AIChatPanel, remove void triggerAnalysis stub, manual smoke verify
+
+
 
 ---
 

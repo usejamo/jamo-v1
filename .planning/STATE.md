@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Phase 14.2 context gathered
-last_updated: "2026-05-15T21:14:06.342Z"
+stopped_at: Phase 14.2 replanned with Codex cross-AI review feedback — 9 plans in 5 waves. Plan 06 split into 06 (auth+persistence) and 06b (LLM analysis). All HIGH/MEDIUM review concerns addressed. Ready to execute.
+last_updated: "2026-05-20T01:17:23.247Z"
 progress:
-  total_phases: 19
-  completed_phases: 18
-  total_plans: 88
-  completed_plans: 89
-  percent: 100
+  total_phases: 21
+  completed_phases: 19
+  total_plans: 99
+  completed_plans: 98
+  percent: 99
 ---
 
 ## Project Status
@@ -31,8 +31,8 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 
 ## Last Session
 
-**Stopped at:** Phase 14.2 context gathered
-**Session date:** 2026-05-13
+**Stopped at:** Phase 14.2 replanned with Codex cross-AI review feedback — 9 plans in 5 waves. Plan 06 split into 06 (auth+persistence) and 06b (LLM analysis). All HIGH/MEDIUM review concerns addressed. Ready to execute.
+**Session date:** 2026-05-15
 
 ## Roadmap Evolution
 
@@ -200,3 +200,8 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 
 - **Plan 01** (2026-04-02): Migration + write path — `supabase/migrations/20260402000021_compliance_flags_jsonb.sql` adds `compliance_flags JSONB NOT NULL DEFAULT '[]'` to proposal_sections. `ComplianceFlagDB` type alias added to workspace.ts. `persistFlags` helper (useCallback, silent-fail) added to useComplianceCheck, called after all 4 SET_COMPLIANCE_FLAGS dispatch sites. 137 tests passing, 9 skipped.
 - **Plan 02** (2026-04-02): Read path — ProposalDetail selects `compliance_flags` in both fetch paths, state type extended, prop threaded to SectionWorkspace. SectionWorkspace init reads `Array.isArray(s.compliance_flags) ? s.compliance_flags : []` instead of hardcoded `[]`. D-02 background re-check useEffect (500ms delay, keyed on proposalId) fires checkCompliance for all sections with content. 137 tests passing, 9 skipped.
+
+### Phase 14.2.1: Part B Trigger Wiring
+
+- **Plan 01** (2026-05-20): useGapAnalysisTrigger hook — D-30 Realtime subscription on proposal_sections (debounced 3s, full-section refetch, content-hash skip), D-35 on-mount fire when no prior chat_sessions row exists, HTTP 429 treated as expected silence. 7/7 Vitest specs pass. Commits 1e051b4, 21fe0ae, ce964a3.
+- **Plan 02** (2026-05-20): Wire useGapAnalysisTrigger into AIChatPanel — removed dead `void triggerAnalysis` stub plus orphaned inline useCallback and unused `isAnalyzing` state. tsc clean for the touched file. Manual D-30/D-35/429 live smoke deferred to human-verify pass (requires running dev server + authed user). Commits 600fcc0, ad9249c.
