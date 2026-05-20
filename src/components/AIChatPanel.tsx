@@ -17,6 +17,7 @@ import { useSectionWorkspace } from '../context/SectionWorkspaceContext'
 import { ActionQueue } from './chat/ActionQueue'
 import { WalkthroughProgress } from './chat/WalkthroughProgress'
 import { useAuth } from '../context/AuthContext'
+import { useGapAnalysisTrigger } from '../hooks/useGapAnalysisTrigger'
 
 interface Props {
   proposalId: string
@@ -154,7 +155,11 @@ export default function AIChatPanel({
   const [pendingActions, setPendingActions] = useState<PendingActionItem[]>([])
   const [activeTask, setActiveTask] = useState<ActiveTask | null>(null)
   const [crossTabUpdate, setCrossTabUpdate] = useState(false)
-  const [isAnalyzing, setIsAnalyzing] = useState(false)
+
+  // ── Part B trigger (D-30 Realtime debounce + D-35 initial-population) ─────
+  // Hook owns its own in-flight ref, content-hash skip, and 429-silence.
+  // See src/hooks/useGapAnalysisTrigger.ts.
+  useGapAnalysisTrigger({ proposalId, userId })
 
   // Notify parent of pendingActions count changes (for Sidebar badge)
   useEffect(() => {
@@ -223,23 +228,6 @@ export default function AIChatPanel({
     // Cleanup: unsubscribe on unmount — Supabase client handles reconnect automatically
     return () => { void supabase.removeChannel(channel) }
   }, [proposalId, userId])
-
-  // ── In-flight analysis guard (is_analyzing) ───────────────────────────────
-  const triggerAnalysis = useCallback(async (sectionSummaries: Array<{ section_key: string; content: string }>) => {
-    if (isAnalyzing) return  // In-flight guard — prevents overlapping runs
-    setIsAnalyzing(true)
-    try {
-      await supabase.functions.invoke('analyze-proposal-gaps', {
-        body: { proposal_id: proposalId, sections: sectionSummaries, run_id: globalThis.crypto.randomUUID() }
-        // Note: user_id NOT in body — edge function derives from JWT
-      })
-    } finally {
-      setIsAnalyzing(false)
-    }
-  }, [isAnalyzing, proposalId])
-
-  // Expose triggerAnalysis for potential future use (suppresses unused warning)
-  void triggerAnalysis
 
   // Load chat history from Supabase on mount
   useEffect(() => {
