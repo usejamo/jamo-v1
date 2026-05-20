@@ -22,12 +22,13 @@ import { supabase } from '../lib/supabase'
 
 const DEBOUNCE_MS = 3000
 
-type SectionSummary = { section_key: string; content: string }
+// Shape matches analyze-proposal-gaps RequestSchema (index.ts: { key, title, content }).
+type SectionSummary = { key: string; title: string; content: string }
 
 async function computeHash(summaries: SectionSummary[]): Promise<string> {
   // Sort for determinism — Realtime ordering should not change the hash.
   const sorted = [...summaries].sort((a, b) =>
-    a.section_key < b.section_key ? -1 : a.section_key > b.section_key ? 1 : 0
+    a.key < b.key ? -1 : a.key > b.key ? 1 : 0
   )
   const json = JSON.stringify(sorted)
   const buf = await globalThis.crypto.subtle.digest(
@@ -81,12 +82,13 @@ export function useGapAnalysisTrigger(params: {
     async function fetchSummaries(): Promise<SectionSummary[]> {
       const { data, error } = await supabase
         .from('proposal_sections')
-        .select('section_key, content')
+        .select('section_key, name, content')
         .eq('proposal_id', proposalId as string)
         .order('position', { ascending: true })
       if (error || !data) return []
       return data.map((row) => ({
-        section_key: row.section_key,
+        key: row.section_key,
+        title: row.name ?? row.section_key,
         content: row.content ?? '',
       }))
     }

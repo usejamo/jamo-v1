@@ -18,7 +18,7 @@ import { renderHook, act, cleanup } from '@testing-library/react'
 type Handler = (payload: { new: Record<string, unknown> }) => void
 
 const mockState = {
-  proposalSectionsRows: [] as Array<{ section_key: string; content: string }>,
+  proposalSectionsRows: [] as Array<{ section_key: string; name: string; content: string }>,
   chatSessionsRow: null as { id: string } | null,
   invokeResult: { data: null, error: null } as { data: unknown; error: unknown },
   capturedRealtimeHandler: null as Handler | null,
@@ -140,8 +140,8 @@ describe('useGapAnalysisTrigger', () => {
   it('fires analyze-proposal-gaps once on mount when no chat_sessions row exists (D-35)', async () => {
     mockState.chatSessionsRow = null
     mockState.proposalSectionsRows = [
-      { section_key: 'intro', content: 'Intro text' },
-      { section_key: 'methods', content: 'Methods text' },
+      { section_key: 'intro', name: 'Intro', content: 'Intro text' },
+      { section_key: 'methods', name: 'Methods', content: 'Methods text' },
     ]
 
     renderHook(() => useGapAnalysisTrigger({ proposalId: 'p1', userId: 'u1' }))
@@ -156,15 +156,15 @@ describe('useGapAnalysisTrigger', () => {
     const body = (opts as { body: { proposal_id: string; sections: unknown; run_id: string } }).body
     expect(body.proposal_id).toBe('p1')
     expect(body.sections).toEqual([
-      { section_key: 'intro', content: 'Intro text' },
-      { section_key: 'methods', content: 'Methods text' },
+      { key: 'intro', title: 'Intro', content: 'Intro text' },
+      { key: 'methods', title: 'Methods', content: 'Methods text' },
     ])
     expect(body.run_id).toMatch(UUID_RE)
   })
 
   it('does NOT fire analyze-proposal-gaps on mount when chat_sessions row exists (D-35 skip)', async () => {
     mockState.chatSessionsRow = { id: 'session-1' }
-    mockState.proposalSectionsRows = [{ section_key: 'intro', content: 'Intro' }]
+    mockState.proposalSectionsRows = [{ section_key: 'intro', name: 'Intro', content: 'Intro' }]
 
     const { unmount } = renderHook(() =>
       useGapAnalysisTrigger({ proposalId: 'p1', userId: 'u1' })
@@ -181,7 +181,7 @@ describe('useGapAnalysisTrigger', () => {
   it('coalesces rapid Realtime UPDATE events into one invoke after 3000ms (debounce)', async () => {
     // Existing session so D-35 initial fire does NOT happen.
     mockState.chatSessionsRow = { id: 'session-1' }
-    mockState.proposalSectionsRows = [{ section_key: 'intro', content: 'A' }]
+    mockState.proposalSectionsRows = [{ section_key: 'intro', name: 'Intro', content: 'A' }]
 
     vi.useFakeTimers()
     renderHook(() => useGapAnalysisTrigger({ proposalId: 'p1', userId: 'u1' }))
@@ -213,7 +213,7 @@ describe('useGapAnalysisTrigger', () => {
 
   it('skips invocation when content hash is unchanged (content-hash skip)', async () => {
     mockState.chatSessionsRow = { id: 'session-1' }
-    mockState.proposalSectionsRows = [{ section_key: 'intro', content: 'Stable content' }]
+    mockState.proposalSectionsRows = [{ section_key: 'intro', name: 'Intro', content: 'Stable content' }]
 
     vi.useFakeTimers()
     renderHook(() => useGapAnalysisTrigger({ proposalId: 'p1', userId: 'u1' }))
@@ -237,7 +237,7 @@ describe('useGapAnalysisTrigger', () => {
     expect(mockState.invokeSpy).toHaveBeenCalledTimes(1)
 
     // Third Realtime UPDATE with DIFFERENT content → hash differs → invoke.
-    mockState.proposalSectionsRows = [{ section_key: 'intro', content: 'NEW content' }]
+    mockState.proposalSectionsRows = [{ section_key: 'intro', name: 'Intro', content: 'NEW content' }]
     mockState.capturedRealtimeHandler!({ new: {} })
     await act(async () => {
       await advanceAndFlush(3000)
@@ -247,7 +247,7 @@ describe('useGapAnalysisTrigger', () => {
 
   it('treats HTTP 429 cooldown as expected silence (no console.error)', async () => {
     mockState.chatSessionsRow = null
-    mockState.proposalSectionsRows = [{ section_key: 'intro', content: 'A' }]
+    mockState.proposalSectionsRows = [{ section_key: 'intro', name: 'Intro', content: 'A' }]
     mockState.invokeResult = {
       data: null,
       error: { context: { status: 429 }, message: 'Edge Function returned a non-2xx status code' },
@@ -268,7 +268,7 @@ describe('useGapAnalysisTrigger', () => {
 
   it('cleans up on unmount: removeChannel called, debounced timer does not fire', async () => {
     mockState.chatSessionsRow = { id: 'session-1' }
-    mockState.proposalSectionsRows = [{ section_key: 'intro', content: 'A' }]
+    mockState.proposalSectionsRows = [{ section_key: 'intro', name: 'Intro', content: 'A' }]
 
     vi.useFakeTimers()
     const { unmount } = renderHook(() =>
@@ -302,7 +302,7 @@ describe('useGapAnalysisTrigger', () => {
 
   it('runs the initial-population check again when proposalId changes', async () => {
     mockState.chatSessionsRow = null
-    mockState.proposalSectionsRows = [{ section_key: 'intro', content: 'A' }]
+    mockState.proposalSectionsRows = [{ section_key: 'intro', name: 'Intro', content: 'A' }]
 
     const { rerender } = renderHook(
       ({ pid }: { pid: string }) =>
@@ -319,7 +319,7 @@ describe('useGapAnalysisTrigger', () => {
     ).toBe('p1')
 
     // Switch to a different proposal — initial-population fires again.
-    mockState.proposalSectionsRows = [{ section_key: 'intro', content: 'B' }]
+    mockState.proposalSectionsRows = [{ section_key: 'intro', name: 'Intro', content: 'B' }]
     rerender({ pid: 'p2' })
 
     await act(async () => {
