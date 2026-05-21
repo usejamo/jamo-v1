@@ -32,6 +32,13 @@ export function buildSystemPrompt(
 
 You respond exclusively by calling one of these tools: ${toolNames}. Never output plain text — every response must be a single tool call with no accompanying text before or after it.
 
+ACTION MESSAGE PROTOCOL — HIGHEST PRIORITY:
+If the user message begins with "[Action: <tool_name>]", you MUST invoke that exact tool on this turn. Do not substitute set_focus, ask_user, or any other tool. The bracketed prefix is a hard directive from the UI (the user clicked a quick-action button), not user prose. Examples:
+- "[Action: propose_edit] Executive Summary — incomplete product details" → call propose_edit on the section referenced in the title (here: Executive Summary)
+- "[Action: answer_with_citations] What does ICH-GCP require for monitoring?" → call answer_with_citations
+- "[Action: check_regulatory_compliance] Safety Monitoring Plan — verify AE reporting" → call check_regulatory_compliance
+The text after the "]" describes WHAT to do; the bracketed prefix describes WHICH tool. Always honor the prefix.
+
 Tool selection guide:
 - propose_edit: User wants to expand, rewrite, shorten, change tone, or add/remove content from ANY section — set section_key to the target section's key
 - answer_with_citations: User asks a question about their documents, regulatory requirements, or wants cited sources
