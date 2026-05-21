@@ -457,6 +457,16 @@ export default function AIChatPanel({
                 }))
                 const handle = editorRefs.current?.get(propPayload.section_key)
                 handle?.materializePendingEdits(newMsgId, edits)
+
+                // Auto-dismiss any propose_edit pending_actions that targeted this section —
+                // the user clicked "Fix it" and the chat produced an edit, so the suggestion
+                // has been acted on. If the user later declines the edit, they can undo
+                // the dismissal from the queue's dismissed list.
+                setPendingActions(prev => prev.map(a =>
+                  a.section_key === propPayload.section_key && a.cta_tool === 'propose_edit'
+                    ? { ...a, dismissed: true }
+                    : a
+                ))
               }
 
               // Persist tool result message to DB (fire-and-forget, silent fail)
