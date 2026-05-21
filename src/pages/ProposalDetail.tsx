@@ -282,6 +282,19 @@ export default function ProposalDetail() {
   const [sectionsLoaded, setSectionsLoaded] = useState(false)
   const [templateName, setTemplateName] = useState<string | null>(null)
   const [templateFilePath, setTemplateFilePath] = useState<string | null>(null)
+  // Latches true the first time proposal_sections come back with any non-empty content.
+  // Drives a key prop on SectionWorkspace so it remounts cleanly when content arrives —
+  // necessary because SectionWorkspace's own init effect only re-runs on proposalId change
+  // (see SectionWorkspace.tsx init effect dep array), and React 18 sometimes batches the
+  // post-generation refetch's setSectionsLoaded(false→true) so the conditional render
+  // never flickers, leaving editors stuck with their empty initial content.
+  const [contentLatched, setContentLatched] = useState(false)
+  useEffect(() => {
+    if (contentLatched) return
+    if (proposalSections.some(s => (s.content ?? '').trim().length > 0)) {
+      setContentLatched(true)
+    }
+  }, [proposalSections, contentLatched])
 
   useEffect(() => {
     if (!id) return
@@ -725,6 +738,7 @@ const isStreamingMode = genState.isGenerating
                   </div>
                 )}
                 <SectionWorkspace
+                  key={contentLatched ? 'loaded' : 'empty'}
                   proposalId={id ?? ''}
                   sections={proposalSections.map(s => ({
                     id: s.id,
