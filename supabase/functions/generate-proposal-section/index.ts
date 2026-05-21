@@ -479,6 +479,14 @@ serve(async (req) => {
     if (!anthropicResp.ok || !anthropicResp.body) {
       const errBody = await anthropicResp.text()
       console.error(`[generate-proposal-section] Anthropic ${anthropicResp.status} for section=${sectionId}:`, errBody)
+      // Surface "credit balance is too low" as 402 so the client can show a dedicated banner
+      // instead of treating it as a generic upstream failure that gets silently retried.
+      if (/credit balance is too low/i.test(errBody)) {
+        return new Response(
+          JSON.stringify({ error: 'insufficient_credits', detail: errBody }),
+          { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
       return new Response(
         JSON.stringify({
           error: `Anthropic error ${anthropicResp.status}`,

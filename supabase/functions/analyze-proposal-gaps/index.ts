@@ -202,6 +202,16 @@ Deno.serve(async (req) => {
       pendingActions = []
     }
   } catch (err) {
+    // Surface "credit balance is too low" as 402 so the client can show a dedicated banner
+    // instead of silently producing an empty queue (which would mask the real outage).
+    const msg = err instanceof Error ? err.message : String(err)
+    if (/credit balance is too low/i.test(msg)) {
+      console.error('[analyze-proposal-gaps] insufficient credits', msg)
+      return new Response(
+        JSON.stringify({ error: 'insufficient_credits', detail: msg }),
+        { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
     // LLM call failed: return empty array (not crash)
     console.error('[analyze-proposal-gaps] Haiku call failed', err)
     pendingActions = []

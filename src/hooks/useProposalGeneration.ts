@@ -21,6 +21,7 @@ const initialState: GenerationState = {
   sections: {},
   completedCount: 0,
   totalCount: 0,
+  creditsExhausted: false,
 }
 
 export function generationReducer(
@@ -42,8 +43,12 @@ export function generationReducer(
         completedCount: 0,
         totalCount: action.sections.length,
         sections,
+        creditsExhausted: false,
       }
     }
+
+    case 'CREDITS_EXHAUSTED':
+      return { ...state, creditsExhausted: true }
 
     case 'SECTION_GENERATING':
       return {
@@ -367,6 +372,16 @@ export function useProposalGeneration(proposalId: string) {
 
       if (!response.ok || !response.body) {
         const errText = await response.text()
+        // HTTP 402 from the edge function = Anthropic credit balance exhausted.
+        // Surface a single global banner via CREDITS_EXHAUSTED and abort the loop —
+        // every remaining section would fail the same way, and continuing risks the
+        // refetch/autosave path persisting empty content over already-streamed sections.
+        if (response.status === 402) {
+          dispatch({ type: 'CREDITS_EXHAUSTED' })
+          dispatch({ type: 'SECTION_ERROR', sectionId: section.id, error: 'insufficient_credits' })
+          abortControllerRef.current?.abort()
+          return ''
+        }
         dispatch({ type: 'SECTION_ERROR', sectionId: section.id, error: errText })
         return ''
       }

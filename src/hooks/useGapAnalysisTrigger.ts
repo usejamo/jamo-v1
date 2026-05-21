@@ -41,16 +41,20 @@ async function computeHash(summaries: SectionSummary[]): Promise<string> {
 }
 
 /**
- * Detect the server's 429-cooldown response across the shapes Supabase's
- * functions.invoke client surfaces. The edge function returns an empty body
- * with status 429 (analyze-proposal-gaps/index.ts:158).
+ * Detect server responses that should be treated as expected silence — no toast,
+ * no console.error. Covers:
+ *  - 429: per-proposal cooldown (analyze-proposal-gaps/index.ts:158)
+ *  - 402: insufficient credits — surfaced for the foreground generator banner,
+ *         not for this background trigger (the gap-analysis call is fire-and-forget;
+ *         if there are no credits the user will already see the banner from a
+ *         failed generate-proposal-section call).
  */
-function isCooldown429(error: unknown): boolean {
+function isSilentStatus(error: unknown): boolean {
   if (!error || typeof error !== 'object') return false
   const e = error as { context?: { status?: number }; status?: number; message?: string }
-  if (e.context?.status === 429) return true
-  if (e.status === 429) return true
-  if (typeof e.message === 'string' && /\b429\b/.test(e.message)) return true
+  const status = e.context?.status ?? e.status
+  if (status === 429 || status === 402) return true
+  if (typeof e.message === 'string' && /\b(429|402)\b/.test(e.message)) return true
   return false
 }
 
@@ -114,7 +118,7 @@ export function useGapAnalysisTrigger(params: {
           },
         })
         if (error) {
-          if (isCooldown429(error)) {
+          if (isSilentStatus(error)) {
             // Expected silence — server cooldown rejects extra runs. Do NOT log.
             return
           }
@@ -122,7 +126,7 @@ export function useGapAnalysisTrigger(params: {
           console.debug('[useGapAnalysisTrigger] invoke error:', error)
         }
       } catch (err) {
-        if (!isCooldown429(err)) {
+        if (!isSilentStatus(err)) {
           console.debug('[useGapAnalysisTrigger] invoke threw:', err)
         }
       } finally {

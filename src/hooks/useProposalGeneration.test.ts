@@ -61,6 +61,7 @@ function makeInitialState(sections: SectionState[] = []): GenerationState {
     sections: sectionsMap,
     completedCount: 0,
     totalCount: sections.length,
+    creditsExhausted: false,
   }
 }
 

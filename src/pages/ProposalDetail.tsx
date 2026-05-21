@@ -478,6 +478,17 @@ const isStreamingMode = genState.isGenerating
 
   return (
     <SectionWorkspaceProvider>
+    {genState.creditsExhausted && (
+      <div role="alert" className="fixed top-16 left-1/2 -translate-x-1/2 z-50 bg-red-50 border border-red-300 text-red-900 px-4 py-2.5 rounded-lg shadow-md text-sm flex items-center gap-3 max-w-xl">
+        <svg className="w-5 h-5 shrink-0 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+        </svg>
+        <div>
+          <p className="font-semibold">AI credits exhausted</p>
+          <p className="text-red-800">Proposal generation paused. An admin needs to top up the Anthropic account before you can continue.</p>
+        </div>
+      </div>
+    )}
     <div data-testid="proposal-detail" className="flex gap-5 flex-1 min-h-0" style={{ height: 'calc(100vh - 4rem)' }}>
 
       {/* ── Left: flex-col wrapper so header sits above the scroll area ── */}

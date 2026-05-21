@@ -19,6 +19,7 @@ export interface GenerationState {
   sections: Record<string, SectionState>  // keyed by UUID
   completedCount: number
   totalCount: number
+  creditsExhausted: boolean     // set on HTTP 402 from generate-proposal-section so the UI can show a persistent banner
 }
 
 export type GenerationAction =
@@ -30,6 +31,7 @@ export type GenerationAction =
   | { type: 'SECTION_ERROR'; sectionId: string; error: string }
   | { type: 'SET_ANCHOR'; anchor: string }
   | { type: 'GENERATION_COMPLETE' }
+  | { type: 'CREDITS_EXHAUSTED' }
   | { type: 'RESET' }
 
 /** V2 payload for generate-proposal-section Edge Function (D-09) */
