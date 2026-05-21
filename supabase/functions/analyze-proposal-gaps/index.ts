@@ -105,6 +105,23 @@ Deno.serve(async (req) => {
   }
   const userId = user.id  // Canonical identity — JWT-derived, not client-supplied
 
+  // ── Step 2b: Resolve org_id — chat_sessions has org_id NOT NULL + RLS WITH CHECK
+  // requiring org_id = auth.jwt()->>'org_id'. The JWT doesn't reliably carry org_id,
+  // so look it up from user_profiles before the upsert.
+  const { data: profileRow, error: profileErr } = await supabase
+    .from('user_profiles')
+    .select('org_id')
+    .eq('user_id', userId)
+    .single()
+  if (profileErr || !profileRow?.org_id) {
+    console.error('[analyze-proposal-gaps] org_id lookup failed', profileErr)
+    return new Response(
+      JSON.stringify({ error: 'org_id not found for user' }),
+      { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+  const orgId = profileRow.org_id as string
+
   // ── Step 3: Validate request body ─────────────────────────────────────────
   let proposalId: string
   let sections: Array<{ key: string; title: string; content: string }>
@@ -219,17 +236,26 @@ Deno.serve(async (req) => {
 
   // D-34 + D-45: Upsert with composite conflict target (proposal_id, user_id)
   // Canonical store: chat_sessions.pending_actions (NOT proposal_chats.tool_data)
-  await supabase
+  // org_id is required (NOT NULL column + RLS WITH CHECK).
+  const { error: upsertErr } = await supabase
     .from('chat_sessions')
     .upsert(
       {
         proposal_id: proposalId,
+        org_id: orgId,
         user_id: userId,
         pending_actions: pendingActions,
         last_updated: new Date().toISOString(),
       },
       { onConflict: 'proposal_id,user_id' }
     )
+  if (upsertErr) {
+    console.error('[analyze-proposal-gaps] chat_sessions upsert failed', upsertErr)
+    return new Response(
+      JSON.stringify({ error: 'chat_sessions upsert failed', detail: upsertErr.message }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
 
   return new Response(
     JSON.stringify({ ok: true, run_id, action_count: pendingActions.length }),
