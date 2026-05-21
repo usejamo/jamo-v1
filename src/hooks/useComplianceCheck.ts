@@ -91,6 +91,24 @@ export function useComplianceCheck(proposalId: string, _orgId: string) {
         payload: { section_key: sectionKey, checking: true },
       })
 
+      // The `compliance-check` edge function was never deployed — invoking it produces
+      // a noisy CORS preflight 404 in the browser console on every Pass-1 success.
+      // Skip the network call and treat Pass 1 as the final compliance verdict
+      // (matches the prior silent-empty-flags fallback). Re-enable the invoke block
+      // below if/when the function ships.
+      const COMPLIANCE_CHECK_DEPLOYED = false
+      if (!COMPLIANCE_CHECK_DEPLOYED) {
+        dispatch({
+          type: 'SET_COMPLIANCE_CHECKING',
+          payload: { section_key: sectionKey, checking: false },
+        })
+        dispatch({
+          type: 'SET_COMPLIANCE_FLAGS',
+          payload: { section_key: sectionKey, flags: [] },
+        })
+        return
+      }
+
       try {
         const { data, error } = await supabase.functions.invoke('compliance-check', {
           body: {
