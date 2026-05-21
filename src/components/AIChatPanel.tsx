@@ -196,7 +196,11 @@ export default function AIChatPanel({
     const channel = supabase
       .channel(`chat_sessions:${proposalId}:${userId}`)
       .on('postgres_changes', {
-        event: 'UPDATE',
+        // Listen to BOTH INSERT and UPDATE — the first analyze-proposal-gaps call
+        // for a (proposal, user) creates the row (INSERT); a UPDATE-only filter
+        // misses that initial fire and the ActionQueue stays empty until the next
+        // event ~30s+ later.
+        event: '*',
         schema: 'public',
         table: 'chat_sessions',
         filter: `proposal_id=eq.${proposalId}`,  // server-side filter

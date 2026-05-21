@@ -192,14 +192,27 @@ Deno.serve(async (req) => {
   try {
     const response = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',  // AI-SPEC: Haiku ONLY — NEVER Sonnet
-      max_tokens: 1024,
+      max_tokens: 2048,
       temperature: 0,
       system: ANALYSIS_SYSTEM_PROMPT,
       messages: [{ role: 'user', content: JSON.stringify(summaries) }],
     })
 
     const textBlock = response.content.find((b) => b.type === 'text')
-    const raw = JSON.parse(textBlock?.text ?? '[]')
+    // Haiku occasionally wraps its JSON in ```json …``` fences despite the system
+    // prompt forbidding it. Strip a leading fence and any trailing fence/whitespace
+    // before parsing so we don't lose the entire payload to a JSON.parse exception.
+    const stripped = (textBlock?.text ?? '[]')
+      .replace(/^\s*```(?:json)?\s*/i, '')
+      .replace(/\s*```\s*$/i, '')
+      .trim()
+    let raw: unknown
+    try {
+      raw = JSON.parse(stripped || '[]')
+    } catch (parseErr) {
+      console.error('[analyze-proposal-gaps] Haiku output JSON.parse failed', parseErr, 'raw:', textBlock?.text?.slice(0, 500))
+      raw = []
+    }
 
     const validated = z.array(PendingActionSchema).safeParse(raw)
     if (validated.success) {
