@@ -159,6 +159,10 @@ export interface ChatWithJamoRequest {
     role: 'user' | 'assistant'
     content: string
   }>
+  // When the user clicks an ActionQueue CTA, we force the server to use exactly
+  // that tool via `tool_choice: { type: 'tool', name: forced_tool }` so Sonnet
+  // cannot substitute set_focus or any other tool. Omitted for free-form chat.
+  forced_tool?: ActionItemCtaTool
 }
 
 // ── DB row shape ───────────────────────────────────────────────────────────────

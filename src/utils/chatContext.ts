@@ -112,8 +112,9 @@ export function buildContextPayload(args: {
   sections: Array<{ section_key: string; content: string }>
   chatHistory: ChatMessage[]
   sectionTitles?: Record<string, string>   // D-06 — from Sidebar useMemo
+  forcedTool?: import('../types/chat').ActionItemCtaTool   // when set, server forces tool_choice
 }): ChatWithJamoRequest {
-  const { proposalId, orgId, userMessage, targetSectionKey, sections, chatHistory, sectionTitles } = args
+  const { proposalId, orgId, userMessage, targetSectionKey, sections, chatHistory, sectionTitles, forcedTool } = args
 
   const targetSection = sections.find(s => s.section_key === targetSectionKey)
 
@@ -139,5 +140,6 @@ export function buildContextPayload(args: {
     },
     other_sections: otherSections,
     chat_history: slidingHistory as Array<{ role: 'user' | 'assistant'; content: string }>,
+    ...(forcedTool ? { forced_tool: forcedTool } : {}),
   }
 }

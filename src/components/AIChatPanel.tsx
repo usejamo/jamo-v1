@@ -312,7 +312,7 @@ export default function AIChatPanel({
 
   // ── Live streaming handleSendMessage ──────────────────────────────────────
 
-  const handleSendMessage = useCallback(async (messageText?: string, _ctaPayload?: Record<string, unknown>) => {
+  const handleSendMessage = useCallback(async (messageText?: string, _ctaPayload?: Record<string, unknown>, forcedTool?: import('../types/chat').ActionItemCtaTool) => {
     const text = messageText ?? input.trim()
     if (!text || isStreaming) return
     setInput('')
@@ -359,6 +359,7 @@ export default function AIChatPanel({
       sections,
       chatHistory: messages,
       sectionTitles,
+      forcedTool,
     })
 
     let fullContent = ''
@@ -622,7 +623,7 @@ export default function AIChatPanel({
                   activeTaskSectionTitle={activeTask?.section_title ?? null}
                   isWalkthroughActive={!!activeTask && activeTask.status === 'active'}
                   onCtaClick={(action) => {
-                    handleSendMessage(`[Action: ${action.cta_tool}] ${action.title}`, action.cta_payload)
+                    handleSendMessage(`[Action: ${action.cta_tool}] ${action.title}`, action.cta_payload, action.cta_tool)
                   }}
                   onDismiss={(actionId) => {
                     setPendingActions(prev => prev.map(a => a.id === actionId ? { ...a, dismissed: true } : a))

@@ -37,6 +37,7 @@ Deno.serve(async (req) => {
       target_section,
       other_sections = [],
       chat_history = [],
+      forced_tool,
     } = body
 
     if (!user_message || !target_section) {
@@ -104,12 +105,21 @@ Deno.serve(async (req) => {
       authHeader ? { global: { headers: { Authorization: authHeader } } } : {}
     )
 
+    // If the client supplies forced_tool and it matches a registered tool, force Sonnet's
+    // hand. This is how ActionQueue CTAs work — the user clicked "Fix it" / "Draft it" /
+    // "Check it", so the intent is unambiguous and we don't want Sonnet to substitute
+    // set_focus or anything else.
+    const forcedToolValid = typeof forced_tool === "string" && tools.some((t) => t.name === forced_tool)
+    const toolChoice = forcedToolValid
+      ? { type: "tool" as const, name: forced_tool as string }
+      : { type: "auto" as const }
+
     const stream = anthropic.messages.stream({
       model: "claude-sonnet-4-6",
       max_tokens: 4096,
       system: systemPrompt,
       tools,
-      tool_choice: { type: "auto" },
+      tool_choice: toolChoice,
       messages: buildHistory(chat_history, user_message),
     })
 
