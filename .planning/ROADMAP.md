@@ -478,7 +478,23 @@ Plans:
 - [x] 14.2.1-01-PLAN.md — useGapAnalysisTrigger hook (D-30 Realtime + D-35 initial fire, debounce, hash-skip, 429-silent) + unit tests
 - [x] 14.2.1-02-PLAN.md — Wire useGapAnalysisTrigger into AIChatPanel, remove void triggerAnalysis stub, manual smoke verify
 
+### Phase 14.2.2: Resolved Items as Stateful Co-pilot Memory (INSERTED)
 
+**Goal:** Wire the unused `chat_sessions.resolved_items` column as stateful prompt context for Haiku. When the user dismisses or acts on an action-queue finding, persist a structured entry (section_key, finding type, title/description, action, applied-changes summary, content hash). `analyze-proposal-gaps` reads these and instructs Haiku to evolve/refine/skip findings instead of repeating them verbatim. Fixes the "dismissed items reappear after navigation" bug AND the "same finding re-flagged after a surgical edit" UX problem in one pass — Haiku is the dedup mechanism, not the client.
+
+**Requirements covered:** (no new REQ-IDs — closes UX gap from 14.2 design)
+
+**Depends on:** Phase 14.2.1
+
+**Plans:** 6 plans (4 waves, parallel-optimized)
+
+Plans:
+- [ ] 14.2.2-01-PLAN.md — Foundation: types + constants + sectionHash util + append_resolved_item RPC migration (Wave 0)
+- [ ] 14.2.2-02-PLAN.md — appendResolvedItem writer module + retry/backoff + pure helpers + vitest specs (Wave 1)
+- [ ] 14.2.2-03-PLAN.md — Originating-action snapshot threading at CTA-click into tool_data (Wave 1)
+- [ ] 14.2.2-04-PLAN.md — AIChatPanel filter Set + dismiss write + terminal-state effect + free-text skip (Wave 2)
+- [ ] 14.2.2-05-PLAN.md — analyze-proposal-gaps prompt revision + content-hash annotation (Wave 3)
+- [ ] 14.2.2-06-PLAN.md — Schema push + types regen + SQL tests + AC1/AC2/AC3/AC5 manual checkpoints (Wave 4)
 
 ---
 
