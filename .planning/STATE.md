@@ -4,13 +4,13 @@ milestone: v1.0
 milestone_name: milestone
 status: unknown
 stopped_at: Phase 14.2.2 context gathered
-last_updated: "2026-05-28T20:50:33.461Z"
+last_updated: "2026-05-28T22:12:43.295Z"
 progress:
   total_phases: 22
   completed_phases: 20
-  total_plans: 99
+  total_plans: 105
   completed_plans: 100
-  percent: 100
+  percent: 95
 ---
 
 ## Project Status
@@ -206,3 +206,5 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 
 - **Plan 01** (2026-05-20): useGapAnalysisTrigger hook — D-30 Realtime subscription on proposal_sections (debounced 3s, full-section refetch, content-hash skip), D-35 on-mount fire when no prior chat_sessions row exists, HTTP 429 treated as expected silence. 7/7 Vitest specs pass. Commits 1e051b4, 21fe0ae, ce964a3.
 - **Plan 02** (2026-05-20): Wire useGapAnalysisTrigger into AIChatPanel — removed dead `void triggerAnalysis` stub plus orphaned inline useCallback and unused `isAnalyzing` state. tsc clean for the touched file. Manual D-30/D-35/429 live smoke deferred to human-verify pass (requires running dev server + authed user). Commits 600fcc0, ad9249c.
+
+**Planned Phase:** 14.2.2 (resolved-items-memory) — 6 plans — 2026-05-28T22:12:43.279Z
