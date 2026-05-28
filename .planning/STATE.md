@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Phase 14.2 replanned with Codex cross-AI review feedback — 9 plans in 5 waves. Plan 06 split into 06 (auth+persistence) and 06b (LLM analysis). All HIGH/MEDIUM review concerns addressed. Ready to execute.
-last_updated: "2026-05-20T01:17:23.247Z"
+stopped_at: Phase 14.2.2 context gathered
+last_updated: "2026-05-28T20:50:33.461Z"
 progress:
-  total_phases: 21
-  completed_phases: 19
+  total_phases: 22
+  completed_phases: 20
   total_plans: 99
-  completed_plans: 98
-  percent: 99
+  completed_plans: 100
+  percent: 100
 ---
 
 ## Project Status
@@ -31,13 +31,14 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 
 ## Last Session
 
-**Stopped at:** Phase 14.2 replanned with Codex cross-AI review feedback — 9 plans in 5 waves. Plan 06 split into 06 (auth+persistence) and 06b (LLM analysis). All HIGH/MEDIUM review concerns addressed. Ready to execute.
+**Stopped at:** Phase 14.2.2 context gathered
 **Session date:** 2026-05-15
 
 ## Roadmap Evolution
 
 - Phase 11.1 added: DOCX template style extraction (REQ-10.4b) — unzip org DOCX, extract styles.xml, inject into generated export
 - Phase 12.1 added: Salesforce Data Sync — salesforce-sync Edge Function, Step 1 pre-population, status write-back, graceful degradation (split from Phase 12 which shipped OAuth-only)
+- Phase 14.2.2 inserted after Phase 14.2.1: Resolved Items as Stateful Co-pilot Memory (URGENT) — wires `chat_sessions.resolved_items` so Haiku evolves findings instead of repeating them verbatim; fixes dismissal-persistence bug as a side effect. CONTEXT.md authored by user with locked architectural decisions; awaiting /gsd-discuss-phase 14.2.2.
 
 ---
 
