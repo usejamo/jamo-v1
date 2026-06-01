@@ -28,6 +28,71 @@ const PendingActionSchema = z.object({
   cta_payload: z.record(z.unknown()),
 })
 
+// ── Phase 14.2.2 — Pattern 4 RESOLVED_ITEMS types + helpers ───────────────────
+type ResolvedItem = {
+  originating_action_id: string | null
+  section_key: string
+  finding_type: 'gap' | 'conflict' | 'compliance' | 'missing'
+  title: string
+  description: string
+  user_action: 'fixed' | 'dismissed'
+  applied_changes: string
+  section_content_hash_at_action: string
+  timestamp: string
+  acceptance_summary?: { accepted: number; rejected: number; stale: number }
+}
+
+type AnnotatedResolvedItem = ResolvedItem & {
+  content_status: 'content_unchanged_since_action' | 'content_changed_since_action'
+}
+
+async function sha256Hex(input: string): Promise<string> {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(input))
+  return Array.from(new Uint8Array(buf))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('')
+}
+
+/**
+ * Phase 14.2.2 Pattern 4 — pure helper, EXPORTED for snapshot test (Plan 05 Task 2).
+ * Returns empty string when annotatedResolved is empty (no block injected).
+ */
+export function buildResolvedBlock(
+  annotatedResolved: AnnotatedResolvedItem[],
+): string {
+  if (annotatedResolved.length === 0) return ''
+  return `
+The user has previously addressed the following items in this proposal:
+
+RESOLVED_ITEMS:
+${JSON.stringify(annotatedResolved, null, 2)}
+
+When analyzing the proposal, use this context:
+- If a section still has issues you would normally flag, but they overlap with a resolved item, describe what REMAINS rather than repeating the original finding.
+- If a resolved item is marked content_changed_since_action and you observe the section has regressed, you may re-surface — but acknowledge what was previously done.
+- If a user dismissed a finding and the section has not materially changed, do not re-surface that finding.
+- When an acceptance_summary field is present: if accepted/(accepted+rejected) ratio is high, treat as substantially addressed; if low, the original concern may still apply.
+- Findings should evolve, not repeat.
+
+EVOLVED-FINDING EXAMPLES:
+
+Example 1 — partial fix:
+  Prior resolved_item: { section: "executive_summary", type: "gap",
+    title: "Executive summary missing pricing and timeline",
+    user_action: "fixed", applied_changes: "Added Q3 timeline" }
+  Current state: pricing still absent, timeline complete.
+  Good finding: "Executive summary still needs pricing detail (timeline added in prior pass)."
+  BAD finding: "Executive summary missing pricing and timeline" — verbatim repeat.
+
+Example 2 — dismissed with unchanged content:
+  Prior resolved_item: { section: "scope", type: "compliance",
+    title: "Scope lacks ISO citation", user_action: "dismissed",
+    content_status: "content_unchanged_since_action" }
+  Good behavior: do not re-flag.
+  BAD behavior: re-emitting the same finding.
+`
+}
+
 const ANALYSIS_SYSTEM_PROMPT = `You are a CRO proposal quality analyst. You receive a JSON array of proposal section summaries and return a JSON array of quality issues.
 
 Return ONLY a valid JSON array. No explanation, no markdown. Each item must match:
@@ -164,7 +229,7 @@ Deno.serve(async (req) => {
   // This is durable (survives page reload). Client-side debounce (D-30) is a UX optimization only.
   const { data: session } = await supabase
     .from('chat_sessions')
-    .select('last_updated')
+    .select('last_updated, resolved_items')
     .eq('proposal_id', proposalId)
     .eq('user_id', userId)  // D-45: per-user session
     .single()
@@ -175,6 +240,25 @@ Deno.serve(async (req) => {
       return new Response(null, { status: 429, headers: corsHeaders })
     }
   }
+
+  // ── Phase 14.2.2 — annotate resolved_items with content_status flag (D-33) ─
+  // Empty/null array is treated identically as no prior context (D-34).
+  const resolvedItems: ResolvedItem[] =
+    (session?.resolved_items as ResolvedItem[] | null) ?? []
+
+  const sectionHashes: Record<string, string> = {}
+  if (resolvedItems.length > 0) {
+    for (const s of sections) {
+      sectionHashes[s.key] = await sha256Hex(s.content)
+    }
+  }
+  const annotatedResolved: AnnotatedResolvedItem[] = resolvedItems.map((item) => ({
+    ...item,
+    content_status:
+      sectionHashes[item.section_key] === item.section_content_hash_at_action
+        ? 'content_unchanged_since_action'
+        : 'content_changed_since_action',
+  }))
 
   // ── Step 6: LLM analysis — Haiku ONLY (AI-SPEC: never Sonnet) ────────────
   const run_id = clientRunId ?? globalThis.crypto.randomUUID()
@@ -190,11 +274,13 @@ Deno.serve(async (req) => {
 
   let pendingActions: z.infer<typeof PendingActionSchema>[] = []
   try {
+    // Phase 14.2.2 — append RESOLVED_ITEMS block only when annotatedResolved is non-empty.
+    const systemPromptForCall = ANALYSIS_SYSTEM_PROMPT + buildResolvedBlock(annotatedResolved)
     const response = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',  // AI-SPEC: Haiku ONLY — NEVER Sonnet
       max_tokens: 2048,
       temperature: 0,
-      system: ANALYSIS_SYSTEM_PROMPT,
+      system: systemPromptForCall,
       messages: [{ role: 'user', content: JSON.stringify(summaries) }],
     })
 
