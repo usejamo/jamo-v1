@@ -2,9 +2,16 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../lib/supabase'
 import type { ChatMessage, ProposeEditPayload, ProposeEditState, AnswerWithCitationsPayload, CompliancePayload, AskUserPayload } from '../types/chat'
-import type { ToolDataEnvelope, ChatMessageType, OriginatingActionSnapshot } from '../types/chat'
+import type { ToolDataEnvelope, ChatMessageType, OriginatingActionSnapshot, ResolvedItem } from '../types/chat'
 import type { PendingActionItem, ActiveTask } from '../types/chat'
 import { captureSnapshot, takeSnapshot } from '../chat/ctaSnapshotMap'
+import {
+  rebuildFilterSet,
+  identityKey,
+  buildResolvedItemEntry,
+  appendResolvedItem,
+} from '../chat/resolved-items'
+import { useResolvedItemsWriteOnTerminal } from '../hooks/useResolvedItemsWriteOnTerminal'
 import type { Json } from '../types/database.types'
 import { ComplianceCard } from './chat/ComplianceCard'
 import { AskUserCard } from './chat/AskUserCard'
@@ -160,11 +167,28 @@ export default function AIChatPanel({
   const [pendingActions, setPendingActions] = useState<PendingActionItem[]>([])
   const [activeTask, setActiveTask] = useState<ActiveTask | null>(null)
   const [crossTabUpdate, setCrossTabUpdate] = useState(false)
+  // Phase 14.2.2 — local filter Set keyed by id and identity-key (D-18, D-20).
+  // Hydrated on mount from chat_sessions.resolved_items and on Realtime UPDATE.
+  const [resolvedFilterSet, setResolvedFilterSet] = useState<Set<string>>(new Set())
 
   // ── Part B trigger (D-30 Realtime debounce + D-35 initial-population) ─────
   // Hook owns its own in-flight ref, content-hash skip, and 429-silence.
   // See src/hooks/useGapAnalysisTrigger.ts.
   useGapAnalysisTrigger({ proposalId, userId })
+
+  // Phase 14.2.2 — fires once per propose_edit message when all edits hit a terminal
+  // resolution (accepted | rejected | auto_rejected_stale). Free-text origins are skipped
+  // (D-10). writtenRef inside the hook guarantees once-per-message dispatch (Pattern 3).
+  useResolvedItemsWriteOnTerminal({
+    messages,
+    workspaceState,
+    htmlFieldName: 'content',  // W5 closure: SectionEditorState.content
+    proposalId,
+    userId,
+    orgId,
+    client: supabase,
+    deps: { buildResolvedItemEntry, appendResolvedItem },
+  })
 
   // Notify parent of pendingActions count changes (for Sidebar badge)
   useEffect(() => {
@@ -177,13 +201,18 @@ export default function AIChatPanel({
     if (!proposalId || !userId) return
     supabase
       .from('chat_sessions')
-      .select('pending_actions, active_task')  // active_task is a DIRECT column (not metadata->active_task)
+      .select('pending_actions, active_task, resolved_items')  // Phase 14.2.2: add resolved_items
       .eq('proposal_id', proposalId)
       .eq('user_id', userId)  // D-45: per-user session
       .maybeSingle()
       .then(({ data }) => {
         if (data?.pending_actions) setPendingActions(data.pending_actions as unknown as PendingActionItem[])
         if (data?.active_task) setActiveTask(data.active_task as unknown as ActiveTask)
+        // Phase 14.2.2 — hydrate filter Set from chat_sessions.resolved_items (D-18).
+        const raw = (data as unknown as { resolved_items?: ResolvedItem[] } | null)?.resolved_items
+        if (raw) {
+          setResolvedFilterSet(rebuildFilterSet(raw))
+        }
       })
   }, [proposalId, userId])
 
@@ -213,6 +242,7 @@ export default function AIChatPanel({
         const row = payload.new as {
           pending_actions?: PendingActionItem[]
           active_task?: ActiveTask | null
+          resolved_items?: ResolvedItem[] | null
           user_id?: string
         }
 
@@ -220,6 +250,11 @@ export default function AIChatPanel({
         if (row.user_id && row.user_id !== userId) return
 
         if (row.pending_actions !== undefined) setPendingActions(row.pending_actions ?? [])
+
+        // Phase 14.2.2 — re-hydrate the resolved_items filter Set on Realtime UPDATE (D-21, S3).
+        if (row.resolved_items !== undefined && row.resolved_items !== null) {
+          setResolvedFilterSet(rebuildFilterSet(row.resolved_items))
+        }
 
         if ('active_task' in row) {
           const newTask = row.active_task ?? null
@@ -638,7 +673,17 @@ export default function AIChatPanel({
 
                 {/* Action Queue — above chat history */}
                 <ActionQueue
-                  actions={pendingActions.filter(a => !a.dismissed)}
+                  actions={pendingActions.filter(a => {
+                    if (a.dismissed) return false
+                    // Phase 14.2.2 D-20 — hide items already resolved (by id or identity-key triple).
+                    if (resolvedFilterSet.has(`id:${a.id}`)) return false
+                    if (resolvedFilterSet.has(`ik:${identityKey({
+                      section_key: a.section_key,
+                      finding_type: a.type,
+                      title: a.title,
+                    })}`)) return false
+                    return true
+                  })}
                   activeTaskSectionTitle={activeTask?.section_title ?? null}
                   isWalkthroughActive={!!activeTask && activeTask.status === 'active'}
                   onCtaClick={(action) => {
@@ -649,6 +694,44 @@ export default function AIChatPanel({
                     handleSendMessage(`[Action: ${action.cta_tool}] ${action.title}`, action.cta_payload, action.cta_tool)
                   }}
                   onDismiss={(actionId) => {
+                    // Phase 14.2.2 — fire-and-forget resolved_items write + optimistic Set update.
+                    const action = pendingActions.find(a => a.id === actionId)
+                    if (action) {
+                      const snapshot: OriginatingActionSnapshot = {
+                        id: action.id,
+                        section_key: action.section_key,
+                        finding_type: action.type,
+                        title: action.title,
+                        description: action.description ?? '',
+                      }
+                      // Field name verified in 14.2.2-01-SUMMARY.md (W5 closure): `content`.
+                      const sectionHtml = workspaceState.sections[action.section_key]?.content ?? ''
+                      void (async () => {
+                        const entry = await buildResolvedItemEntry({
+                          snapshot,
+                          resolutionSummary: { accepted: 0, rejected: 1, stale: 0 },
+                          acceptedEditsInDocOrder: [],
+                          sectionHtml,
+                        })
+                        void appendResolvedItem({
+                          proposalId,
+                          userId,
+                          orgId,
+                          entry,
+                          client: supabase,
+                        })
+                      })()
+                      setResolvedFilterSet(prev => {
+                        const next = new Set(prev)
+                        next.add(`id:${actionId}`)
+                        next.add(`ik:${identityKey({
+                          section_key: snapshot.section_key,
+                          finding_type: snapshot.finding_type,
+                          title: snapshot.title,
+                        })}`)
+                        return next
+                      })
+                    }
                     setPendingActions(prev => prev.map(a => a.id === actionId ? { ...a, dismissed: true } : a))
                   }}
                   onUndoDismiss={(actionId) => {
