@@ -117,6 +117,9 @@ export interface ToolDataEnvelope {
   version: 1                       // increment when tool schema changes; loader must handle all versions
   payload: ToolPayload
   state: Record<string, unknown>   // mutable: per-paragraph accept/reject, dismissed issues, answered prompts
+  // Phase 14.2.2 — snapshot of the originating PendingActionItem (D-19). May be null
+  // for free-text / user-initiated tool calls that have no upstream action item.
+  originating_action?: OriginatingActionSnapshot | null
 }
 
 // ── Per-paragraph accept/reject state (within ToolDataEnvelope.state) ─────────
@@ -244,4 +247,57 @@ export interface ActiveTask {
   /** The PendingActionItem.id that triggered this walkthrough — for back-linking */
   source_action_item_id?: string
   last_updated: string
+}
+
+// ── Phase 14.2.2 — resolved_items memory types ────────────────────────────────
+
+/**
+ * Finding type for resolved/originating action items. Matches the existing
+ * PendingActionItem.type / ActionItemType union (kept in lockstep — if one changes,
+ * update both).
+ */
+export type FindingType = 'gap' | 'conflict' | 'compliance' | 'missing'
+
+/** Walkthrough acceptance tally — D-14. Optional on ResolvedItem. */
+export type AcceptanceSummary = {
+  accepted: number
+  rejected: number
+  stale: number
+}
+
+/**
+ * Minimal snapshot of the PendingActionItem that triggered a tool call. Persisted
+ * inside ToolDataEnvelope.originating_action so downstream consumers can reconstruct
+ * the originating action even after the pending_actions list churns (D-19).
+ */
+export type OriginatingActionSnapshot = {
+  id: string
+  section_key: string
+  finding_type: FindingType
+  title: string
+  description: string
+}
+
+/**
+ * Persisted entry in chat_sessions.resolved_items[] — one per fixed/dismissed action.
+ * Cap = RESOLVED_ITEMS_CAP (25), enforced inside the append_resolved_item RPC under
+ * FOR UPDATE lock (D-27, D-29, D-30).
+ *
+ * originating_action_id is nullable to allow free-text origins (D-10/D-19) where the
+ * user invoked the tool directly without an upstream pending action.
+ */
+export type ResolvedItem = {
+  originating_action_id: string | null
+  section_key: string
+  finding_type: FindingType
+  title: string
+  description: string
+  user_action: 'fixed' | 'dismissed'
+  /** Concatenated + truncated to APPLIED_CHANGES_MAX_CHARS (200) — D-16. */
+  applied_changes: string
+  /** SHA-256 hex of section's TipTap HTML at the moment of action — drift detection. */
+  section_content_hash_at_action: string
+  /** ISO 8601 timestamp — used for cap-eviction ordering inside the RPC (DESC). */
+  timestamp: string
+  acceptance_summary?: AcceptanceSummary
 }
