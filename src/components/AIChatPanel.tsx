@@ -2,8 +2,9 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../lib/supabase'
 import type { ChatMessage, ProposeEditPayload, ProposeEditState, AnswerWithCitationsPayload, CompliancePayload, AskUserPayload } from '../types/chat'
-import type { ToolDataEnvelope, ChatMessageType } from '../types/chat'
+import type { ToolDataEnvelope, ChatMessageType, OriginatingActionSnapshot } from '../types/chat'
 import type { PendingActionItem, ActiveTask } from '../types/chat'
+import { captureSnapshot, takeSnapshot } from '../chat/ctaSnapshotMap'
 import type { Json } from '../types/database.types'
 import { ComplianceCard } from './chat/ComplianceCard'
 import { AskUserCard } from './chat/AskUserCard'
@@ -150,6 +151,10 @@ export default function AIChatPanel({
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const lastMessageCountRef = useRef<number>(0)
+  // Phase 14.2.2 (D-9, D-11) — snapshot the originating pending_action at CTA-click time
+  // so the propose_edit result handler can stamp it onto tool_data.originating_action.
+  // Key shape + capture semantics extracted to src/chat/ctaSnapshotMap.ts (unit-tested).
+  const ctaSnapshotRef = useRef<Map<string, OriginatingActionSnapshot>>(new Map())
 
   // ── Part B state ───────────────────────────────────────────────────────────
   const [pendingActions, setPendingActions] = useState<PendingActionItem[]>([])
@@ -419,6 +424,20 @@ export default function AIChatPanel({
                 payload: event.result,
                 state: {},
               }
+              // Phase 14.2.2 D-9/D-10: for propose_edit results, take-and-delete the
+              // originating-action snapshot captured at CTA-click time and stamp it
+              // onto tool_data BEFORE the message is enqueued or persisted. Helper
+              // returns null for free-text origin so the field is ALWAYS assigned
+              // (explicit null, not undefined). Rides the existing envelope into the
+              // proposal_chats INSERT below.
+              if (event.tool === 'propose_edit' && event.result?.section_key) {
+                const propPayloadForSnapshot = event.result as ProposeEditPayload
+                toolData.originating_action = takeSnapshot(
+                  ctaSnapshotRef.current,
+                  propPayloadForSnapshot.section_key,
+                  'propose_edit',
+                )
+              }
               // Determine message type from tool name
               const toolMsgTypeMap: Record<string, ChatMessageType> = {
                 propose_edit: 'tool-propose-edit',
@@ -623,6 +642,10 @@ export default function AIChatPanel({
                   activeTaskSectionTitle={activeTask?.section_title ?? null}
                   isWalkthroughActive={!!activeTask && activeTask.status === 'active'}
                   onCtaClick={(action) => {
+                    // Phase 14.2.2 D-9: capture snapshot BEFORE edge function call so it
+                    // survives a mid-review re-analyze that replaces pending_actions.
+                    // Helper in src/chat/ctaSnapshotMap.ts (unit-tested) owns key shape.
+                    captureSnapshot(ctaSnapshotRef.current, action)
                     handleSendMessage(`[Action: ${action.cta_tool}] ${action.title}`, action.cta_payload, action.cta_tool)
                   }}
                   onDismiss={(actionId) => {
