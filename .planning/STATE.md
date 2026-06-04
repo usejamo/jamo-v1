@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-stopped_at: Completed 14.2.3-01-PLAN.md
-last_updated: "2026-06-04T06:20:07.794Z"
+stopped_at: Completed 14.2.3-03-PLAN.md
+last_updated: "2026-06-04T00:30:00.000Z"
 progress:
   total_phases: 23
   completed_phases: 21
   total_plans: 110
-  completed_plans: 108
-  percent: 98
+  completed_plans: 109
+  percent: 99
 ---
 
 ## Project Status
@@ -31,7 +31,7 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 
 ## Last Session
 
-**Stopped at:** Completed 14.2.3-01-PLAN.md (edge-function changes: full content + 5000 ceiling, 4 placeholder few-shots, rebalanced tier caps). Plans 02 (migration + client hash gate) and 03 (resolve-time flush-then-hash) remain.
+**Stopped at:** Completed 14.2.3-03-PLAN.md (resolve-time flush-then-hash: saveNow exposed on the editor handle + type; dismiss handler now awaits saveNow(html) then hashes that exact string; accept-path equality confirmed at SectionEditorBlock.tsx:354 — no gap). Plan 02 (migration + client hash gate) remains; its in-progress uncommitted changes to useGapAnalysisTrigger.ts cause 3 out-of-scope spec failures logged in the phase deferred-items.md.
 **Session date:** 2026-06-04
 
 ## Roadmap Evolution
@@ -48,6 +48,8 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 - **Gap analyzer excerpt (14.2.3-01):** Full section content sent to Haiku up to a 5000-char ceiling; over-ceiling sections cut + clearly-meta end-marker `[…section truncated for length…]`. 300-char slice removed. Single Haiku call preserved.
 - **Placeholder few-shots (14.2.3-01):** Exactly 4 OUTPUT: lines — original TBD example folded into the Family 4 (explicit-marker) example. Optional D-1 prompt line ("judge truncated sections on visible content only") was added.
 - **Tier caps (14.2.3-01):** QUEUE_CAP 10; TIER_CAPS { compliance: 4, conflict: 2, gap: 4, missing: 4 }.
+- **Resolve-time flush-then-hash (14.2.3-03, D-6):** `SectionEditorHandle.saveNow` exposed (delegates to useAutosave.saveNow — no duplicated persistence). Dismiss handler awaits `saveNow(html)` then hashes THAT exact string via buildResolvedItemEntry, closing the ~1500ms autosave-debounce divergence window. saveNow failure is caught + console.debug'd and never blocks the resolve (falls back to in-memory hash). AIChatPanel writes proposal_sections through saveNow only — zero direct writes.
+- **Accept-path equality (14.2.3-03, D-6):** No new saveNow needed — accept handler already flushes via `await saveNow(acceptedHtml)` at SectionEditorBlock.tsx:354 before useResolvedItemsWriteOnTerminal reads workspace content; DB == hashed content. No gap.
 - **SSE streaming pattern:** Raw `fetch()` for generate-proposal-section (not supabase.functions.invoke which buffers) — VITE_SUPABASE_URL + VITE_SUPABASE_PUBLISHABLE_KEY in headers
 - **Realtime fallback:** 10s setTimeout dispatches SECTION_COMPLETE from local SSE text if Realtime hasn't confirmed
 - **RAG non-blocking:** fetchRagChunks returns [] on error — RAG enhances but does not block generation
