@@ -123,6 +123,8 @@ export function useGapAnalysisTrigger(params: {
             proposal_id: proposalId,
             sections: summaries,
             run_id: globalThis.crypto.randomUUID(),
+            // D-3: persist the whole-proposal hash so the next mount can gate on it.
+            content_hash: hash,
           },
         })
         if (error) {
@@ -154,6 +156,25 @@ export function useGapAnalysisTrigger(params: {
       if (cancelled) return
       const summaries = await fetchSummaries()
       if (cancelled) return
+      // D-3 precedence: client hash gate FIRST. Read the persisted whole-proposal
+      // hash; if it equals the current content hash, the cached pending_actions are
+      // still valid — skip the invoke entirely (the 30s server cooldown is only the
+      // backstop). A null persisted hash (no row / never analyzed) ⇒ run, the same
+      // code path as a mismatch.
+      const currentHash = await computeHash(summaries)
+      const { data: sessionRow } = await supabase
+        .from('chat_sessions')
+        .select('pending_actions_content_hash')
+        .eq('proposal_id', proposalId as string)
+        .eq('user_id', userId as string)
+        .maybeSingle()
+      if (cancelled) return
+      const persisted = sessionRow?.pending_actions_content_hash ?? null
+      if (persisted !== null && persisted === currentHash) {
+        // Seed the in-memory gate so the Realtime path agrees and does not re-fire.
+        hashRef.current = currentHash
+        return
+      }
       await runAnalysis(summaries, {})
     })()
 
