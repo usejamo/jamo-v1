@@ -122,6 +122,8 @@ Type definitions (D-20 — distinction is mandatory):
 
 Title format (D-29): "[Section Name] — [description]". Section name must be visible.
 
+Truncation (D-1): if an excerpt ends with "[…section truncated for length…]", that marker is meta — it is NOT a quality issue. Judge the section on its visible content only; do not infer anything about the unseen tail and do not flag the marker itself.
+
 Few-shot examples:
 INPUT: [{"key":"eligibility","title":"Eligibility Criteria","excerpt":"TBD"}]
 OUTPUT: [{"id":"...","type":"missing","section_key":"eligibility","title":"Eligibility Criteria — section not started","description":"Eligibility Criteria section has no content and must be drafted before submission.","priority":4,"cta_label":"Draft it","cta_tool":"propose_edit","cta_payload":{"section_key":"eligibility"}}]`
@@ -263,12 +265,22 @@ Deno.serve(async (req) => {
   // ── Step 6: LLM analysis — Haiku ONLY (AI-SPEC: never Sonnet) ────────────
   const run_id = clientRunId ?? globalThis.crypto.randomUUID()
 
-  // Build truncated section summaries (AI-SPEC: 300 chars max per section)
-  const summaries = sections.map((s) => ({
-    key: s.key,
-    title: s.title,
-    excerpt: s.content.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim().slice(0, 300),
-  }))
+  // Build section summaries — full content up to a 5000-char per-section ceiling
+  // (D-1: stop hiding section bodies from Haiku; the 300-char slice was the root
+  // cause of zero placeholder findings). Over-ceiling sections (rare) are cut at
+  // 5000 chars with a clearly-meta end-marker so the model reads real content
+  // first, then learns the tail is incomplete. The marker is phrased to read as
+  // meta — it must NOT look like unfilled placeholder scaffolding (Decision 1 risk).
+  const CONTENT_CEILING = 5000
+  const TRUNCATION_MARKER = ' […section truncated for length…]'
+  const summaries = sections.map((s) => {
+    const cleaned = s.content.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim()
+    const excerpt =
+      cleaned.length > CONTENT_CEILING
+        ? cleaned.slice(0, CONTENT_CEILING) + TRUNCATION_MARKER
+        : cleaned
+    return { key: s.key, title: s.title, excerpt }
+  })
 
   const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY')! })
 
