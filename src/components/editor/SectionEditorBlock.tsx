@@ -462,8 +462,9 @@ export const SectionEditorBlock = forwardRef<SectionEditorHandle, SectionEditorB
       getContent: () => {
         return editor?.getHTML() ?? ''
       },
+      saveNow: (html: string) => saveNow(html),
       materializePendingEdits,
-    }), [materializePendingEdits]) // eslint-disable-line react-hooks/exhaustive-deps
+    }), [saveNow, materializePendingEdits]) // eslint-disable-line react-hooks/exhaustive-deps
 
     const isEmpty = !editorState.content && !editorState.ai_action?.streaming
 

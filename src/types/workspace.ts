@@ -161,6 +161,11 @@ export interface SectionEditorHandle {
   insertContentAt: (pos: number, content: string) => void
   setContent: (html: string) => void
   getContent: () => string
+  /** Flushes the given HTML to proposal_sections.content NOW via the canonical
+   *  useAutosave.saveNow path (clears the debounce timer, applies the isEffectivelyEmpty
+   *  guard). Used by resolve-time flush-then-hash (Decision 6) so the staleness hash is
+   *  provably consistent with the persisted DB content. */
+  saveNow: (html: string) => Promise<void>
   /** Dispatches SET_PENDING_EDITS to workspace reducer, triggering PendingEditsPlugin refresh.
    *  Runs ghostContentLeakDetected guard before dispatch — blocks and logs if ghost leak detected.
    *  Both initial propose_edit arrival AND 'Review in editor →' use this as the single entry point. */
