@@ -12,8 +12,8 @@ const corsHeaders = {
 const PROPOSAL_COOLDOWN_MS = 30_000
 
 // ── Cap constants (D-28: tunable in one place) ────────────────────────────────
-const QUEUE_CAP = 8
-const TIER_CAPS = { compliance: 4, conflict: 2, gap: 2, missing: 2 } as const
+const QUEUE_CAP = 10
+const TIER_CAPS = { compliance: 4, conflict: 2, gap: 4, missing: 4 } as const
 
 // ── PendingAction Zod schema — validates Haiku output before DB write ──────────
 const PendingActionSchema = z.object({
