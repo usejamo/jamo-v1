@@ -464,6 +464,18 @@ Plans:
 - [ ] 14.2-07-PLAN.md — ActionQueue, ActionItem, ResumeTaskBanner, WalkthroughProgress + AIChatPanel Part B + detectGaps retirement
 - [ ] 14.2-08-PLAN.md — Human verification checkpoint: Part A and Part B end-to-end
 
+### Phase 14.2.3: Fix Gap Analyzer Context Starvation (INSERTED)
+
+**Goal:** The gap analyzer returns findings on proposals full of unfilled template placeholders — stop truncating section content to 300 chars before Haiku, sharpen the prompt for placeholder detection, persist the whole-proposal content hash to gate the mount trigger, and rebalance tier caps.
+**Requirements**: D-1, D-2, D-3, D-4, D-5, D-6 (CONTEXT.md decisions; no REQ IDs)
+**Depends on:** Phase 14.2 (and 14.2.2 resolved_items convention)
+**Plans:** 3 plans
+
+Plans:
+- [ ] 14.2.3-01-PLAN.md — Edge: full section content (5000-char ceiling + marker), 4-example placeholder prompt, rebalanced tier caps (D-1/D-2/D-5)
+- [ ] 14.2.3-02-PLAN.md — [BLOCKING migration] persist pending_actions_content_hash; edge write + client mount read-gate (D-3/D-4)
+- [ ] 14.2.3-03-PLAN.md — Resolve-time flush-then-hash: expose saveNow on the editor handle, dismiss-path sequence (D-6)
+
 ### Phase 14.2.1: Part B Trigger Wiring (INSERTED)
 
 **Goal:** Wire the dead triggerAnalysis stub in AIChatPanel.tsx so the Part B proactive co-pilot surface (ActionQueue, WalkthroughProgress, Sidebar gap badge) actually populates. Subscribe to proposal_sections Realtime UPDATEs (D-30, debounced 3s, content-hash skip) and fire once on panel open when no prior chat_sessions row exists (D-35). No edge function or schema changes.
