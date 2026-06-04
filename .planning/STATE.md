@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Phase 14.2.2 context gathered
-last_updated: "2026-05-28T22:12:43.295Z"
+stopped_at: Phase 14.2.3 context gathered
+last_updated: "2026-06-04T05:41:38.050Z"
 progress:
-  total_phases: 22
-  completed_phases: 20
+  total_phases: 23
+  completed_phases: 21
   total_plans: 105
-  completed_plans: 100
-  percent: 95
+  completed_plans: 106
+  percent: 100
 ---
 
 ## Project Status
@@ -31,7 +31,7 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 
 ## Last Session
 
-**Stopped at:** Phase 14.2.2 context gathered
+**Stopped at:** Phase 14.2.3 context gathered
 **Session date:** 2026-05-15
 
 ## Roadmap Evolution
@@ -39,6 +39,7 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 - Phase 11.1 added: DOCX template style extraction (REQ-10.4b) — unzip org DOCX, extract styles.xml, inject into generated export
 - Phase 12.1 added: Salesforce Data Sync — salesforce-sync Edge Function, Step 1 pre-population, status write-back, graceful degradation (split from Phase 12 which shipped OAuth-only)
 - Phase 14.2.2 inserted after Phase 14.2.1: Resolved Items as Stateful Co-pilot Memory (URGENT) — wires `chat_sessions.resolved_items` so Haiku evolves findings instead of repeating them verbatim; fixes dismissal-persistence bug as a side effect. CONTEXT.md authored by user with locked architectural decisions; awaiting /gsd-discuss-phase 14.2.2.
+- Phase 14.2.3 inserted after Phase 14.2: Fix Gap Analyzer Context Starvation (URGENT) — replaces the 300-char Haiku excerpt slice with full content (5000-char ceiling), sharpens prompt for placeholder detection, persists the whole-proposal content hash to gate the mount trigger, and rebalances tier caps. Brief authored by user with locked decisions; alignment check complete (awaiting CONTEXT.md → /gsd-discuss-phase 14.2.3).
 
 ---
 
