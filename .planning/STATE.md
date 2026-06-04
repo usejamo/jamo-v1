@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: unknown
-stopped_at: Phase 14.2.3 context gathered
-last_updated: "2026-06-04T05:41:38.050Z"
+status: in_progress
+stopped_at: Completed 14.2.3-01-PLAN.md
+last_updated: "2026-06-04T06:20:07.794Z"
 progress:
   total_phases: 23
   completed_phases: 21
-  total_plans: 105
-  completed_plans: 106
-  percent: 100
+  total_plans: 110
+  completed_plans: 108
+  percent: 98
 ---
 
 ## Project Status
@@ -31,8 +31,8 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 
 ## Last Session
 
-**Stopped at:** Phase 14.2.3 context gathered
-**Session date:** 2026-05-15
+**Stopped at:** Completed 14.2.3-01-PLAN.md (edge-function changes: full content + 5000 ceiling, 4 placeholder few-shots, rebalanced tier caps). Plans 02 (migration + client hash gate) and 03 (resolve-time flush-then-hash) remain.
+**Session date:** 2026-06-04
 
 ## Roadmap Evolution
 
@@ -45,6 +45,9 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 
 ## Active Decisions
 
+- **Gap analyzer excerpt (14.2.3-01):** Full section content sent to Haiku up to a 5000-char ceiling; over-ceiling sections cut + clearly-meta end-marker `[…section truncated for length…]`. 300-char slice removed. Single Haiku call preserved.
+- **Placeholder few-shots (14.2.3-01):** Exactly 4 OUTPUT: lines — original TBD example folded into the Family 4 (explicit-marker) example. Optional D-1 prompt line ("judge truncated sections on visible content only") was added.
+- **Tier caps (14.2.3-01):** QUEUE_CAP 10; TIER_CAPS { compliance: 4, conflict: 2, gap: 4, missing: 4 }.
 - **SSE streaming pattern:** Raw `fetch()` for generate-proposal-section (not supabase.functions.invoke which buffers) — VITE_SUPABASE_URL + VITE_SUPABASE_PUBLISHABLE_KEY in headers
 - **Realtime fallback:** 10s setTimeout dispatches SECTION_COMPLETE from local SSE text if Realtime hasn't confirmed
 - **RAG non-blocking:** fetchRagChunks returns [] on error — RAG enhances but does not block generation
@@ -208,4 +211,4 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 - **Plan 01** (2026-05-20): useGapAnalysisTrigger hook — D-30 Realtime subscription on proposal_sections (debounced 3s, full-section refetch, content-hash skip), D-35 on-mount fire when no prior chat_sessions row exists, HTTP 429 treated as expected silence. 7/7 Vitest specs pass. Commits 1e051b4, 21fe0ae, ce964a3.
 - **Plan 02** (2026-05-20): Wire useGapAnalysisTrigger into AIChatPanel — removed dead `void triggerAnalysis` stub plus orphaned inline useCallback and unused `isAnalyzing` state. tsc clean for the touched file. Manual D-30/D-35/429 live smoke deferred to human-verify pass (requires running dev server + authed user). Commits 600fcc0, ad9249c.
 
-**Planned Phase:** 14.2.2 (resolved-items-memory) — 6 plans — 2026-05-28T22:12:43.279Z
+**Planned Phase:** 14.2.3 (fix-gap-analyzer-context-starvation) — 3 plans — 2026-06-04T05:57:28.606Z

@@ -472,7 +472,7 @@ Plans:
 **Plans:** 3 plans
 
 Plans:
-- [ ] 14.2.3-01-PLAN.md — Edge: full section content (5000-char ceiling + marker), 4-example placeholder prompt, rebalanced tier caps (D-1/D-2/D-5)
+- [x] 14.2.3-01-PLAN.md — Edge: full section content (5000-char ceiling + marker), 4-example placeholder prompt, rebalanced tier caps (D-1/D-2/D-5)
 - [ ] 14.2.3-02-PLAN.md — [BLOCKING migration] persist pending_actions_content_hash; edge write + client mount read-gate (D-3/D-4)
 - [ ] 14.2.3-03-PLAN.md — Resolve-time flush-then-hash: expose saveNow on the editor handle, dismiss-path sequence (D-6)
 
