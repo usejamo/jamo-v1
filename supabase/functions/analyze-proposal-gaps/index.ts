@@ -156,6 +156,9 @@ const RequestSchema = z.object({
     content: z.string(),
   })).optional().default([]),
   run_id: z.string().optional(),
+  // Whole-proposal content hash (D-3). Advisory cache metadata — persisted alongside
+  // pending_actions so the client mount gate can skip a redundant analysis when unchanged.
+  content_hash: z.string().optional(),
   // user_id intentionally absent — always derived from JWT via supabase.auth.getUser()
 })
 
@@ -211,6 +214,7 @@ Deno.serve(async (req) => {
   let proposalId: string
   let sections: Array<{ key: string; title: string; content: string }>
   let clientRunId: string | undefined
+  let contentHash: string | undefined
   try {
     const body = await req.json()
     const parsed = RequestSchema.safeParse(body)
@@ -223,6 +227,7 @@ Deno.serve(async (req) => {
     proposalId = parsed.data.proposal_id
     sections = parsed.data.sections
     clientRunId = parsed.data.run_id
+    contentHash = parsed.data.content_hash
   } catch {
     return new Response(
       JSON.stringify({ error: 'Invalid JSON' }),
@@ -374,6 +379,10 @@ Deno.serve(async (req) => {
         org_id: orgId,
         user_id: userId,
         pending_actions: pendingActions,
+        // D-3 desync guard: written in the SAME upsert object as pending_actions so the
+        // two never diverge. `?? null` lets an old client (no content_hash) write null,
+        // which the mount gate treats as "no prior analysis → run".
+        pending_actions_content_hash: contentHash ?? null,
         last_updated: new Date().toISOString(),
       },
       { onConflict: 'proposal_id,user_id' }
