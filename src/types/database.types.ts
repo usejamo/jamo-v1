@@ -23,6 +23,7 @@ export type Database = {
           last_updated: string | null
           org_id: string
           pending_actions: Json | null
+          pending_actions_content_hash: string | null
           proposal_id: string
           resolved_items: Json | null
           user_id: string
@@ -35,6 +36,7 @@ export type Database = {
           last_updated?: string | null
           org_id: string
           pending_actions?: Json | null
+          pending_actions_content_hash?: string | null
           proposal_id: string
           resolved_items?: Json | null
           user_id: string
@@ -47,6 +49,7 @@ export type Database = {
           last_updated?: string | null
           org_id?: string
           pending_actions?: Json | null
+          pending_actions_content_hash?: string | null
           proposal_id?: string
           resolved_items?: Json | null
           user_id?: string
