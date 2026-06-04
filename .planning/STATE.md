@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: in_progress
-stopped_at: Completed 14.2.3-03-PLAN.md
-last_updated: "2026-06-04T00:30:00.000Z"
+status: unknown
+stopped_at: "Completed 14.2.3-02-PLAN.md (persist whole-proposal content hash, D-3/D-4). Task 1 migration + types regen committed (8892acb, 1d3b697). Task 2 edge: content_hash in RequestSchema, written atomically as pending_actions_content_hash sibling in the single chat_sessions upsert (cf85d27). Task 3 client: content_hash in invoke body + mount read-gate that skips the Haiku invoke when persisted hash == current computeHash, null/mismatch runs (997c8e1). Sole-writer audit confirmed. tsc clean. Task 4 manual UAT documented PENDING in SUMMARY (esp. the MANDATORY >30s gap). 3 pre-existing useGapAnalysisTrigger.spec.ts failures (from ac7d8ee always-fire contract) confirmed not introduced by Plan 02 — logged in deferred-items.md for test-maintenance."
+last_updated: "2026-06-04T20:30:00.000Z"
 progress:
   total_phases: 23
-  completed_phases: 21
-  total_plans: 110
+  completed_phases: 22
+  total_plans: 108
   completed_plans: 109
-  percent: 99
+  percent: 100
 ---
 
 ## Project Status
@@ -48,6 +48,7 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 - **Gap analyzer excerpt (14.2.3-01):** Full section content sent to Haiku up to a 5000-char ceiling; over-ceiling sections cut + clearly-meta end-marker `[…section truncated for length…]`. 300-char slice removed. Single Haiku call preserved.
 - **Placeholder few-shots (14.2.3-01):** Exactly 4 OUTPUT: lines — original TBD example folded into the Family 4 (explicit-marker) example. Optional D-1 prompt line ("judge truncated sections on visible content only") was added.
 - **Tier caps (14.2.3-01):** QUEUE_CAP 10; TIER_CAPS { compliance: 4, conflict: 2, gap: 4, missing: 4 }.
+- **Persisted content-hash gate (14.2.3-02, D-3/D-4):** New nullable `chat_sessions.pending_actions_content_hash text` (migration `20260603000001`, live + types regenerated). The edge writes it as a SIBLING key in the SAME `chat_sessions` upsert as `pending_actions` (atomic desync guard; `contentHash ?? null` so old clients write null). The client sends `content_hash: hash` in the invoke body and, on mount, reads the persisted hash via per-(proposal,user) `.maybeSingle()` and SKIPS the Haiku invoke when it equals the current `computeHash` (seeding `hashRef`); null/mismatch runs. Precedence: client gate FIRST, 30s server cooldown is the backstop. analyze-proposal-gaps audited as the SOLE writer of `pending_actions` (chat-with-jamo only selects it). AI-SPEC 300-char note annotated SUPERSEDED.
 - **Resolve-time flush-then-hash (14.2.3-03, D-6):** `SectionEditorHandle.saveNow` exposed (delegates to useAutosave.saveNow — no duplicated persistence). Dismiss handler awaits `saveNow(html)` then hashes THAT exact string via buildResolvedItemEntry, closing the ~1500ms autosave-debounce divergence window. saveNow failure is caught + console.debug'd and never blocks the resolve (falls back to in-memory hash). AIChatPanel writes proposal_sections through saveNow only — zero direct writes.
 - **Accept-path equality (14.2.3-03, D-6):** No new saveNow needed — accept handler already flushes via `await saveNow(acceptedHtml)` at SectionEditorBlock.tsx:354 before useResolvedItemsWriteOnTerminal reads workspace content; DB == hashed content. No gap.
 - **SSE streaming pattern:** Raw `fetch()` for generate-proposal-section (not supabase.functions.invoke which buffers) — VITE_SUPABASE_URL + VITE_SUPABASE_PUBLISHABLE_KEY in headers
