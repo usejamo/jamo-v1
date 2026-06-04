@@ -124,9 +124,27 @@ Title format (D-29): "[Section Name] — [description]". Section name must be vi
 
 Truncation (D-1): if an excerpt ends with "[…section truncated for length…]", that marker is meta — it is NOT a quality issue. Judge the section on its visible content only; do not infer anything about the unseen tail and do not flag the marker itself.
 
-Few-shot examples:
-INPUT: [{"key":"eligibility","title":"Eligibility Criteria","excerpt":"TBD"}]
-OUTPUT: [{"id":"...","type":"missing","section_key":"eligibility","title":"Eligibility Criteria — section not started","description":"Eligibility Criteria section has no content and must be drafted before submission.","priority":4,"cta_label":"Draft it","cta_tool":"propose_edit","cta_payload":{"section_key":"eligibility"}}]`
+Placeholder detection (D-2 — critical): unfilled template text that should have been replaced with real content is a finding. Recognize it by SEMANTIC FAMILY, not by an exhaustive literal list — recognize the general pattern, not only the exact strings shown below. Decision boundary: a section with substantive content that still carries some placeholders is a "gap"; a section that is predominantly placeholders/scaffolding is "missing". The families below are category representatives.
+
+Family 1 — Bracket placeholders (e.g. [CRO Name], [CLIENT NAME], [DATE]).
+INPUT: [{"key":"cover_letter","title":"Cover Letter","excerpt":"[CRO Name] is pleased to submit this proposal for the Phase III oncology program. Our team brings 18 years of late-phase experience across 40 countries and a dedicated medical monitoring group. We look forward to partnering on this study."}]
+OUTPUT: [{"id":"...","type":"gap","section_key":"cover_letter","title":"Cover Letter — sponsor/CRO name placeholder unfilled","description":"The letter has substantive narrative but still opens with the bracket placeholder [CRO Name] in place of the real entity name.","priority":3,"cta_label":"Fix it","cta_tool":"propose_edit","cta_payload":{"section_key":"cover_letter"}}]
+Rationale: substantive prose plus an unfilled bracket placeholder, so it is a gap because the section is real content with a hole, not an empty section.
+
+Family 2 — Descriptive-noun placeholders (e.g. CRO legal entity name, investigational product name, study drug name).
+INPUT: [{"key":"study_design","title":"Study Design","excerpt":"This randomized, double-blind, placebo-controlled trial will enroll 480 participants across 60 sites. Subjects will receive the investigational product name at the protocol-defined dose, sponsored by CRO legal entity name, with the primary endpoint assessed at week 24."}]
+OUTPUT: [{"id":"...","type":"gap","section_key":"study_design","title":"Study Design — descriptive-noun placeholders for product and sponsor","description":"The design is detailed but uses descriptive-noun placeholders ('investigational product name', 'CRO legal entity name') where real names belong.","priority":3,"cta_label":"Fix it","cta_tool":"propose_edit","cta_payload":{"section_key":"study_design"}}]
+Rationale: a detailed paragraph with descriptive-noun placeholders standing in for specific names is a gap because the surrounding content is otherwise complete.
+
+Family 3 — Incomplete contact/address details (e.g. mailing address, Name and title of RFP contact at ..., full corporate address).
+INPUT: [{"key":"contacts","title":"Key Contacts","excerpt":"Name and title of RFP contact at Vericel BioPharma, Inc. mailing address full corporate address telephone and email to follow."}]
+OUTPUT: [{"id":"...","type":"missing","section_key":"contacts","title":"Key Contacts — contact block is unfilled scaffolding","description":"The contacts section is predominantly placeholder labels ('mailing address', 'full corporate address', 'Name and title of RFP contact') with no actual contact details.","priority":4,"cta_label":"Draft it","cta_tool":"propose_edit","cta_payload":{"section_key":"contacts"}}]
+Rationale: predominantly multi-field placeholder labels with almost no real content is missing because the section is scaffolding rather than drafted material.
+
+Family 4 — Explicit incompleteness markers (e.g. TBD, TODO, to be determined, [insert ...]).
+INPUT: [{"key":"eligibility","title":"Eligibility Criteria","excerpt":"TBD — to be determined."}]
+OUTPUT: [{"id":"...","type":"missing","section_key":"eligibility","title":"Eligibility Criteria — section not started","description":"Eligibility Criteria section is an explicit incompleteness marker ('TBD'/'to be determined') and must be drafted before submission.","priority":4,"cta_label":"Draft it","cta_tool":"propose_edit","cta_payload":{"section_key":"eligibility"}}]
+Rationale: an explicit incompleteness marker standing in for the entire section is missing because there is no substantive content to evolve.`
 
 // ── Request schema validation ──────────────────────────────────────────────────
 // user_id is NOT in the request body — derived from JWT only
