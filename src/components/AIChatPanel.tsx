@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../lib/supabase'
 import type { ChatMessage, ProposeEditPayload, ProposeEditState, AnswerWithCitationsPayload, CompliancePayload, AskUserPayload } from '../types/chat'
@@ -190,11 +190,34 @@ export default function AIChatPanel({
     deps: { buildResolvedItemEntry, appendResolvedItem },
   })
 
+  // Phase 14.2.2 — single source of truth for which pendingActions are visible.
+  // Render, badge count, and parent Sidebar count must all agree, else the user
+  // sees "2 new" with an empty queue when resolved-items hide just-re-emitted findings.
+  const visiblePendingActions = useMemo(
+    () =>
+      pendingActions.filter((a) => {
+        if (a.dismissed) return false
+        if (resolvedFilterSet.has(`id:${a.id}`)) return false
+        if (
+          resolvedFilterSet.has(
+            `ik:${identityKey({
+              section_key: a.section_key,
+              finding_type: a.type,
+              title: a.title,
+            })}`,
+          )
+        ) {
+          return false
+        }
+        return true
+      }),
+    [pendingActions, resolvedFilterSet],
+  )
+
   // Notify parent of pendingActions count changes (for Sidebar badge)
   useEffect(() => {
-    const activeCount = pendingActions.filter(a => !a.dismissed).length
-    onPendingActionsCountChange?.(activeCount)
-  }, [pendingActions, onPendingActionsCountChange])
+    onPendingActionsCountChange?.(visiblePendingActions.length)
+  }, [visiblePendingActions, onPendingActionsCountChange])
 
   // ── Mount fetch from chat_sessions (direct column, D-45) ──────────────────
   useEffect(() => {
@@ -582,7 +605,7 @@ export default function AIChatPanel({
     }
   }, [input, isStreaming, draftGenerated, proposalId, orgId, activeSectionKey, sections, messages, sectionTitles])
 
-  const pendingActionsCount = pendingActions.filter(a => !a.dismissed).length
+  const pendingActionsCount = visiblePendingActions.length
 
   return (
     // Outer shell: drives the width animation and acts as the aurora border host
@@ -671,19 +694,10 @@ export default function AIChatPanel({
                   </div>
                 )}
 
-                {/* Action Queue — above chat history */}
+                {/* Action Queue — above chat history. Predicate lives in visiblePendingActions
+                    so badge count and queue render always agree (Phase 14.2.2 D-20). */}
                 <ActionQueue
-                  actions={pendingActions.filter(a => {
-                    if (a.dismissed) return false
-                    // Phase 14.2.2 D-20 — hide items already resolved (by id or identity-key triple).
-                    if (resolvedFilterSet.has(`id:${a.id}`)) return false
-                    if (resolvedFilterSet.has(`ik:${identityKey({
-                      section_key: a.section_key,
-                      finding_type: a.type,
-                      title: a.title,
-                    })}`)) return false
-                    return true
-                  })}
+                  actions={visiblePendingActions}
                   activeTaskSectionTitle={activeTask?.section_title ?? null}
                   isWalkthroughActive={!!activeTask && activeTask.status === 'active'}
                   onCtaClick={(action) => {
@@ -705,13 +719,29 @@ export default function AIChatPanel({
                         description: action.description ?? '',
                       }
                       // Field name verified in 14.2.2-01-SUMMARY.md (W5 closure): `content`.
-                      const sectionHtml = workspaceState.sections[action.section_key]?.content ?? ''
+                      const sectionKey = action.section_key
+                      const html = workspaceState.sections[sectionKey]?.content ?? ''
                       void (async () => {
+                        // Decision 6 — flush-then-hash. Persist the exact in-memory `html`
+                        // NOW so DB content == the string we are about to hash, closing the
+                        // ~1500ms autosave-debounce divergence window. The literal `html`
+                        // passed to saveNow is the SAME string passed as sectionHtml below
+                        // (never a re-fetch) — buildResolvedItemEntry hashes it internally
+                        // (sha256OfSection), and the edge re-hashes the byte-identical DB
+                        // content, so the staleness equality holds.
+                        try {
+                          await editorRefs.current?.get(sectionKey)?.saveNow(html)
+                        } catch (e) {
+                          // Decision 6 fallback: never block the resolve on a save failure —
+                          // degrade to the benign in-memory behavior (hash the same in-memory
+                          // string) and log. Errs toward re-surface, which is safe.
+                          console.debug('[AIChatPanel] saveNow failed during resolve — falling back to in-memory hash', e)
+                        }
                         const entry = await buildResolvedItemEntry({
                           snapshot,
                           resolutionSummary: { accepted: 0, rejected: 1, stale: 0 },
                           acceptedEditsInDocOrder: [],
-                          sectionHtml,
+                          sectionHtml: html,
                         })
                         void appendResolvedItem({
                           proposalId,

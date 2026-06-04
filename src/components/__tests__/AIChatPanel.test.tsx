@@ -93,6 +93,7 @@ function makeEditorRefs(handle?: Partial<SectionEditorHandle>) {
       insertContentAt: vi.fn(),
       getContent: vi.fn(() => '<p></p>'),
       setContent: vi.fn(),
+      saveNow: vi.fn(() => Promise.resolve()),
       materializePendingEdits: vi.fn(),
       ...handle,
     }
