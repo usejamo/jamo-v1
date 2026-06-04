@@ -1,13 +1,17 @@
 // src/hooks/__tests__/useGapAnalysisTrigger.spec.ts
 //
-// Coverage for useGapAnalysisTrigger (phase 14.2.1, Plan 01):
-//   - D-35 initial population: fires once when no chat_sessions row exists
-//   - D-35 skip: does NOT fire when a chat_sessions row already exists
-//   - D-30 debounce: rapid Realtime events coalesce into one invoke
-//   - Content-hash skip: identical content suppresses duplicate invokes
-//   - 429 silence: cooldown response is swallowed without console.error
-//   - Unmount cleanup: removeChannel called, debounced timer does not fire
-//   - proposalId change: hash resets and initial check runs for the new proposal
+// Coverage for useGapAnalysisTrigger (phase 14.2.1 + 14.2.3 contract update):
+//   - Always-fire on mount: the hook ALWAYS attempts analysis on mount; the old
+//     D-35 "only when no chat_sessions row" suppression was removed (ac7d8ee).
+//   - D-3 persisted-hash gate (Plan 02): on mount the hook reads the persisted
+//     chat_sessions.pending_actions_content_hash and computes the current
+//     whole-proposal hash via computeHash; it SKIPS the invoke only when they are
+//     EQUAL. A null / absent / mismatched persisted hash ⇒ it runs.
+//   - D-30 debounce: rapid Realtime events coalesce into one invoke after 3000ms.
+//   - Content-hash skip: identical content suppresses duplicate invokes.
+//   - 429 silence: cooldown response is swallowed without console.error.
+//   - Unmount cleanup: removeChannel called, debounced timer does not fire.
+//   - proposalId change: hash resets and the mount check runs for the new proposal.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { renderHook, act, cleanup } from '@testing-library/react'
@@ -19,7 +23,9 @@ type Handler = (payload: { new: Record<string, unknown> }) => void
 
 const mockState = {
   proposalSectionsRows: [] as Array<{ section_key: string; name: string; content: string }>,
-  chatSessionsRow: null as { id: string } | null,
+  // The persisted chat_sessions row. Carries pending_actions_content_hash so the
+  // mount D-3 gate can be exercised. `null` ⇒ no row ⇒ always runs.
+  chatSessionsRow: null as { pending_actions_content_hash: string | null } | null,
   invokeResult: { data: null, error: null } as { data: unknown; error: unknown },
   capturedRealtimeHandler: null as Handler | null,
   invokeSpy: vi.fn(),
@@ -48,6 +54,7 @@ vi.mock('../../lib/supabase', () => {
     builder.select = () => builder
     builder.eq = () => builder
     builder.order = () => Promise.resolve({ data: mockState.proposalSectionsRows, error: null })
+    // The hook selects chat_sessions.pending_actions_content_hash via .maybeSingle().
     builder.maybeSingle = async () => ({ data: mockState.chatSessionsRow, error: null })
     return builder
   }
@@ -79,9 +86,18 @@ vi.mock('../../lib/supabase', () => {
 })
 
 // Imported AFTER vi.mock so the hook resolves the mocked supabase client.
-import { useGapAnalysisTrigger } from '../useGapAnalysisTrigger'
+// computeHash is exported so the test can seed a matching persisted hash to
+// exercise the D-3 mount gate deterministically.
+import { useGapAnalysisTrigger, computeHash } from '../useGapAnalysisTrigger'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+// Map proposal_sections rows into the SectionSummary shape the hook hashes/sends.
+function toSummaries(
+  rows: Array<{ section_key: string; name: string; content: string }>
+) {
+  return rows.map((r) => ({ key: r.section_key, title: r.name, content: r.content }))
+}
 
 // happy-dom provides crypto.subtle; if not, polyfill from node webcrypto.
 beforeEach(async () => {
@@ -99,8 +115,8 @@ afterEach(async () => {
   // Unmount any hooks rendered by this test so their effects do not bleed
   // into the next test's mockState.
   cleanup()
-  // Drain any pending microtasks (e.g. an in-flight initial-population IIFE
-  // whose computeHash → invoke chain has not settled yet). Doing this under
+  // Drain any pending microtasks (e.g. an in-flight mount IIFE whose
+  // computeHash → invoke chain has not settled yet). Doing this under
   // real timers ensures Promise.resolve actually advances.
   vi.useRealTimers()
   for (let i = 0; i < 50; i++) await Promise.resolve()
@@ -110,7 +126,7 @@ afterEach(async () => {
 /**
  * Flush microtasks so awaited Supabase mock promises resolve before assertions.
  *
- * The hook chains: maybeSingle → fetchSummaries → computeHash (subtle.digest)
+ * The hook chains: fetchSummaries → computeHash (subtle.digest) → maybeSingle
  * → invoke. Each `await` is one microtask; we drain generously to be safe
  * across happy-dom + fake-timer interactions.
  */
@@ -137,7 +153,7 @@ async function advanceAndFlush(ms: number) {
 }
 
 describe('useGapAnalysisTrigger', () => {
-  it('fires analyze-proposal-gaps once on mount when no chat_sessions row exists (D-35)', async () => {
+  it('fires analyze-proposal-gaps once on mount when no chat_sessions row exists', async () => {
     mockState.chatSessionsRow = null
     mockState.proposalSectionsRows = [
       { section_key: 'intro', name: 'Intro', content: 'Intro text' },
@@ -162,36 +178,63 @@ describe('useGapAnalysisTrigger', () => {
     expect(body.run_id).toMatch(UUID_RE)
   })
 
-  it('does NOT fire analyze-proposal-gaps on mount when chat_sessions row exists (D-35 skip)', async () => {
-    mockState.chatSessionsRow = { id: 'session-1' }
-    mockState.proposalSectionsRows = [{ section_key: 'intro', name: 'Intro', content: 'Intro' }]
+  it('fires on mount when a chat_sessions row exists but its stored content hash does NOT match', async () => {
+    // Row exists but its persisted hash is stale/absent ⇒ mount must run.
+    mockState.chatSessionsRow = { pending_actions_content_hash: 'stale-non-matching-hash' }
+    mockState.proposalSectionsRows = [
+      { section_key: 'intro', name: 'Intro', content: 'Intro text' },
+    ]
 
-    const { unmount } = renderHook(() =>
-      useGapAnalysisTrigger({ proposalId: 'p1', userId: 'u1' })
-    )
+    renderHook(() => useGapAnalysisTrigger({ proposalId: 'p1', userId: 'u1' }))
+
+    await act(async () => {
+      await flushAsync()
+    })
+
+    expect(mockState.invokeSpy).toHaveBeenCalledTimes(1)
+    const [name] = mockState.invokeSpy.mock.calls[0]
+    expect(name).toBe('analyze-proposal-gaps')
+  })
+
+  it('skips the mount invoke when the persisted content hash matches the current content', async () => {
+    const rows = [{ section_key: 'intro', name: 'Intro', content: 'Intro text' }]
+    mockState.proposalSectionsRows = rows
+    // Seed the persisted hash to exactly the current whole-proposal hash ⇒ D-3 gate skips.
+    mockState.chatSessionsRow = {
+      pending_actions_content_hash: await computeHash(toSummaries(rows)),
+    }
+
+    renderHook(() => useGapAnalysisTrigger({ proposalId: 'p1', userId: 'u1' }))
 
     await act(async () => {
       await flushAsync()
     })
 
     expect(mockState.invokeSpy).not.toHaveBeenCalled()
-    unmount()
   })
 
   it('coalesces rapid Realtime UPDATE events into one invoke after 3000ms (debounce)', async () => {
-    // Existing session so D-35 initial fire does NOT happen.
-    mockState.chatSessionsRow = { id: 'session-1' }
-    mockState.proposalSectionsRows = [{ section_key: 'intro', name: 'Intro', content: 'A' }]
+    const rows = [{ section_key: 'intro', name: 'Intro', content: 'A' }]
+    mockState.proposalSectionsRows = rows
+    // Seed a matching persisted hash so the mount invoke is correctly skipped and
+    // this test stays focused on Realtime-debounce behavior.
+    mockState.chatSessionsRow = {
+      pending_actions_content_hash: await computeHash(toSummaries(rows)),
+    }
 
     vi.useFakeTimers()
     renderHook(() => useGapAnalysisTrigger({ proposalId: 'p1', userId: 'u1' }))
 
-    // Flush the initial-population effect (which should be a no-op here).
+    // Flush the mount effect (the persisted-hash gate makes it a no-op here).
     await act(async () => {
       await advanceAndFlush(0)
     })
     expect(mockState.invokeSpy).not.toHaveBeenCalled()
     expect(mockState.capturedRealtimeHandler).not.toBeNull()
+
+    // Change content so the Realtime run differs from the mount-seeded in-memory
+    // hash and actually invokes (otherwise the in-memory hash skip suppresses it).
+    mockState.proposalSectionsRows = [{ section_key: 'intro', name: 'Intro', content: 'B' }]
 
     // Fire 5 rapid Realtime events, each within the debounce window.
     for (let i = 0; i < 5; i++) {
@@ -212,8 +255,12 @@ describe('useGapAnalysisTrigger', () => {
   })
 
   it('skips invocation when content hash is unchanged (content-hash skip)', async () => {
-    mockState.chatSessionsRow = { id: 'session-1' }
-    mockState.proposalSectionsRows = [{ section_key: 'intro', name: 'Intro', content: 'Stable content' }]
+    const rows = [{ section_key: 'intro', name: 'Intro', content: 'Stable content' }]
+    mockState.proposalSectionsRows = rows
+    // Matching persisted hash ⇒ mount no-op; isolates the in-memory Realtime hash skip.
+    mockState.chatSessionsRow = {
+      pending_actions_content_hash: await computeHash(toSummaries(rows)),
+    }
 
     vi.useFakeTimers()
     renderHook(() => useGapAnalysisTrigger({ proposalId: 'p1', userId: 'u1' }))
@@ -221,8 +268,13 @@ describe('useGapAnalysisTrigger', () => {
     await act(async () => {
       await advanceAndFlush(0)
     })
+    expect(mockState.invokeSpy).not.toHaveBeenCalled()
 
-    // First Realtime UPDATE → debounce → invoke (hash gets stored).
+    // Change content from the mount-seeded value so the first Realtime run is not
+    // suppressed by the in-memory hash seeded by the mount gate.
+    mockState.proposalSectionsRows = [{ section_key: 'intro', name: 'Intro', content: 'Changed content' }]
+
+    // First Realtime UPDATE → debounce → invoke (in-memory hash gets stored).
     mockState.capturedRealtimeHandler!({ new: {} })
     await act(async () => {
       await advanceAndFlush(3000)
@@ -267,15 +319,19 @@ describe('useGapAnalysisTrigger', () => {
   })
 
   it('cleans up on unmount: removeChannel called, debounced timer does not fire', async () => {
-    mockState.chatSessionsRow = { id: 'session-1' }
-    mockState.proposalSectionsRows = [{ section_key: 'intro', name: 'Intro', content: 'A' }]
+    const rows = [{ section_key: 'intro', name: 'Intro', content: 'A' }]
+    mockState.proposalSectionsRows = rows
+    // Matching persisted hash ⇒ mount no-op; isolates the unmount/debounce behavior.
+    mockState.chatSessionsRow = {
+      pending_actions_content_hash: await computeHash(toSummaries(rows)),
+    }
 
     vi.useFakeTimers()
     const { unmount } = renderHook(() =>
       useGapAnalysisTrigger({ proposalId: 'p1', userId: 'u1' })
     )
 
-    // Drain the initial-population effect; chat_sessions row exists so this is a no-op.
+    // Drain the mount effect; persisted hash matches so this is a no-op.
     await act(async () => {
       await advanceAndFlush(0)
     })
@@ -300,7 +356,7 @@ describe('useGapAnalysisTrigger', () => {
     expect(mockState.invokeSpy).not.toHaveBeenCalled()
   })
 
-  it('runs the initial-population check again when proposalId changes', async () => {
+  it('runs the mount check again when proposalId changes', async () => {
     mockState.chatSessionsRow = null
     mockState.proposalSectionsRows = [{ section_key: 'intro', name: 'Intro', content: 'A' }]
 
@@ -318,7 +374,7 @@ describe('useGapAnalysisTrigger', () => {
       (mockState.invokeSpy.mock.calls[0][1] as { body: { proposal_id: string } }).body.proposal_id
     ).toBe('p1')
 
-    // Switch to a different proposal — initial-population fires again.
+    // Switch to a different proposal — the mount check fires again.
     mockState.proposalSectionsRows = [{ section_key: 'intro', name: 'Intro', content: 'B' }]
     rerender({ pid: 'p2' })
 

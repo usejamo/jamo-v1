@@ -25,7 +25,7 @@ const DEBOUNCE_MS = 3000
 // Shape matches analyze-proposal-gaps RequestSchema (index.ts: { key, title, content }).
 type SectionSummary = { key: string; title: string; content: string }
 
-async function computeHash(summaries: SectionSummary[]): Promise<string> {
+export async function computeHash(summaries: SectionSummary[]): Promise<string> {
   // Sort for determinism — Realtime ordering should not change the hash.
   const sorted = [...summaries].sort((a, b) =>
     a.key < b.key ? -1 : a.key > b.key ? 1 : 0
