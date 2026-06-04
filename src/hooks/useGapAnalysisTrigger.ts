@@ -104,6 +104,14 @@ export function useGapAnalysisTrigger(params: {
       if (isAnalyzingRef.current) return
       if (summaries.length === 0 && !opts.force) return
 
+      // Skip if any section content is empty — generation may still be in flight
+      // (Realtime UPDATEs land one section at a time). The Realtime debounce will
+      // retry once all sections populate. Without this gate, Haiku reports
+      // "section X not generated yet" — useless noise the user already knows.
+      if (summaries.some((s) => !s.content || s.content.trim().length === 0)) {
+        return
+      }
+
       const hash = await computeHash(summaries)
       if (!opts.force && hash === hashRef.current) return
       hashRef.current = hash
@@ -134,20 +142,19 @@ export function useGapAnalysisTrigger(params: {
       }
     }
 
-    // D-35: initial-population check.
+    // On-mount fire. Originally this only ran when the chat_sessions row did NOT
+    // exist (D-35 "initial population"). That silenced legitimate re-analysis
+    // after section content materially changed (e.g., generation completed
+    // between mount and the next Realtime event). We now always attempt on
+    // mount and rely on three layered gates to prevent spam:
+    //   - in-memory hash skip inside runAnalysis (skips identical re-runs)
+    //   - the empty-content gate inside runAnalysis (skips while sections settle)
+    //   - the edge function's durable 30s per-proposal cooldown (cross-session)
     void (async () => {
-      const { data } = await supabase
-        .from('chat_sessions')
-        .select('id')
-        .eq('proposal_id', proposalId)
-        .eq('user_id', userId)
-        .maybeSingle()
       if (cancelled) return
-      if (data === null) {
-        const summaries = await fetchSummaries()
-        if (cancelled) return
-        await runAnalysis(summaries, { force: true })
-      }
+      const summaries = await fetchSummaries()
+      if (cancelled) return
+      await runAnalysis(summaries, {})
     })()
 
     // D-30: Realtime subscription with 3s debounce.
