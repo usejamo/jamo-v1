@@ -56,52 +56,31 @@ async function sha256Hex(input: string): Promise<string> {
 /**
  * Phase 14.2.2 Pattern 4 — pure helper, EXPORTED for snapshot test (Plan 05 Task 2).
  * Returns empty string when annotatedResolved is empty (no block injected).
+ *
+ * Phase 14.2.3 — TERSE/DEMOTED rewrite. The previous verbose form (8 full JSON
+ * entries + 5 suppression rules + 3 examples) made Haiku go GLOBALLY silent —
+ * it returned [] even for untouched, placeholder-laden sections (confirmed by an
+ * A/B where removing the block took a proposal 0 → 5 findings). The fix keeps
+ * per-item dedup but as a compact, low-prominence appendix placed AFTER the main
+ * analysis instructions, so detection dominates and memory does not suppress.
  */
 export function buildResolvedBlock(
   annotatedResolved: AnnotatedResolvedItem[],
 ): string {
   if (annotatedResolved.length === 0) return ''
+  const lines = annotatedResolved
+    .map((it) => {
+      const changed = it.content_status === 'content_changed_since_action'
+      return `- ${it.section_key} | ${it.finding_type} | "${it.title}" | ${it.user_action}${changed ? ' | section CHANGED since' : ''}`
+    })
+    .join('\n')
   return `
-The user has previously addressed the following items in this proposal:
 
-RESOLVED_ITEMS:
-${JSON.stringify(annotatedResolved, null, 2)}
+---
+ALREADY-ADDRESSED (dedup hints only — this list must NOT reduce how much you analyze):
+${lines}
 
-SCOPE OF THESE CONSTRAINTS (read first): the rules below apply ONLY to the specific findings listed above, each in its OWN section (matched by section_key + finding type + the specific issue). They do NOT constrain analysis of any other section, nor any OTHER issue within the same section. The presence of resolved items must NEVER cause you to return fewer findings elsewhere, or to stay silent on sections that have no resolved items. Analyze every section on its merits — a long RESOLVED_ITEMS list does NOT mean the proposal is finished. After prior resolutions the correct number of findings is usually NOT zero.
-
-Apply these ONLY to the matching resolved finding:
-- If a section still has the SAME issue that overlaps a resolved item, describe what REMAINS rather than repeating the original finding verbatim.
-- If a resolved item is marked content_changed_since_action and the section has regressed, you may re-surface — but acknowledge what was previously done.
-- If the user dismissed a finding and that section's content has not materially changed, do not re-surface THAT finding (only that one finding — not other issues in the same section).
-- When an acceptance_summary is present: a high accepted/(accepted+rejected) ratio ⇒ treat THAT finding as substantially addressed; a low ratio ⇒ the original concern may still apply.
-
-ALWAYS CONTINUE TO SURFACE (this overrides any tendency toward silence):
-- Every gap, conflict, compliance issue, and missing section in sections that have NO resolved items.
-- NEW or DIFFERENT issues in sections that DO have resolved items — e.g. a different unfilled placeholder, a new inconsistency. Resolving one finding does NOT clear the section.
-Findings should EVOLVE, not vanish.
-
-EXAMPLES:
-
-Example A — partial fix: surface what REMAINS (resolved item in this section):
-  Prior resolved_item: { section: "executive_summary", type: "gap",
-    title: "Executive summary missing pricing and timeline",
-    user_action: "fixed", applied_changes: "Added Q3 timeline" }
-  Current state: pricing still absent, timeline complete.
-  Good finding: "Executive summary still needs pricing detail (timeline added in prior pass)."
-  BAD: "Executive summary missing pricing and timeline" (verbatim repeat) — or staying silent.
-
-Example B — dismissed + unchanged: do not re-flag THAT finding, but DO flag different issues:
-  Prior resolved_item: { section: "scope", type: "compliance",
-    title: "Scope lacks ISO citation", user_action: "dismissed",
-    content_status: "content_unchanged_since_action" }
-  Good: do not re-emit "Scope lacks ISO citation". BUT if "scope" still contains an unfilled "[Client Name]" placeholder, you MUST still flag that — it is a different issue.
-  BAD: staying silent on "scope" entirely because one finding there was dismissed.
-
-Example C — untouched sections still get analyzed (the critical case):
-  RESOLVED_ITEMS covers only "cover_letter" and "team". Section "budget" has NO resolved items and still contains "[insert total cost]".
-  Good: flag "Budget — cost placeholder unfilled". Resolved items in other sections are irrelevant to "budget".
-  BAD: returning [] (or omitting budget) because several other sections were already addressed.
-`
+Rules: do NOT re-emit one of the EXACT findings above while its section is unchanged. If a listed line is marked "section CHANGED since" and the issue still remains, you may re-surface it. Analyze EVERY section on its merits and surface all OTHER and NEW issues — including different issues in the same sections that appear above. A long list here does NOT mean the proposal is finished; after prior fixes the right number of findings is usually NOT zero.`
 }
 
 const ANALYSIS_SYSTEM_PROMPT = `You are a CRO proposal quality analyst. You receive a JSON array of proposal section summaries and return a JSON array of quality issues.
@@ -319,18 +298,10 @@ Deno.serve(async (req) => {
   const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY')! })
 
   let pendingActions: z.infer<typeof PendingActionSchema>[] = []
-  // ── TEMP DIAGNOSTIC (14.2.3) — REVERT after. Captures raw Haiku output + A/B-tests
-  // the over-suppression hypothesis by REMOVING the resolved block this run. ──────────
-  let dbgSystemPrompt = ''
-  let dbgUserContent = ''
-  let dbgRaw = '(no text)'
-  let dbgParse = '(not reached)'
-  let dbgValidation = '(not reached)'
   try {
-    // TEMP A/B: resolved block REMOVED (was: ANALYSIS_SYSTEM_PROMPT + buildResolvedBlock(annotatedResolved)).
-    const systemPromptForCall = ANALYSIS_SYSTEM_PROMPT
-    dbgSystemPrompt = systemPromptForCall
-    dbgUserContent = JSON.stringify(summaries)
+    // Phase 14.2.2 — append RESOLVED_ITEMS block only when annotatedResolved is non-empty.
+    // Phase 14.2.3 — block is now a terse, demoted dedup appendix (see buildResolvedBlock).
+    const systemPromptForCall = ANALYSIS_SYSTEM_PROMPT + buildResolvedBlock(annotatedResolved)
     const response = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',  // AI-SPEC: Haiku ONLY — NEVER Sonnet
       max_tokens: 2048,
@@ -340,7 +311,6 @@ Deno.serve(async (req) => {
     })
 
     const textBlock = response.content.find((b) => b.type === 'text')
-    dbgRaw = (textBlock as { text?: string } | undefined)?.text ?? '(no text block)'
     // Haiku occasionally wraps its JSON in ```json …``` fences despite the system
     // prompt forbidding it. Strip a leading fence and any trailing fence/whitespace
     // before parsing so we don't lose the entire payload to a JSON.parse exception.
@@ -351,17 +321,12 @@ Deno.serve(async (req) => {
     let raw: unknown
     try {
       raw = JSON.parse(stripped || '[]')
-      dbgParse = 'OK: ' + JSON.stringify(raw).slice(0, 6000)
     } catch (parseErr) {
-      dbgParse = 'PARSE_ERROR: ' + (parseErr instanceof Error ? parseErr.message : String(parseErr))
       console.error('[analyze-proposal-gaps] Haiku output JSON.parse failed', parseErr, 'raw:', textBlock?.text?.slice(0, 500))
       raw = []
     }
 
     const validated = z.array(PendingActionSchema).safeParse(raw)
-    dbgValidation = validated.success
-      ? 'VALID: ' + validated.data.length + ' items'
-      : 'INVALID: ' + JSON.stringify(validated.error.flatten()).slice(0, 3000)
     if (validated.success) {
       // Apply priority ordering and tier caps (D-26/D-28)
       const byPriority = (t: string) => ({ compliance: 1, conflict: 2, gap: 3, missing: 4 }[t] ?? 5)
@@ -392,22 +357,6 @@ Deno.serve(async (req) => {
     // LLM call failed: return empty array (not crash)
     console.error('[analyze-proposal-gaps] Haiku call failed', err)
     pendingActions = []
-  }
-
-  // ── TEMP DIAGNOSTIC insert (14.2.3) — self-swallowing; never breaks the function. REVERT after. ──
-  try {
-    await supabase.from('_gap_debug').insert({
-      proposal_id: proposalId,
-      resolved_count: annotatedResolved.length,
-      action_count: pendingActions.length,
-      system_prompt: dbgSystemPrompt,
-      user_content: dbgUserContent,
-      haiku_raw: dbgRaw,
-      parse_result: dbgParse,
-      validation_result: dbgValidation,
-    })
-  } catch (_dbgErr) {
-    // diagnostics must never affect the function
   }
 
   // D-34 + D-45: Upsert with composite conflict target (proposal_id, user_id)
