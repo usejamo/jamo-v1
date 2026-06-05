@@ -328,9 +328,32 @@ Deno.serve(async (req) => {
 
     const validated = z.array(PendingActionSchema).safeParse(raw)
     if (validated.success) {
+      // 14.2.3 — drop findings the user already DISMISSED on UNCHANGED content BEFORE
+      // tier-capping, so a dismissed finding can never consume a cap slot and crowd out
+      // a genuinely-new finding from an untouched section. The terse resolved block asks
+      // Haiku not to re-emit them, but at temperature 0 Haiku is deterministic and will
+      // re-mint the identical finding for unchanged content — without this filter those
+      // re-emissions refill the (e.g. 4-gap) cap, the client then hides them, and the
+      // queue renders empty even though new findings existed (root cause of the user's
+      // "dismiss a few → nothing new appears" report, 2026-06-05). Keeping the filter
+      // here also makes stored pending_actions == the visible set, so the mount gate and
+      // the render agree. Identity = section_key|type|title (Haiku mints fresh uuids each
+      // run, so id-matching across runs is meaningless). Items whose content CHANGED since
+      // the dismissal are intentionally allowed to re-surface.
+      const dismissedUnchanged = new Set(
+        annotatedResolved
+          .filter((r) =>
+            r.user_action === 'dismissed' &&
+            r.content_status === 'content_unchanged_since_action'
+          )
+          .map((r) => `${r.section_key}|${r.finding_type}|${r.title}`)
+      )
+      const deduped = validated.data.filter(
+        (f) => !dismissedUnchanged.has(`${f.section_key}|${f.type}|${f.title}`)
+      )
       // Apply priority ordering and tier caps (D-26/D-28)
       const byPriority = (t: string) => ({ compliance: 1, conflict: 2, gap: 3, missing: 4 }[t] ?? 5)
-      const sorted = validated.data.sort((a, b) => byPriority(a.type) - byPriority(b.type))
+      const sorted = deduped.sort((a, b) => byPriority(a.type) - byPriority(b.type))
       const counts = { compliance: 0, conflict: 0, gap: 0, missing: 0 }
       pendingActions = sorted.filter((item) => {
         const tier = item.type as keyof typeof TIER_CAPS
