@@ -164,13 +164,22 @@ export function useGapAnalysisTrigger(params: {
       const currentHash = await computeHash(summaries)
       const { data: sessionRow } = await supabase
         .from('chat_sessions')
-        .select('pending_actions_content_hash')
+        .select('pending_actions, pending_actions_content_hash')
         .eq('proposal_id', proposalId as string)
         .eq('user_id', userId as string)
         .maybeSingle()
       if (cancelled) return
       const persisted = sessionRow?.pending_actions_content_hash ?? null
-      if (persisted !== null && persisted === currentHash) {
+      // 14.2.3 cache-trap fix: skip ONLY when the hash matches AND the cached
+      // pending_actions are non-empty. An empty cache ([] / null) must re-run so the
+      // queue can re-populate — otherwise "[] + matching hash" renders empty forever
+      // (the bug where suggestions disappeared and never came back). This also un-traps
+      // rows already stuck in that state on their next mount. A genuinely clean proposal
+      // (no findings) therefore re-analyzes on every open, bounded by the 30s server
+      // cooldown — that is intentional; do NOT cache empties to "optimize" it away.
+      const cached = sessionRow?.pending_actions as unknown[] | null | undefined
+      const hasCachedFindings = Array.isArray(cached) && cached.length > 0
+      if (persisted !== null && persisted === currentHash && hasCachedFindings) {
         // Seed the in-memory gate so the Realtime path agrees and does not re-fire.
         hashRef.current = currentHash
         return

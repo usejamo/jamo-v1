@@ -23,9 +23,12 @@ type Handler = (payload: { new: Record<string, unknown> }) => void
 
 const mockState = {
   proposalSectionsRows: [] as Array<{ section_key: string; name: string; content: string }>,
-  // The persisted chat_sessions row. Carries pending_actions_content_hash so the
-  // mount D-3 gate can be exercised. `null` ⇒ no row ⇒ always runs.
-  chatSessionsRow: null as { pending_actions_content_hash: string | null } | null,
+  // The persisted chat_sessions row. Carries pending_actions_content_hash AND
+  // pending_actions so the mount D-3 gate can be exercised. `null` ⇒ no row ⇒ always
+  // runs. A matching hash skips ONLY when pending_actions is non-empty (cache-trap fix).
+  chatSessionsRow: null as
+    | { pending_actions_content_hash: string | null; pending_actions?: unknown[] | null }
+    | null,
   invokeResult: { data: null, error: null } as { data: unknown; error: unknown },
   capturedRealtimeHandler: null as Handler | null,
   invokeSpy: vi.fn(),
@@ -202,6 +205,7 @@ describe('useGapAnalysisTrigger', () => {
     // Seed the persisted hash to exactly the current whole-proposal hash ⇒ D-3 gate skips.
     mockState.chatSessionsRow = {
       pending_actions_content_hash: await computeHash(toSummaries(rows)),
+      pending_actions: [{ id: 'cached' }], // non-empty cache ⇒ matching hash still skips
     }
 
     renderHook(() => useGapAnalysisTrigger({ proposalId: 'p1', userId: 'u1' }))
@@ -213,6 +217,27 @@ describe('useGapAnalysisTrigger', () => {
     expect(mockState.invokeSpy).not.toHaveBeenCalled()
   })
 
+  it('re-runs on mount when the hash matches but pending_actions is EMPTY (cache-trap fix)', async () => {
+    // The 14.2.3 cache trap: a prior run wrote pending_actions=[] alongside a hash that
+    // matches the CURRENT content. The mount gate must NOT treat an empty cache as a valid
+    // skip — it must re-run so the queue can re-populate, instead of rendering empty forever
+    // (the "suggestions disappear and never come back" bug). Hash match + empty ⇒ RUN.
+    const rows = [{ section_key: 'intro', name: 'Intro', content: 'Intro text' }]
+    mockState.proposalSectionsRows = rows
+    mockState.chatSessionsRow = {
+      pending_actions_content_hash: await computeHash(toSummaries(rows)),
+      pending_actions: [], // empty cache — must NOT count as a valid skip
+    }
+
+    renderHook(() => useGapAnalysisTrigger({ proposalId: 'p1', userId: 'u1' }))
+
+    await act(async () => {
+      await flushAsync()
+    })
+
+    expect(mockState.invokeSpy).toHaveBeenCalledTimes(1)
+  })
+
   it('coalesces rapid Realtime UPDATE events into one invoke after 3000ms (debounce)', async () => {
     const rows = [{ section_key: 'intro', name: 'Intro', content: 'A' }]
     mockState.proposalSectionsRows = rows
@@ -220,6 +245,7 @@ describe('useGapAnalysisTrigger', () => {
     // this test stays focused on Realtime-debounce behavior.
     mockState.chatSessionsRow = {
       pending_actions_content_hash: await computeHash(toSummaries(rows)),
+      pending_actions: [{ id: 'cached' }], // non-empty cache ⇒ matching hash still skips
     }
 
     vi.useFakeTimers()
@@ -260,6 +286,7 @@ describe('useGapAnalysisTrigger', () => {
     // Matching persisted hash ⇒ mount no-op; isolates the in-memory Realtime hash skip.
     mockState.chatSessionsRow = {
       pending_actions_content_hash: await computeHash(toSummaries(rows)),
+      pending_actions: [{ id: 'cached' }], // non-empty cache ⇒ matching hash still skips
     }
 
     vi.useFakeTimers()
@@ -324,6 +351,7 @@ describe('useGapAnalysisTrigger', () => {
     // Matching persisted hash ⇒ mount no-op; isolates the unmount/debounce behavior.
     mockState.chatSessionsRow = {
       pending_actions_content_hash: await computeHash(toSummaries(rows)),
+      pending_actions: [{ id: 'cached' }], // non-empty cache ⇒ matching hash still skips
     }
 
     vi.useFakeTimers()
