@@ -188,6 +188,16 @@ export default function AIChatPanel({
     orgId,
     client: supabase,
     deps: { buildResolvedItemEntry, appendResolvedItem },
+    // 14.2.3 — optimistic hide: drop the resolved finding from the queue the instant its
+    // edits reach a terminal state (fixed/rejected), instead of waiting for the edge to
+    // regenerate pending_actions. Removal (not the dismissed flag) keeps it out of the
+    // "N dismissed" undo section — a fix is resolved, not dismissed. The edge re-adds it
+    // on the next analysis if the issue still exists.
+    onResolved: useCallback(
+      ({ actionId }: { actionId: string }) =>
+        setPendingActions(prev => prev.filter(a => a.id !== actionId)),
+      [],
+    ),
   })
 
   // Phase 14.2.2 — single source of truth for which pendingActions are visible.

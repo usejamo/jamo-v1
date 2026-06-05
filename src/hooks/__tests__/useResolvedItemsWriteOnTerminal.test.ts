@@ -9,6 +9,7 @@
 // is mocked and asserted NOT to be called when origin is null.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { renderHook } from '@testing-library/react'
 
 // Mock the resolved-items module so we can assert the free-text-origin skip
 // at the writer-injection boundary (must_have: REAL test asserts no call).
@@ -26,15 +27,12 @@ vi.mock('../../chat/resolved-items', async () => {
 import {
   computeTerminalWrites,
   computeWrittenMessageIds,
+  useResolvedItemsWriteOnTerminal,
   type MessageWithToolData,
   type WorkspaceStateLike,
 } from '../useResolvedItemsWriteOnTerminal'
-import {
-  appendResolvedItem,
-  rebuildFilterSet,
-  identityKey,
-} from '../../chat/resolved-items'
-import type { OriginatingActionSnapshot, ResolvedItem } from '../../types/chat'
+import { appendResolvedItem } from '../../chat/resolved-items'
+import type { OriginatingActionSnapshot } from '../../types/chat'
 
 // W5 closure: SectionEditorState HTML field is `content` (per 14.2.2-01-SUMMARY.md).
 const HTML_FIELD = 'content'
@@ -249,21 +247,52 @@ describe('useResolvedItemsWriteOnTerminal pure helpers (B3 closure)', () => {
 
     // Resolution counts reflect accepted vs rejected split.
     expect(writes[0].resolutionSummary).toEqual({ accepted: 3, rejected: 1, stale: 0 })
+    // (rebuildFilterSet dismissed-only semantics are covered in resolved-items.test.ts.)
+  })
 
-    // Bonus — confirm the rebuildFilterSet/identityKey path the AIChatPanel
-    // filter relies on (D-20) coexists with the same finding-type triple.
-    const fakeResolved: ResolvedItem = {
-      originating_action_id: 'old-stale-id',
-      section_key: 'scope',
-      finding_type: 'gap',
-      title: 'T',
-      description: 'd',
-      user_action: 'fixed',
-      applied_changes: '',
-      section_content_hash_at_action: 'h',
-      timestamp: '2026-05-28T00:00:00Z',
+  it('Test 5 — onResolved fires once with the originating action id on terminal resolution (14.2.3 optimistic hide)', () => {
+    const onResolved = vi.fn()
+    const props = {
+      messages: [
+        {
+          id: 'msg-fix',
+          role: 'assistant',
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          toolData: { version: 1, originating_action: snap({ id: 'act-fix' }) } as any,
+        },
+      ] as MessageWithToolData[],
+      workspaceState: {
+        sections: {
+          scope: {
+            content: '<p>x</p>',
+            pending_edits: [
+              { message_id: 'msg-fix', resolution: 'accepted', change_summary: 'a', change_index: 0 },
+            ],
+          },
+        },
+      } as WorkspaceStateLike,
+      htmlFieldName: 'content',
+      proposalId: 'p',
+      userId: 'u',
+      orgId: 'o',
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      client: {} as any,
+      deps: {
+        buildResolvedItemEntry: vi.fn().mockResolvedValue({}),
+        appendResolvedItem: vi.fn().mockResolvedValue(undefined),
+      },
+      onResolved,
     }
-    const filterSet = rebuildFilterSet([fakeResolved])
-    expect(filterSet.has(`ik:${identityKey({ section_key: 'scope', finding_type: 'gap', title: 'T' })}`)).toBe(true)
+
+    const { rerender } = renderHook((p) => useResolvedItemsWriteOnTerminal(p), {
+      initialProps: props,
+    })
+    expect(onResolved).toHaveBeenCalledTimes(1)
+    expect(onResolved).toHaveBeenCalledWith({ actionId: 'act-fix' })
+
+    // Re-run the effect with a fresh workspaceState ref (same content). The once-per-message
+    // writtenRef guard must prevent a second optimistic hide.
+    rerender({ ...props, workspaceState: { sections: { ...props.workspaceState.sections } } })
+    expect(onResolved).toHaveBeenCalledTimes(1)
   })
 })

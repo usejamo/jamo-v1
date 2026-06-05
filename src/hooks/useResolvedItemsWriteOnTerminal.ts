@@ -210,6 +210,14 @@ export function useResolvedItemsWriteOnTerminal(args: {
     buildResolvedItemEntry: BuildEntryFn
     appendResolvedItem: AppendFn
   }
+  // 14.2.3 — fired once per terminal-resolution write, synchronously, with the
+  // ORIGINATING pending-action id. AIChatPanel uses it to optimistically REMOVE the
+  // resolved finding from the visible queue the instant the user accepts/rejects its
+  // edits — without this, "fixed" findings linger until the edge regenerates
+  // pending_actions (~3s later), because the dismissed-only resolved-items filter no
+  // longer hides fixed items. The edge re-analysis remains the source of truth and
+  // re-adds the finding if the issue actually persists.
+  onResolved?: (r: { actionId: string }) => void
 }): void {
   const writtenRef = useRef<Set<string>>(new Set())
   const {
@@ -222,6 +230,9 @@ export function useResolvedItemsWriteOnTerminal(args: {
     client,
     deps,
   } = args
+  // Read through a ref so an unstable onResolved identity cannot re-fire the effect.
+  const onResolvedRef = useRef(args.onResolved)
+  onResolvedRef.current = args.onResolved
 
   useEffect(() => {
     const writes = computeTerminalWrites({
@@ -240,6 +251,8 @@ export function useResolvedItemsWriteOnTerminal(args: {
     for (const id of allTerminalIds) writtenRef.current.add(id)
 
     for (const w of writes) {
+      // Optimistic, synchronous hide — independent of the async resolved_items write.
+      onResolvedRef.current?.({ actionId: w.snapshot.id })
       void (async () => {
         const entry = await deps.buildResolvedItemEntry({
           snapshot: w.snapshot,
