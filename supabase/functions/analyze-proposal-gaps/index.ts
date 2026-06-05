@@ -298,10 +298,18 @@ Deno.serve(async (req) => {
   const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY')! })
 
   let pendingActions: z.infer<typeof PendingActionSchema>[] = []
+  // ── TEMP DIAGNOSTIC (14.2.3 session-3) — REVERT after. Capture the Haiku→dedup boundary
+  // to diagnose the 0-findings result. ────────────────────────────────────────────────
+  let dbgRaw = '(no text)'
+  let dbgValidated = -1
+  let dbgDeduped = -1
+  let dbgPromptChars = 0
+  let dbgDismissed = ''
   try {
     // Phase 14.2.2 — append RESOLVED_ITEMS block only when annotatedResolved is non-empty.
     // Phase 14.2.3 — block is now a terse, demoted dedup appendix (see buildResolvedBlock).
     const systemPromptForCall = ANALYSIS_SYSTEM_PROMPT + buildResolvedBlock(annotatedResolved)
+    dbgPromptChars = systemPromptForCall.length
     const response = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',  // AI-SPEC: Haiku ONLY — NEVER Sonnet
       max_tokens: 2048,
@@ -311,6 +319,7 @@ Deno.serve(async (req) => {
     })
 
     const textBlock = response.content.find((b) => b.type === 'text')
+    dbgRaw = (textBlock as { text?: string } | undefined)?.text ?? '(no text block)'
     // Haiku occasionally wraps its JSON in ```json …``` fences despite the system
     // prompt forbidding it. Strip a leading fence and any trailing fence/whitespace
     // before parsing so we don't lose the entire payload to a JSON.parse exception.
@@ -328,29 +337,28 @@ Deno.serve(async (req) => {
 
     const validated = z.array(PendingActionSchema).safeParse(raw)
     if (validated.success) {
-      // 14.2.3 — drop findings the user already DISMISSED on UNCHANGED content BEFORE
-      // tier-capping, so a dismissed finding can never consume a cap slot and crowd out
-      // a genuinely-new finding from an untouched section. The terse resolved block asks
-      // Haiku not to re-emit them, but at temperature 0 Haiku is deterministic and will
-      // re-mint the identical finding for unchanged content — without this filter those
-      // re-emissions refill the (e.g. 4-gap) cap, the client then hides them, and the
-      // queue renders empty even though new findings existed (root cause of the user's
-      // "dismiss a few → nothing new appears" report, 2026-06-05). Keeping the filter
-      // here also makes stored pending_actions == the visible set, so the mount gate and
-      // the render agree. Identity = section_key|type|title (Haiku mints fresh uuids each
-      // run, so id-matching across runs is meaningless). Items whose content CHANGED since
-      // the dismissal are intentionally allowed to re-surface.
-      const dismissedUnchanged = new Set(
+      // 14.2.3 — drop findings the user already RESOLVED (fixed OR dismissed) whose section
+      // content is UNCHANGED since that resolution, BEFORE tier-capping. At temperature 0
+      // Haiku deterministically re-mints the identical finding every run; without this filter
+      // a just-fixed or just-dismissed finding refills the (e.g. 4-gap) cap and re-appears in
+      // the queue (the user's "I fix it and it comes back" / "dismiss and nothing new appears"
+      // reports). The resolved-item hash is captured AFTER the fix's edit applies (flush-then-
+      // hash), so immediately post-fix content_unchanged holds ⇒ the finding is dropped and
+      // stays gone; if the section later REGRESSES (content changes) the finding is allowed to
+      // re-surface (D-33). Dropping fixed+dismissed identically also keeps stored pending_actions
+      // == the visible set, so the mount gate and render never desync. Identity =
+      // section_key|type|title (Haiku mints fresh uuids each run; id-matching is meaningless).
+      const resolvedUnchanged = new Set(
         annotatedResolved
-          .filter((r) =>
-            r.user_action === 'dismissed' &&
-            r.content_status === 'content_unchanged_since_action'
-          )
+          .filter((r) => r.content_status === 'content_unchanged_since_action')
           .map((r) => `${r.section_key}|${r.finding_type}|${r.title}`)
       )
       const deduped = validated.data.filter(
-        (f) => !dismissedUnchanged.has(`${f.section_key}|${f.type}|${f.title}`)
+        (f) => !resolvedUnchanged.has(`${f.section_key}|${f.type}|${f.title}`)
       )
+      dbgValidated = validated.data.length
+      dbgDeduped = deduped.length
+      dbgDismissed = [...resolvedUnchanged].join(' ;; ')
       // Apply priority ordering and tier caps (D-26/D-28)
       const byPriority = (t: string) => ({ compliance: 1, conflict: 2, gap: 3, missing: 4 }[t] ?? 5)
       const sorted = deduped.sort((a, b) => byPriority(a.type) - byPriority(b.type))
@@ -380,6 +388,22 @@ Deno.serve(async (req) => {
     // LLM call failed: return empty array (not crash)
     console.error('[analyze-proposal-gaps] Haiku call failed', err)
     pendingActions = []
+  }
+
+  // ── TEMP DIAGNOSTIC insert (14.2.3 session-3) — self-swallowing; REVERT after. ──
+  try {
+    await supabase.from('_gap_debug').insert({
+      proposal_id: proposalId,
+      resolved_count: annotatedResolved.length,
+      dismissed_unchanged: dbgDismissed,
+      validated_count: dbgValidated,
+      deduped_count: dbgDeduped,
+      final_count: pendingActions.length,
+      prompt_chars: dbgPromptChars,
+      haiku_raw: dbgRaw.slice(0, 8000),
+    })
+  } catch (_dbgErr) {
+    // diagnostics must never affect the function
   }
 
   // D-34 + D-45: Upsert with composite conflict target (proposal_id, user_id)
