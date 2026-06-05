@@ -27,7 +27,11 @@ const mockState = {
   // pending_actions so the mount D-3 gate can be exercised. `null` ⇒ no row ⇒ always
   // runs. A matching hash skips ONLY when pending_actions is non-empty (cache-trap fix).
   chatSessionsRow: null as
-    | { pending_actions_content_hash: string | null; pending_actions?: unknown[] | null }
+    | {
+        pending_actions_content_hash: string | null
+        pending_actions?: unknown[] | null
+        resolved_items?: unknown[] | null
+      }
     | null,
   invokeResult: { data: null, error: null } as { data: unknown; error: unknown },
   capturedRealtimeHandler: null as Handler | null,
@@ -236,6 +240,76 @@ describe('useGapAnalysisTrigger', () => {
     })
 
     expect(mockState.invokeSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('re-runs on mount when hash matches and pending_actions is non-empty but ALL findings are dismissed (visible-empty trap)', async () => {
+    // 14.2.3 visible-empty trap (root cause of "dismiss everything → reopen → stuck empty"):
+    // onDismiss writes resolved_items but NEVER prunes chat_sessions.pending_actions, so the
+    // stored array stays non-empty even when every finding has been dismissed. The mount gate
+    // must measure the VISIBLE set (cached minus dismissed resolved_items), not the raw array —
+    // otherwise it skips re-analysis forever and the queue can never re-populate.
+    const rows = [{ section_key: 'intro', name: 'Intro', content: 'Intro text' }]
+    mockState.proposalSectionsRows = rows
+    mockState.chatSessionsRow = {
+      pending_actions_content_hash: await computeHash(toSummaries(rows)),
+      pending_actions: [
+        { id: 'a1', type: 'gap', section_key: 'intro', title: 'Intro — placeholder unfilled' },
+      ],
+      resolved_items: [
+        {
+          originating_action_id: 'a1',
+          section_key: 'intro',
+          finding_type: 'gap',
+          title: 'Intro — placeholder unfilled',
+          user_action: 'dismissed',
+          applied_changes: '',
+          section_content_hash_at_action: 'h',
+          timestamp: '2026-06-05T00:00:00.000Z',
+        },
+      ],
+    }
+
+    renderHook(() => useGapAnalysisTrigger({ proposalId: 'p1', userId: 'u1' }))
+
+    await act(async () => {
+      await flushAsync()
+    })
+
+    expect(mockState.invokeSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('still SKIPS on mount when hash matches and a cached finding remains visible (non-dismissed resolved item must not over-trigger)', async () => {
+    // Guard against the visible-empty fix over-firing: a FIXED resolved item must NOT hide its
+    // section's cached finding (dismissed-only suppression), so the finding stays visible and the
+    // gate correctly skips. Exactly one cached finding, one matching FIXED resolved item ⇒ visible 1 ⇒ skip.
+    const rows = [{ section_key: 'intro', name: 'Intro', content: 'Intro text' }]
+    mockState.proposalSectionsRows = rows
+    mockState.chatSessionsRow = {
+      pending_actions_content_hash: await computeHash(toSummaries(rows)),
+      pending_actions: [
+        { id: 'b1', type: 'gap', section_key: 'intro', title: 'Intro — placeholder unfilled' },
+      ],
+      resolved_items: [
+        {
+          originating_action_id: 'b1',
+          section_key: 'intro',
+          finding_type: 'gap',
+          title: 'Intro — placeholder unfilled',
+          user_action: 'fixed',
+          applied_changes: 'Filled it',
+          section_content_hash_at_action: 'h',
+          timestamp: '2026-06-05T00:00:00.000Z',
+        },
+      ],
+    }
+
+    renderHook(() => useGapAnalysisTrigger({ proposalId: 'p1', userId: 'u1' }))
+
+    await act(async () => {
+      await flushAsync()
+    })
+
+    expect(mockState.invokeSpy).not.toHaveBeenCalled()
   })
 
   it('coalesces rapid Realtime UPDATE events into one invoke after 3000ms (debounce)', async () => {

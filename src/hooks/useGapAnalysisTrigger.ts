@@ -19,6 +19,8 @@
 
 import { useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
+import { rebuildFilterSet, identityKey } from '../chat/resolved-items'
+import type { ResolvedItem, FindingType } from '../types/chat'
 
 const DEBOUNCE_MS = 3000
 
@@ -164,22 +166,51 @@ export function useGapAnalysisTrigger(params: {
       const currentHash = await computeHash(summaries)
       const { data: sessionRow } = await supabase
         .from('chat_sessions')
-        .select('pending_actions, pending_actions_content_hash')
+        .select('pending_actions, pending_actions_content_hash, resolved_items')
         .eq('proposal_id', proposalId as string)
         .eq('user_id', userId as string)
         .maybeSingle()
       if (cancelled) return
       const persisted = sessionRow?.pending_actions_content_hash ?? null
-      // 14.2.3 cache-trap fix: skip ONLY when the hash matches AND the cached
-      // pending_actions are non-empty. An empty cache ([] / null) must re-run so the
-      // queue can re-populate — otherwise "[] + matching hash" renders empty forever
-      // (the bug where suggestions disappeared and never came back). This also un-traps
-      // rows already stuck in that state on their next mount. A genuinely clean proposal
-      // (no findings) therefore re-analyzes on every open, bounded by the 30s server
-      // cooldown — that is intentional; do NOT cache empties to "optimize" it away.
-      const cached = sessionRow?.pending_actions as unknown[] | null | undefined
-      const hasCachedFindings = Array.isArray(cached) && cached.length > 0
-      if (persisted !== null && persisted === currentHash && hasCachedFindings) {
+      // 14.2.3 cache-trap + visible-empty fix: skip ONLY when the hash matches AND there
+      // is at least one VISIBLE cached finding. Two ways the cache can be effectively empty:
+      //   1. pending_actions is [] / null (the original cache trap), or
+      //   2. pending_actions is non-empty but EVERY finding has been dismissed — onDismiss
+      //      writes resolved_items but never prunes pending_actions, so the stored array
+      //      stays non-empty while nothing is actually shown. Measuring the raw length here
+      //      let the gate skip re-analysis forever, so dismissing every finding left the queue
+      //      stuck empty across reloads (root cause confirmed via DB + edge logs, 2026-06-05).
+      // We therefore apply the SAME dismissed-only resolved-items filter the render uses
+      // (rebuildFilterSet/identityKey) and gate on the visible count. A null persisted hash,
+      // a mismatch, OR zero visible findings ⇒ re-run. This un-traps stuck rows on next mount.
+      // A genuinely clean proposal re-analyzes on every open, bounded by the 30s server
+      // cooldown — intentional; do NOT cache empties to "optimize" it away.
+      const cached = sessionRow?.pending_actions as
+        | Array<{ id?: string; type?: string; section_key?: string; title?: string; dismissed?: boolean }>
+        | null
+        | undefined
+      const resolved = (sessionRow?.resolved_items as ResolvedItem[] | null | undefined) ?? []
+      const filterSet = rebuildFilterSet(resolved)
+      const visibleCount = Array.isArray(cached)
+        ? cached.filter((a) => {
+            if (!a || a.dismissed) return false
+            if (a.id && filterSet.has(`id:${a.id}`)) return false
+            if (
+              a.section_key && a.type && a.title &&
+              filterSet.has(
+                `ik:${identityKey({
+                  section_key: a.section_key,
+                  finding_type: a.type as FindingType,
+                  title: a.title,
+                })}`,
+              )
+            ) {
+              return false
+            }
+            return true
+          }).length
+        : 0
+      if (persisted !== null && persisted === currentHash && visibleCount > 0) {
         // Seed the in-memory gate so the Realtime path agrees and does not re-fire.
         hashRef.current = currentHash
         return
