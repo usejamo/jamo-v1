@@ -319,9 +319,18 @@ Deno.serve(async (req) => {
   const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY')! })
 
   let pendingActions: z.infer<typeof PendingActionSchema>[] = []
+  // ── TEMP DIAGNOSTIC (14.2.3) — REVERT after. Captures raw Haiku output + A/B-tests
+  // the over-suppression hypothesis by REMOVING the resolved block this run. ──────────
+  let dbgSystemPrompt = ''
+  let dbgUserContent = ''
+  let dbgRaw = '(no text)'
+  let dbgParse = '(not reached)'
+  let dbgValidation = '(not reached)'
   try {
-    // Phase 14.2.2 — append RESOLVED_ITEMS block only when annotatedResolved is non-empty.
-    const systemPromptForCall = ANALYSIS_SYSTEM_PROMPT + buildResolvedBlock(annotatedResolved)
+    // TEMP A/B: resolved block REMOVED (was: ANALYSIS_SYSTEM_PROMPT + buildResolvedBlock(annotatedResolved)).
+    const systemPromptForCall = ANALYSIS_SYSTEM_PROMPT
+    dbgSystemPrompt = systemPromptForCall
+    dbgUserContent = JSON.stringify(summaries)
     const response = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',  // AI-SPEC: Haiku ONLY — NEVER Sonnet
       max_tokens: 2048,
@@ -331,6 +340,7 @@ Deno.serve(async (req) => {
     })
 
     const textBlock = response.content.find((b) => b.type === 'text')
+    dbgRaw = (textBlock as { text?: string } | undefined)?.text ?? '(no text block)'
     // Haiku occasionally wraps its JSON in ```json …``` fences despite the system
     // prompt forbidding it. Strip a leading fence and any trailing fence/whitespace
     // before parsing so we don't lose the entire payload to a JSON.parse exception.
@@ -341,12 +351,17 @@ Deno.serve(async (req) => {
     let raw: unknown
     try {
       raw = JSON.parse(stripped || '[]')
+      dbgParse = 'OK: ' + JSON.stringify(raw).slice(0, 6000)
     } catch (parseErr) {
+      dbgParse = 'PARSE_ERROR: ' + (parseErr instanceof Error ? parseErr.message : String(parseErr))
       console.error('[analyze-proposal-gaps] Haiku output JSON.parse failed', parseErr, 'raw:', textBlock?.text?.slice(0, 500))
       raw = []
     }
 
     const validated = z.array(PendingActionSchema).safeParse(raw)
+    dbgValidation = validated.success
+      ? 'VALID: ' + validated.data.length + ' items'
+      : 'INVALID: ' + JSON.stringify(validated.error.flatten()).slice(0, 3000)
     if (validated.success) {
       // Apply priority ordering and tier caps (D-26/D-28)
       const byPriority = (t: string) => ({ compliance: 1, conflict: 2, gap: 3, missing: 4 }[t] ?? 5)
@@ -377,6 +392,22 @@ Deno.serve(async (req) => {
     // LLM call failed: return empty array (not crash)
     console.error('[analyze-proposal-gaps] Haiku call failed', err)
     pendingActions = []
+  }
+
+  // ── TEMP DIAGNOSTIC insert (14.2.3) — self-swallowing; never breaks the function. REVERT after. ──
+  try {
+    await supabase.from('_gap_debug').insert({
+      proposal_id: proposalId,
+      resolved_count: annotatedResolved.length,
+      action_count: pendingActions.length,
+      system_prompt: dbgSystemPrompt,
+      user_content: dbgUserContent,
+      haiku_raw: dbgRaw,
+      parse_result: dbgParse,
+      validation_result: dbgValidation,
+    })
+  } catch (_dbgErr) {
+    // diagnostics must never affect the function
   }
 
   // D-34 + D-45: Upsert with composite conflict target (proposal_id, user_id)
