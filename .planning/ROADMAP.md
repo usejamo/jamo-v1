@@ -464,6 +464,16 @@ Plans:
 - [ ] 14.2-07-PLAN.md — ActionQueue, ActionItem, ResumeTaskBanner, WalkthroughProgress + AIChatPanel Part B + detectGaps retirement
 - [ ] 14.2-08-PLAN.md — Human verification checkpoint: Part A and Part B end-to-end
 
+### Phase 14.2.4: Placeholder Resolution Ask Then Fill (INSERTED)
+
+**Goal:** [Urgent work - to be planned]
+**Requirements**: TBD
+**Depends on:** Phase 14.2
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 14.2.4 to break down)
+
 ### Phase 14.2.3: Fix Gap Analyzer Context Starvation (INSERTED)
 
 **Goal:** The gap analyzer returns findings on proposals full of unfilled template placeholders — stop truncating section content to 300 chars before Haiku, sharpen the prompt for placeholder detection, persist the whole-proposal content hash to gate the mount trigger, and rebalance tier caps.
