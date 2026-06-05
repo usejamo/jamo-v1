@@ -136,6 +136,14 @@ export function identityKey(parts: {
 export function rebuildFilterSet(items: ResolvedItem[]): Set<string> {
   const s = new Set<string>()
   for (const it of items) {
+    // 14.2.3 over-suppression fix: only DISMISSED items seed the hard client-side
+    // filter. "Fixed" sections keep evolving, and Haiku (temperature 0) re-emits a
+    // same-titled finding for what REMAINS — blanket-hiding fixed identities wrongly
+    // suppressed those legitimately-still-present findings (the "5 in DB, 1 visible"
+    // bug). Dedup of fixed items belongs to the edge prompt ("describe what remains"),
+    // not this filter. A dismissal is a strong, durable "not an issue" signal, so it
+    // stays a hard hide here.
+    if (it.user_action !== 'dismissed') continue
     if (it.originating_action_id) s.add(`id:${it.originating_action_id}`)
     s.add(`ik:${identityKey({
       section_key: it.section_key,

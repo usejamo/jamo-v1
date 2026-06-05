@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { appendResolvedItem } from '../resolved-items'
+import { appendResolvedItem, rebuildFilterSet, identityKey } from '../resolved-items'
 import type { ResolvedItem } from '../../types/chat'
 
 function makeEntry(overrides?: Partial<ResolvedItem>): ResolvedItem {
@@ -117,5 +117,58 @@ describe('appendResolvedItem retry/backoff (D-25, D-26)', () => {
     })
     const droppedCall = (console.warn as any).mock.calls.at(-1)
     expect(droppedCall[0]).toContain('dropped after retries')
+  })
+})
+
+// Phase 14.2.3 — rebuildFilterSet over-suppression fix.
+// The client-side filter Set is a hard belt-and-suspenders guard that should ONLY
+// hide findings the user explicitly DISMISSED. "Fixed" items must NOT seed the Set:
+// a fixed section keeps evolving and Haiku (temperature 0) re-emits a same-titled
+// finding for what REMAINS — blanket-hiding by identity wrongly suppressed those
+// (the "DB had 5 findings but user saw 1" bug). Dedup of fixed items is the edge
+// prompt's job ("describe what remains"), not the client's.
+describe('rebuildFilterSet — dismissed-only suppression (14.2.3)', () => {
+  function item(overrides?: Partial<ResolvedItem>): ResolvedItem {
+    return {
+      originating_action_id: 'act-1',
+      section_key: 'budget',
+      finding_type: 'gap',
+      title: 'Budget — cost placeholder unfilled',
+      description: 'd',
+      user_action: 'dismissed',
+      applied_changes: '',
+      section_content_hash_at_action: 'h',
+      timestamp: '2026-06-05T00:00:00.000Z',
+      acceptance_summary: { accepted: 0, rejected: 1, stale: 0 },
+      ...overrides,
+    }
+  }
+
+  it('seeds both id: and ik: keys for a dismissed item', () => {
+    const set = rebuildFilterSet([item({ user_action: 'dismissed' })])
+    expect(set.has('id:act-1')).toBe(true)
+    expect(
+      set.has(
+        `ik:${identityKey({ section_key: 'budget', finding_type: 'gap', title: 'Budget — cost placeholder unfilled' })}`,
+      ),
+    ).toBe(true)
+  })
+
+  it('does NOT seed any key for a fixed item', () => {
+    const set = rebuildFilterSet([
+      item({ originating_action_id: 'act-2', user_action: 'fixed', applied_changes: 'Added cost' }),
+    ])
+    expect(set.size).toBe(0)
+  })
+
+  it('keeps only dismissed keys when fixed and dismissed items are mixed', () => {
+    const set = rebuildFilterSet([
+      item({ originating_action_id: 'fix-1', user_action: 'fixed', section_key: 'scope', title: 'Scope — needs ISO citation' }),
+      item({ originating_action_id: 'dis-1', user_action: 'dismissed', section_key: 'team', title: 'Team — bios thin' }),
+    ])
+    expect(set.has('id:fix-1')).toBe(false)
+    expect(set.has('id:dis-1')).toBe(true)
+    expect(set.has(`ik:${identityKey({ section_key: 'team', finding_type: 'gap', title: 'Team — bios thin' })}`)).toBe(true)
+    expect(set.has(`ik:${identityKey({ section_key: 'scope', finding_type: 'gap', title: 'Scope — needs ISO citation' })}`)).toBe(false)
   })
 })
