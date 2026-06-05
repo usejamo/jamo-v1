@@ -67,29 +67,40 @@ The user has previously addressed the following items in this proposal:
 RESOLVED_ITEMS:
 ${JSON.stringify(annotatedResolved, null, 2)}
 
-When analyzing the proposal, use this context:
-- If a section still has issues you would normally flag, but they overlap with a resolved item, describe what REMAINS rather than repeating the original finding.
-- If a resolved item is marked content_changed_since_action and you observe the section has regressed, you may re-surface — but acknowledge what was previously done.
-- If a user dismissed a finding and the section has not materially changed, do not re-surface that finding.
-- When an acceptance_summary field is present: if accepted/(accepted+rejected) ratio is high, treat as substantially addressed; if low, the original concern may still apply.
-- Findings should evolve, not repeat.
+SCOPE OF THESE CONSTRAINTS (read first): the rules below apply ONLY to the specific findings listed above, each in its OWN section (matched by section_key + finding type + the specific issue). They do NOT constrain analysis of any other section, nor any OTHER issue within the same section. The presence of resolved items must NEVER cause you to return fewer findings elsewhere, or to stay silent on sections that have no resolved items. Analyze every section on its merits — a long RESOLVED_ITEMS list does NOT mean the proposal is finished. After prior resolutions the correct number of findings is usually NOT zero.
 
-EVOLVED-FINDING EXAMPLES:
+Apply these ONLY to the matching resolved finding:
+- If a section still has the SAME issue that overlaps a resolved item, describe what REMAINS rather than repeating the original finding verbatim.
+- If a resolved item is marked content_changed_since_action and the section has regressed, you may re-surface — but acknowledge what was previously done.
+- If the user dismissed a finding and that section's content has not materially changed, do not re-surface THAT finding (only that one finding — not other issues in the same section).
+- When an acceptance_summary is present: a high accepted/(accepted+rejected) ratio ⇒ treat THAT finding as substantially addressed; a low ratio ⇒ the original concern may still apply.
 
-Example 1 — partial fix:
+ALWAYS CONTINUE TO SURFACE (this overrides any tendency toward silence):
+- Every gap, conflict, compliance issue, and missing section in sections that have NO resolved items.
+- NEW or DIFFERENT issues in sections that DO have resolved items — e.g. a different unfilled placeholder, a new inconsistency. Resolving one finding does NOT clear the section.
+Findings should EVOLVE, not vanish.
+
+EXAMPLES:
+
+Example A — partial fix: surface what REMAINS (resolved item in this section):
   Prior resolved_item: { section: "executive_summary", type: "gap",
     title: "Executive summary missing pricing and timeline",
     user_action: "fixed", applied_changes: "Added Q3 timeline" }
   Current state: pricing still absent, timeline complete.
   Good finding: "Executive summary still needs pricing detail (timeline added in prior pass)."
-  BAD finding: "Executive summary missing pricing and timeline" — verbatim repeat.
+  BAD: "Executive summary missing pricing and timeline" (verbatim repeat) — or staying silent.
 
-Example 2 — dismissed with unchanged content:
+Example B — dismissed + unchanged: do not re-flag THAT finding, but DO flag different issues:
   Prior resolved_item: { section: "scope", type: "compliance",
     title: "Scope lacks ISO citation", user_action: "dismissed",
     content_status: "content_unchanged_since_action" }
-  Good behavior: do not re-flag.
-  BAD behavior: re-emitting the same finding.
+  Good: do not re-emit "Scope lacks ISO citation". BUT if "scope" still contains an unfilled "[Client Name]" placeholder, you MUST still flag that — it is a different issue.
+  BAD: staying silent on "scope" entirely because one finding there was dismissed.
+
+Example C — untouched sections still get analyzed (the critical case):
+  RESOLVED_ITEMS covers only "cover_letter" and "team". Section "budget" has NO resolved items and still contains "[insert total cost]".
+  Good: flag "Budget — cost placeholder unfilled". Resolved items in other sections are irrelevant to "budget".
+  BAD: returning [] (or omitting budget) because several other sections were already addressed.
 `
 }
 
@@ -380,9 +391,13 @@ Deno.serve(async (req) => {
         user_id: userId,
         pending_actions: pendingActions,
         // D-3 desync guard: written in the SAME upsert object as pending_actions so the
-        // two never diverge. `?? null` lets an old client (no content_hash) write null,
-        // which the mount gate treats as "no prior analysis → run".
-        pending_actions_content_hash: contentHash ?? null,
+        // two never diverge. 14.2.3 cache-trap fix (defense in depth): NEVER cache an
+        // EMPTY result. When pendingActions is empty we persist null so the next mount
+        // re-runs, instead of letting "[] + matching hash" become a permanent cached
+        // empty (the bug where suggestions disappeared and never came back). A genuinely
+        // clean proposal therefore re-analyzes on each open (bounded by the 30s cooldown)
+        // — that is intentional; do NOT "optimize" empties back into the cache.
+        pending_actions_content_hash: pendingActions.length > 0 ? (contentHash ?? null) : null,
         last_updated: new Date().toISOString(),
       },
       { onConflict: 'proposal_id,user_id' }
