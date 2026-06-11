@@ -1,5 +1,7 @@
 import { defineConfig } from 'vitest/config'
 import type { Plugin } from 'vite'
+import { createRequire } from 'module'
+const _require = createRequire(import.meta.url)
 
 // Sidecar Vitest config for testing supabase edge function pure helpers.
 // The root vitest.config.ts excludes `supabase/**` because most edge code is
@@ -19,6 +21,11 @@ function denoSpecifierStubPlugin(): Plugin {
   return {
     name: 'deno-specifier-stub',
     resolveId(id) {
+      // npm:zod* — pass through to real node_modules zod package
+      if (id.startsWith('npm:zod')) {
+        // Resolve to the absolute path of node_modules/zod so Vite can find it
+        return _require.resolve('zod')
+      }
       if (id.startsWith('jsr:') || id.startsWith('npm:')) {
         return `\0deno-stub:${id}`
       }
@@ -46,7 +53,7 @@ function denoSpecifierStubPlugin(): Plugin {
 export default defineConfig({
   plugins: [denoSpecifierStubPlugin()],
   test: {
-    include: ['supabase/functions/__tests__/**/*.test.ts'],
+    include: ['supabase/functions/__tests__/**/*.test.ts', 'supabase/functions/**/__tests__/**/*.test.ts'],
     exclude: ['**/node_modules/**'],
     environment: 'node',
     setupFiles: ['./supabase/functions/__tests__/setup.ts'],

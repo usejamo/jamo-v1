@@ -16,7 +16,7 @@ const QUEUE_CAP = 10
 const TIER_CAPS = { compliance: 4, conflict: 2, gap: 4, missing: 4 } as const
 
 // ── PendingAction Zod schema — validates Haiku output before DB write ──────────
-const PendingActionSchema = z.object({
+export const PendingActionSchema = z.object({
   id: z.string().uuid(),
   type: z.enum(['gap', 'conflict', 'compliance', 'missing']),
   section_key: z.string().min(1),
@@ -24,7 +24,7 @@ const PendingActionSchema = z.object({
   description: z.string().min(1).max(500),
   priority: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4)]),
   cta_label: z.string().min(1),
-  cta_tool: z.enum(['propose_edit', 'check_regulatory_compliance', 'answer_with_citations']),
+  cta_tool: z.enum(['propose_edit', 'check_regulatory_compliance', 'answer_with_citations', 'ask_user']),
   cta_payload: z.record(z.unknown()),
 })
 

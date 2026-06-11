@@ -187,7 +187,7 @@ export interface ChatRow {
 
 export type ActionItemType = 'gap' | 'conflict' | 'compliance' | 'missing'
 
-export type ActionItemCtaTool = 'propose_edit' | 'check_regulatory_compliance' | 'answer_with_citations'
+export type ActionItemCtaTool = 'propose_edit' | 'check_regulatory_compliance' | 'answer_with_citations' | 'ask_user'
 
 export interface PendingActionItem {
   id: string
@@ -246,6 +246,8 @@ export interface ActiveTask {
   completed_at?: string
   /** The PendingActionItem.id that triggered this walkthrough — for back-linking */
   source_action_item_id?: string
+  /** Originating finding snapshot — persisted for ask-then-fill attribution across ask hop + reload (Risk B / D-01) */
+  originating_snapshot?: OriginatingActionSnapshot
   last_updated: string
 }
 
