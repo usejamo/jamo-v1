@@ -3,10 +3,10 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: "Completed 14.2.3-02-PLAN.md (persist whole-proposal content hash, D-3/D-4). Task 1 migration + types regen committed (8892acb, 1d3b697). Task 2 edge: content_hash in RequestSchema, written atomically as pending_actions_content_hash sibling in the single chat_sessions upsert (cf85d27). Task 3 client: content_hash in invoke body + mount read-gate that skips the Haiku invoke when persisted hash == current computeHash, null/mismatch runs (997c8e1). Sole-writer audit confirmed. tsc clean. Task 4 manual UAT documented PENDING in SUMMARY (esp. the MANDATORY >30s gap). 3 pre-existing useGapAnalysisTrigger.spec.ts failures (from ac7d8ee always-fire contract) confirmed not introduced by Plan 02 — logged in deferred-items.md for test-maintenance."
-last_updated: "2026-06-04T20:30:00.000Z"
+stopped_at: Phase 14.2.4 context gathered (all gray areas resolved)
+last_updated: "2026-06-11T21:30:43.459Z"
 progress:
-  total_phases: 23
+  total_phases: 24
   completed_phases: 22
   total_plans: 108
   completed_plans: 109
@@ -31,7 +31,7 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 
 ## Last Session
 
-**Stopped at:** Completed 14.2.3-03-PLAN.md (resolve-time flush-then-hash: saveNow exposed on the editor handle + type; dismiss handler now awaits saveNow(html) then hashes that exact string; accept-path equality confirmed at SectionEditorBlock.tsx:354 — no gap). Plan 02 (migration + client hash gate) remains; its in-progress uncommitted changes to useGapAnalysisTrigger.ts cause 3 out-of-scope spec failures logged in the phase deferred-items.md.
+**Stopped at:** Phase 14.2.4 context gathered (all gray areas resolved)
 **Session date:** 2026-06-04
 
 ## Roadmap Evolution
