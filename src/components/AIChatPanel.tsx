@@ -500,11 +500,19 @@ export default function AIChatPanel({
               // proposal_chats INSERT below.
               if (event.tool === 'propose_edit' && event.result?.section_key) {
                 const propPayloadForSnapshot = event.result as ProposeEditPayload
-                toolData.originating_action = takeSnapshot(
+                // Two-step attribution lookup (Risk B read half):
+                // First try: in-memory Map (direct propose_edit CTA — existing path unchanged)
+                let originatingSnapshot = takeSnapshot(
                   ctaSnapshotRef.current,
                   propPayloadForSnapshot.section_key,
                   'propose_edit',
                 )
+                // Second try: active_task.originating_snapshot (ask-then-fill path —
+                // survived the ask hop + any mid-walkthrough reload via DB persistence)
+                if (!originatingSnapshot && activeTask?.originating_snapshot) {
+                  originatingSnapshot = activeTask.originating_snapshot as OriginatingActionSnapshot
+                }
+                toolData.originating_action = originatingSnapshot
               }
               // Determine message type from tool name
               const toolMsgTypeMap: Record<string, ChatMessageType> = {
@@ -715,7 +723,31 @@ export default function AIChatPanel({
                     // survives a mid-review re-analyze that replaces pending_actions.
                     // Helper in src/chat/ctaSnapshotMap.ts (unit-tested) owns key shape.
                     captureSnapshot(ctaSnapshotRef.current, action)
-                    handleSendMessage(`[Action: ${action.cta_tool}] ${action.title}`, action.cta_payload, action.cta_tool)
+                    if (action.cta_tool === 'ask_user') {
+                      // D-01 condition 2: set focus client-side (set_focus normally does this)
+                      _onSectionFocusChange?.(action.section_key)
+                      // Risk B client half: embed snapshot in cta_payload so edge can persist
+                      // it in active_task.originating_snapshot (Plan 03 reads it there).
+                      const payloadWithSnapshot = {
+                        ...action.cta_payload,
+                        originating_snapshot: {
+                          id: action.id,
+                          section_key: action.section_key,
+                          finding_type: action.type,
+                          title: action.title,
+                          description: action.description ?? '',
+                        },
+                      }
+                      // D-07 watch-item 2: thread description via message text (not payload)
+                      // so the model sees it in chat history at the ask turn.
+                      handleSendMessage(
+                        `[Action: ask_user] ${action.title}: ${action.description ?? ''}`,
+                        payloadWithSnapshot,
+                        action.cta_tool,
+                      )
+                    } else {
+                      handleSendMessage(`[Action: ${action.cta_tool}] ${action.title}`, action.cta_payload, action.cta_tool)
+                    }
                   }}
                   onDismiss={(actionId) => {
                     // Phase 14.2.2 — fire-and-forget resolved_items write + optimistic Set update.
