@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: in_progress
-stopped_at: "Completed 14.2.4-01-PLAN.md (Wave 0 stubs)"
-last_updated: "2026-06-11T22:29:00.000Z"
+status: unknown
+stopped_at: Completed 14.2.4-04-PLAN.md — Client ask_user branch + defer affordance (AC-4/AC-9 green)
+last_updated: "2026-06-11T23:30:00.000Z"
 progress:
   total_phases: 24
   completed_phases: 22
   total_plans: 113
-  completed_plans: 110
-  percent: 97
+  completed_plans: 113
+  percent: 100
 ---
 
 ## Project Status
@@ -31,7 +31,7 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 
 ## Last Session
 
-**Stopped at:** Completed 14.2.4-01-PLAN.md — Wave 0 Nyquist stubs (4 files, 8 it.skip tests, suite green)
+**Stopped at:** Completed 14.2.4-04-PLAN.md — Client ask_user branch + defer affordance (AC-4/AC-9 green)
 **Session date:** 2026-06-11
 
 ## Roadmap Evolution
@@ -46,6 +46,9 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 
 ## Active Decisions
 
+- **Two-step attribution lookup (14.2.4-04):** At propose_edit arrival, takeSnapshot (Map, direct propose_edit path) runs first; if null, falls back to activeTask?.originating_snapshot (ask-then-fill path — survived ask hop + reload). Direct propose_edit path invariant preserved.
+- **Snapshot-in-cta_payload (14.2.4-04):** originating_snapshot embedded in cta_payload at CTA-click (not a new request-body field) so the edge reads it at ask_user dispatch time without wire changes.
+- **onSkip defer = discard path (14.2.4-04):** AskUserCard onSkip reuses exact stop-walkthrough/discard body (status:'discarded', NO resolved_items write — D-09 load-bearing invariant). Defer and queue-dismiss stay distinct terminal states.
 - **Gap analyzer excerpt (14.2.3-01):** Full section content sent to Haiku up to a 5000-char ceiling; over-ceiling sections cut + clearly-meta end-marker `[…section truncated for length…]`. 300-char slice removed. Single Haiku call preserved.
 - **Placeholder few-shots (14.2.3-01):** Exactly 4 OUTPUT: lines — original TBD example folded into the Family 4 (explicit-marker) example. Optional D-1 prompt line ("judge truncated sections on visible content only") was added.
 - **Tier caps (14.2.3-01):** QUEUE_CAP 10; TIER_CAPS { compliance: 4, conflict: 2, gap: 4, missing: 4 }.
@@ -220,3 +223,4 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 ### Phase 14.2.4: Placeholder Resolution (Ask-Then-Fill)
 
 - **Plan 01** (2026-06-11): Wave 0 Nyquist test stubs — 4 it.skip stub files created: enum-sync.test.ts (AC-3, 2 stubs), useResolvedItemsWriteOnTerminal.askThenFill.test.ts (AC-4/AC-9, 2 stubs), activeTaskShape.test.ts (D-01 shape invariant, 1 stub), AskUserCard.skip.test.tsx (AC-9 skip button, 3 stubs). No production code touched. Suite green (pre-existing SectionEditorBlock failures unrelated). Commits bb22d1b, cfff3a1.
+- **Plan 04** (2026-06-11): Client ask_user branch + defer affordance — onCtaClick ask_user branch (focus via _onSectionFocusChange, originating_snapshot in cta_payload, description in message text); two-step attribution fallback at propose_edit arrival (Map first, then activeTask?.originating_snapshot); AskUserCard onSkip defer button ("I don't have this yet") wired to discard path; AC-4 + AC-9-card-01/02/03 + AC-9-hook all green. Commits e214403, 0dcffdc, 272ff0f, dc75677.
