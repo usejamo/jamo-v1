@@ -8,6 +8,61 @@ import { setFocusTool, handleSetFocus } from "./tools/set-focus.ts"
 import { buildSystemPrompt, buildHistory, buildActiveTaskContext } from "./context.ts"
 import { fetchRagContext, RAG_K, DEFAULT_RAG_K } from "./rag.ts"
 
+// ── Pure helpers (mirrored from src/chat/activeTaskBuilder.ts — Deno cannot import src/) ──
+
+interface SectionRef { key: string; title: string }
+interface OriginatingActionSnapshot {
+  id: string
+  section_key: string
+  finding_type: string
+  title: string
+  description: string
+}
+
+/**
+ * Resolve the real display title for a section key (D-10).
+ * Order: target_section match → other_sections match → fallback to section_key.
+ */
+function resolveSectionTitle(
+  sectionKey: string,
+  targetSection: SectionRef | null | undefined,
+  otherSections: SectionRef[]
+): string {
+  if (targetSection?.key === sectionKey) return targetSection.title
+  const match = otherSections.find((s) => s.key === sectionKey)
+  if (match) return match.title
+  return sectionKey
+}
+
+/**
+ * Build the 12-field ActiveTask for the needs-value ask_user dispatch (D-01 cond 1).
+ * Shape is structurally identical to set_focus's write plus two attribution fields.
+ * D-10: section_title MUST be the real resolved title, never section_key.
+ */
+function buildNeedsValueActiveTask(args: {
+  section_key: string
+  section_title: string
+  action_id?: string
+  snapshot?: OriginatingActionSnapshot
+}) {
+  const now = new Date().toISOString()
+  return {
+    type: 'walkthrough' as const,
+    status: 'active' as const,
+    section_key: args.section_key,
+    section_title: args.section_title,
+    stage: 'gathering_inputs' as const,
+    collected_inputs: {},
+    pending_paragraph_ids: [] as string[],
+    accepted_paragraph_ids: [] as string[],
+    content_hash: '',
+    started_at: now,
+    last_updated: now,
+    source_action_item_id: args.action_id,
+    originating_snapshot: args.snapshot,
+  }
+}
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -38,6 +93,7 @@ Deno.serve(async (req) => {
       other_sections = [],
       chat_history = [],
       forced_tool,
+      cta_payload,
     } = body
 
     if (!user_message || !target_section) {
@@ -199,6 +255,28 @@ Deno.serve(async (req) => {
                     break
                   case "ask_user":
                     toolResult = handleAskUser(toolInput as Parameters<typeof handleAskUser>[0])
+                    // Needs-value path: mirror set_focus active_task write (D-01) + embed snapshot (Risk B)
+                    // Guard: presence of cta_payload.originating_snapshot IS the needs-value flag (no separate boolean)
+                    if (proposal_id && user_id && cta_payload?.originating_snapshot) {
+                      const snapshot = cta_payload.originating_snapshot as OriginatingActionSnapshot
+                      // D-10: resolve real title from request body sections, never use section_key raw
+                      const resolvedTitle = resolveSectionTitle(
+                        toolInput.section_key as string,
+                        target_section as SectionRef | null,
+                        other_sections as SectionRef[]
+                      )
+                      const newTask = buildNeedsValueActiveTask({
+                        section_key: toolInput.section_key as string,
+                        section_title: resolvedTitle,
+                        action_id: snapshot.id,
+                        snapshot,
+                      })
+                      // AWAIT — load-bearing resume state (D-01 condition 3, NOT void)
+                      await supabase.from('chat_sessions')
+                        .update({ active_task: newTask as unknown as Record<string, unknown> })
+                        .eq('proposal_id', proposal_id)
+                        .eq('user_id', user_id)  // D-45: both filters required
+                    }
                     break
                   case "set_focus":
                     toolResult = await handleSetFocus(
@@ -213,7 +291,11 @@ Deno.serve(async (req) => {
                         type: 'walkthrough',
                         status: 'active',
                         section_key: toolInput.section_key,
-                        section_title: toolInput.section_key,  // Plan 07 will resolve title from proposal sections
+                        section_title: resolveSectionTitle(  // D-10: real title (was: toolInput.section_key)
+                          toolInput.section_key as string,
+                          target_section as SectionRef | null,
+                          other_sections as SectionRef[]
+                        ),
                         stage: 'gathering_inputs',
                         collected_inputs: {},
                         pending_paragraph_ids: [],
