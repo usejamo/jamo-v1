@@ -65,26 +65,23 @@ describe('useResolvedItemsWriteOnTerminal — ask-then-fill (14.2.4)', () => {
     expect(writes[0].snapshot.section_key).toBe('study_design')
   })
 
-  it.skip('14.2.4-AC9: no resolved_items write when onSkip called (no pending_edits created)', () => {
-    // Wave 0 stub — implemented in Plan 04
-    //
-    // Assert computeTerminalWrites with empty pending_edits returns [].
-    // onSkip path: active_task is set to discarded, no edits were created.
-    //
-    // const messages = [{
-    //   id: 'msg-skip',
-    //   role: 'assistant',
-    //   toolData: { version: 1, originating_action: snap() },
-    // }]
-    // const workspaceState = {
-    //   sections: {
-    //     scope: {
-    //       content: '<p>unchanged</p>',
-    //       pending_edits: [],
-    //     },
-    //   },
-    // }
-    // const writes = computeTerminalWrites({ messages, workspaceState, htmlFieldName: 'content', alreadyWritten: new Set() })
-    // expect(writes).toHaveLength(0)
+  it('14.2.4-AC9: no resolved_items write when onSkip called (no pending_edits created)', () => {
+    // D-09 load-bearing invariant: defer path creates NO pending_edits (onSkip discards the
+    // active_task without ever reaching propose_edit), so computeTerminalWrites returns [].
+    const messages = [{
+      id: 'msg-skip',
+      role: 'assistant',
+      toolData: { tool: 'ask_user', version: 1, payload: {}, state: {}, originating_action: snap() },
+    }]
+    const workspaceState = {
+      sections: {
+        scope: {
+          content: '<p>unchanged</p>',
+          pending_edits: [],
+        },
+      },
+    }
+    const writes = computeTerminalWrites({ messages, workspaceState, htmlFieldName: 'content', alreadyWritten: new Set() })
+    expect(writes).toHaveLength(0)
   })
 })
