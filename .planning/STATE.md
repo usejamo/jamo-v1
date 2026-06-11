@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: unknown
-stopped_at: Phase 14.2.4 context gathered (all gray areas resolved)
-last_updated: "2026-06-11T22:03:52.555Z"
+status: in_progress
+stopped_at: "Completed 14.2.4-01-PLAN.md (Wave 0 stubs)"
+last_updated: "2026-06-11T22:29:00.000Z"
 progress:
   total_phases: 24
   completed_phases: 22
   total_plans: 113
-  completed_plans: 109
-  percent: 96
+  completed_plans: 110
+  percent: 97
 ---
 
 ## Project Status
@@ -31,8 +31,8 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 
 ## Last Session
 
-**Stopped at:** Phase 14.2.4 context gathered (all gray areas resolved)
-**Session date:** 2026-06-04
+**Stopped at:** Completed 14.2.4-01-PLAN.md — Wave 0 Nyquist stubs (4 files, 8 it.skip tests, suite green)
+**Session date:** 2026-06-11
 
 ## Roadmap Evolution
 
@@ -216,3 +216,7 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 - **Plan 02** (2026-05-20): Wire useGapAnalysisTrigger into AIChatPanel — removed dead `void triggerAnalysis` stub plus orphaned inline useCallback and unused `isAnalyzing` state. tsc clean for the touched file. Manual D-30/D-35/429 live smoke deferred to human-verify pass (requires running dev server + authed user). Commits 600fcc0, ad9249c.
 
 **Planned Phase:** 14.2.4 (placeholder-resolution-ask-then-fill) — 5 plans — 2026-06-11T22:03:52.543Z
+
+### Phase 14.2.4: Placeholder Resolution (Ask-Then-Fill)
+
+- **Plan 01** (2026-06-11): Wave 0 Nyquist test stubs — 4 it.skip stub files created: enum-sync.test.ts (AC-3, 2 stubs), useResolvedItemsWriteOnTerminal.askThenFill.test.ts (AC-4/AC-9, 2 stubs), activeTaskShape.test.ts (D-01 shape invariant, 1 stub), AskUserCard.skip.test.tsx (AC-9 skip button, 3 stubs). No production code touched. Suite green (pre-existing SectionEditorBlock failures unrelated). Commits bb22d1b, cfff3a1.
