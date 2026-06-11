@@ -5,9 +5,11 @@ interface AskUserCardProps {
   payload: AskUserPayload
   onAnswer: (text: string) => void
   answered?: string
+  /** D-09: defer affordance — calls the stop-walkthrough/discard path. Card hides button when undefined. */
+  onSkip?: () => void
 }
 
-export function AskUserCard({ payload, onAnswer, answered }: AskUserCardProps) {
+export function AskUserCard({ payload, onAnswer, answered, onSkip }: AskUserCardProps) {
   const [value, setValue] = useState('')
 
   return (
@@ -38,6 +40,14 @@ export function AskUserCard({ payload, onAnswer, answered }: AskUserCardProps) {
           >
             Reply
           </button>
+          {onSkip && (
+            <button
+              onClick={onSkip}
+              className="mt-1 text-[10px] text-gray-400 hover:text-gray-600"
+            >
+              I don&apos;t have this yet
+            </button>
+          )}
         </>
       )}
     </div>

@@ -991,6 +991,16 @@ export default function AIChatPanel({
                                       // it, and invokes the model.
                                       void handleSendMessage(text)
                                     }}
+                                    onSkip={activeTask ? () => {
+                                      // D-09: defer path — discard active_task, NO resolved_items write.
+                                      // Reuses the exact stop-walkthrough body from onStopWalkthrough (:684-690).
+                                      // Finding stays flagged and re-surfaces next analysis.
+                                      setActiveTask(null)
+                                      void supabase.from('chat_sessions')
+                                        .update({ active_task: { ...activeTask, status: 'discarded', stage: 'discarded', completed_at: new Date().toISOString() } as unknown as Json })
+                                        .eq('proposal_id', proposalId)
+                                        .eq('user_id', userId)  // D-45
+                                    } : undefined}
                                   />
                                 )
                               })()
