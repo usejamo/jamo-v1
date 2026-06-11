@@ -466,13 +466,17 @@ Plans:
 
 ### Phase 14.2.4: Placeholder Resolution Ask Then Fill (INSERTED)
 
-**Goal:** [Urgent work - to be planned]
-**Requirements**: TBD
-**Depends on:** Phase 14.2
-**Plans:** 0 plans
+**Goal:** Needs-value findings (unfilled placeholders) re-route from a no-op forced propose_edit to a forced ask_user with a mirrored, awaited active_task write — so Jamo asks the user for the value, then fills it, with durable resume and correct resolved_items attribution. No silent rewrite; defer never marks a finding fixed.
+**Requirements**: D-01..D-10, AC-1..AC-9 (no REQ-IDs — decision/AC-driven, see 14.2.4-CONTEXT.md)
+**Depends on:** Phase 14.2, Phase 14.2.3
+**Plans:** 5 plans
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 14.2.4 to break down)
+- [ ] 14.2.4-01-PLAN.md — Wave 0 Nyquist test stubs (enum-sync, hook ask-then-fill, active_task shape, AskUserCard skip)
+- [ ] 14.2.4-02-PLAN.md — Enum sync (both sites) + ActiveTask.originating_snapshot + analyzer ask_user few-shots (D-02/D-03/D-06/AC-3/AC-6)
+- [ ] 14.2.4-03-PLAN.md — Edge ask_user dispatch: awaited active_task write, real section title, snapshot (D-01/D-10/AC-4/AC-5)
+- [ ] 14.2.4-04-PLAN.md — Client CTA routing + focus + description + two-step attribution + AskUserCard defer (D-01/D-03/D-07/D-08/D-09/AC-1/2/4/7/8/9)
+- [ ] 14.2.4-05-PLAN.md — Deploy edge functions + live ask-then-fill smoke (AC-1/2/5/7/8/9)
 
 ### Phase 14.2.3: Fix Gap Analyzer Context Starvation (INSERTED)
 
