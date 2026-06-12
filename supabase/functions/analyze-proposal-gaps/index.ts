@@ -83,6 +83,25 @@ ${lines}
 Rules: do NOT re-emit one of the EXACT findings above while its section is unchanged. If a listed line is marked "section CHANGED since" and the issue still remains, you may re-surface it. Analyze EVERY section on its merits and surface all OTHER and NEW issues — including different issues in the same sections that appear above. A long list here does NOT mean the proposal is finished; after prior fixes the right number of findings is usually NOT zero.`
 }
 
+/**
+ * Salvage a truncated JSON array of finding objects. If Haiku hits max_tokens
+ * mid-array, the output is invalid JSON (unterminated object / trailing comma)
+ * and JSON.parse rejects the WHOLE payload — dropping every finding. This keeps
+ * all COMPLETE objects by slicing to the last balanced `}` and closing the array.
+ * Returns null when nothing is salvageable.
+ */
+export function salvageTruncatedFindings(stripped: string): unknown[] | null {
+  const start = stripped.indexOf('[')
+  const lastBrace = stripped.lastIndexOf('}')
+  if (start === -1 || lastBrace === -1 || lastBrace < start) return null
+  try {
+    const parsed = JSON.parse(stripped.slice(start, lastBrace + 1) + ']')
+    return Array.isArray(parsed) ? parsed : null
+  } catch {
+    return null
+  }
+}
+
 const ANALYSIS_SYSTEM_PROMPT = `You are a CRO proposal quality analyst. You receive a JSON array of proposal section summaries and return a JSON array of quality issues.
 
 Return ONLY a valid JSON array. No explanation, no markdown. Each item must match:
@@ -314,7 +333,12 @@ Deno.serve(async (req) => {
     dbgPromptChars = systemPromptForCall.length
     const response = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',  // AI-SPEC: Haiku ONLY — NEVER Sonnet
-      max_tokens: 2048,
+      // 8192 (was 2048): placeholder-heavy proposals produce 10-15 findings; the
+      // verbose ask_user few-shots (14.2.4) pushed typical output past 2048 tokens,
+      // truncating the JSON array mid-object → JSON.parse threw → 0 findings (the
+      // analyzer "went silent" symptom). 8192 gives ample headroom; salvageTruncatedFindings
+      // below is the defense-in-depth backstop if a future proposal still overflows.
+      max_tokens: 8192,
       temperature: 0,
       system: systemPromptForCall,
       messages: [{ role: 'user', content: JSON.stringify(summaries) }],
@@ -333,8 +357,16 @@ Deno.serve(async (req) => {
     try {
       raw = JSON.parse(stripped || '[]')
     } catch (parseErr) {
-      console.error('[analyze-proposal-gaps] Haiku output JSON.parse failed', parseErr, 'raw:', textBlock?.text?.slice(0, 500))
-      raw = []
+      // Truncation backstop: recover every complete finding from a payload that
+      // Haiku cut off at max_tokens, instead of losing all of them to one throw.
+      const salvaged = salvageTruncatedFindings(stripped)
+      if (salvaged && salvaged.length > 0) {
+        console.warn('[analyze-proposal-gaps] salvaged truncated Haiku output —', salvaged.length, 'findings recovered')
+        raw = salvaged
+      } else {
+        console.error('[analyze-proposal-gaps] Haiku output JSON.parse failed', parseErr, 'raw:', textBlock?.text?.slice(0, 500))
+        raw = []
+      }
     }
 
     const validated = z.array(PendingActionSchema).safeParse(raw)
