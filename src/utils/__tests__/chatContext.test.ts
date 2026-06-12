@@ -98,6 +98,7 @@ describe('buildContextPayload', () => {
     const payload = buildContextPayload({
       proposalId: 'prop-1',
       orgId: 'org-1',
+      userId: 'user-1',
       userMessage: 'Explain the budget',
       targetSectionKey: 'understanding',
       sections,
@@ -106,6 +107,9 @@ describe('buildContextPayload', () => {
 
     expect(payload.proposal_id).toBe('prop-1')
     expect(payload.org_id).toBe('org-1')
+    // Regression: edge derives user_id from the BODY (D-45); omitting it silently skips all
+    // chat_sessions writes (active_task / resolved_items). It MUST be in the request payload.
+    expect(payload.user_id).toBe('user-1')
     expect(payload.user_message).toBe('Explain the budget')
     expect(payload.target_section.key).toBe('understanding')
     // target_section.content is HTML with paragraph IDs intact (NOT stripped) — AI uses these IDs for propose_edit

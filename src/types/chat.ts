@@ -146,6 +146,10 @@ export interface ChatMessage {
 export interface ChatWithJamoRequest {
   proposal_id: string
   org_id: string
+  // Required by the edge: chat-with-jamo derives user_id from the BODY (not the JWT) and
+  // guards/filters every chat_sessions read+write on it (D-45). Omitting it makes the edge
+  // skip all active_task / resolved_items writes silently.
+  user_id: string
   user_message: string
   session_id?: string              // chat_sessions.id — created by client on first message
   target_section: {

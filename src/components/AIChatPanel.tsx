@@ -427,6 +427,7 @@ export default function AIChatPanel({
     const payload = buildContextPayload({
       proposalId,
       orgId,
+      userId,
       userMessage: text,
       targetSectionKey: activeSectionKey ?? (sections[0]?.section_key ?? ''),
       sections,

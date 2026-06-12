@@ -107,6 +107,7 @@ export function buildSlidingWindow(
 export function buildContextPayload(args: {
   proposalId: string
   orgId: string
+  userId: string   // edge derives user_id from body (D-45) — required for all chat_sessions writes
   userMessage: string
   targetSectionKey: string
   sections: Array<{ section_key: string; content: string }>
@@ -115,7 +116,7 @@ export function buildContextPayload(args: {
   forcedTool?: import('../types/chat').ActionItemCtaTool   // when set, server forces tool_choice
   ctaPayload?: Record<string, unknown>   // ask_user CTA snapshot — edge persists into active_task (Risk B)
 }): ChatWithJamoRequest {
-  const { proposalId, orgId, userMessage, targetSectionKey, sections, chatHistory, sectionTitles, forcedTool, ctaPayload } = args
+  const { proposalId, orgId, userId, userMessage, targetSectionKey, sections, chatHistory, sectionTitles, forcedTool, ctaPayload } = args
 
   const targetSection = sections.find(s => s.section_key === targetSectionKey)
 
@@ -133,6 +134,7 @@ export function buildContextPayload(args: {
   return {
     proposal_id: proposalId,
     org_id: orgId,
+    user_id: userId,
     user_message: userMessage,
     target_section: {
       key: targetSectionKey,
