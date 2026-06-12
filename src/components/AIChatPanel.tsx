@@ -385,7 +385,7 @@ export default function AIChatPanel({
 
   // ── Live streaming handleSendMessage ──────────────────────────────────────
 
-  const handleSendMessage = useCallback(async (messageText?: string, _ctaPayload?: Record<string, unknown>, forcedTool?: import('../types/chat').ActionItemCtaTool) => {
+  const handleSendMessage = useCallback(async (messageText?: string, ctaPayload?: Record<string, unknown>, forcedTool?: import('../types/chat').ActionItemCtaTool) => {
     const text = messageText ?? input.trim()
     if (!text || isStreaming) return
     setInput('')
@@ -433,6 +433,7 @@ export default function AIChatPanel({
       chatHistory: messages,
       sectionTitles,
       forcedTool,
+      ctaPayload,
     })
 
     let fullContent = ''

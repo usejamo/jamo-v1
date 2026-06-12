@@ -166,6 +166,10 @@ export interface ChatWithJamoRequest {
   // that tool via `tool_choice: { type: 'tool', name: forced_tool }` so Sonnet
   // cannot substitute set_focus or any other tool. Omitted for free-form chat.
   forced_tool?: ActionItemCtaTool
+  // Carries the originating finding snapshot for needs-value ask_user CTAs so the
+  // edge can persist it into active_task.originating_snapshot (Risk B / D-01 durable
+  // resume). Presence of cta_payload.originating_snapshot is the needs-value flag.
+  cta_payload?: Record<string, unknown>
 }
 
 // ── DB row shape ───────────────────────────────────────────────────────────────

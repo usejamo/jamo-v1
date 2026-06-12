@@ -113,8 +113,9 @@ export function buildContextPayload(args: {
   chatHistory: ChatMessage[]
   sectionTitles?: Record<string, string>   // D-06 — from Sidebar useMemo
   forcedTool?: import('../types/chat').ActionItemCtaTool   // when set, server forces tool_choice
+  ctaPayload?: Record<string, unknown>   // ask_user CTA snapshot — edge persists into active_task (Risk B)
 }): ChatWithJamoRequest {
-  const { proposalId, orgId, userMessage, targetSectionKey, sections, chatHistory, sectionTitles, forcedTool } = args
+  const { proposalId, orgId, userMessage, targetSectionKey, sections, chatHistory, sectionTitles, forcedTool, ctaPayload } = args
 
   const targetSection = sections.find(s => s.section_key === targetSectionKey)
 
@@ -141,5 +142,6 @@ export function buildContextPayload(args: {
     other_sections: otherSections,
     chat_history: slidingHistory as Array<{ role: 'user' | 'assistant'; content: string }>,
     ...(forcedTool ? { forced_tool: forcedTool } : {}),
+    ...(ctaPayload ? { cta_payload: ctaPayload } : {}),
   }
 }
