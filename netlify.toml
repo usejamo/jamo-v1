@@ -1,0 +1,11 @@
+# Netlify build + SPA routing config for the interim CEO demo deploy.
+# Vite outputs to dist/; the SPA redirect makes client-side routes (React Router)
+# survive a refresh / deep-link instead of 404ing.
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
