@@ -31,6 +31,8 @@ const mockState = {
         pending_actions_content_hash: string | null
         pending_actions?: unknown[] | null
         resolved_items?: unknown[] | null
+        // Read by scheduleCooldownRetry() to size the post-429 wakeup.
+        pending_actions_generated_at?: string | null
       }
     | null,
   invokeResult: { data: null, error: null } as { data: unknown; error: unknown },
@@ -487,5 +489,147 @@ describe('useGapAnalysisTrigger', () => {
     expect(
       (mockState.invokeSpy.mock.calls[1][1] as { body: { proposal_id: string } }).body.proposal_id
     ).toBe('p2')
+  })
+
+  it('arms one cooldown retry after a 429 that fires once the window expires', async () => {
+    // Cooldown-decouple: a 429 means the server's 30s per-proposal window rejected
+    // this run. The hook arms ONE self-retry sized off pending_actions_generated_at
+    // so the user's latest edit still gets analyzed without touching the doc again.
+    const rows = [{ section_key: 'intro', name: 'Intro', content: 'A' }]
+    mockState.proposalSectionsRows = rows
+    mockState.chatSessionsRow = {
+      pending_actions_content_hash: await computeHash(toSummaries(rows)),
+      pending_actions: [{ id: 'cached' }], // matching hash + non-empty ⇒ mount skips
+      pending_actions_generated_at: new Date(0).toISOString(), // last run at t=0
+    }
+    mockState.invokeResult = {
+      data: null,
+      error: { context: { status: 429 }, message: 'Edge Function returned a non-2xx status code' },
+    }
+
+    vi.useFakeTimers()
+    vi.setSystemTime(0)
+    renderHook(() => useGapAnalysisTrigger({ proposalId: 'p1', userId: 'u1' }))
+    await act(async () => {
+      await advanceAndFlush(0)
+    })
+    expect(mockState.invokeSpy).not.toHaveBeenCalled() // mount skipped (hash match)
+
+    // Edit → Realtime → debounced run gets the 429 and arms the retry.
+    mockState.proposalSectionsRows = [{ section_key: 'intro', name: 'Intro', content: 'B' }]
+    mockState.capturedRealtimeHandler!({ new: {} })
+    await act(async () => {
+      await advanceAndFlush(3000)
+    })
+    expect(mockState.invokeSpy).toHaveBeenCalledTimes(1)
+
+    // Window still open (last run t=0, now ~3s of 30s) ⇒ retry has NOT fired yet.
+    await act(async () => {
+      await advanceAndFlush(1000)
+    })
+    expect(mockState.invokeSpy).toHaveBeenCalledTimes(1)
+
+    // Window reopens; advance past remaining cooldown + buffer ⇒ the retry fires once.
+    mockState.invokeResult = { data: null, error: null }
+    await act(async () => {
+      await advanceAndFlush(30_000)
+    })
+    expect(mockState.invokeSpy).toHaveBeenCalledTimes(2)
+    // The retry force-runs against the LATEST content (re-fetched, not the stale run).
+    const retryBody = (
+      mockState.invokeSpy.mock.calls[1][1] as { body: { sections: Array<{ content: string }> } }
+    ).body
+    expect(retryBody.sections[0].content).toBe('B')
+  })
+
+  it('cancels the pending cooldown retry when newer content arrives (supersession)', async () => {
+    // A newer edit supersedes the armed retry — the new debounced run covers the
+    // latest state, so the stale retry must not also fire (no double-analysis).
+    const rows = [{ section_key: 'intro', name: 'Intro', content: 'A' }]
+    mockState.proposalSectionsRows = rows
+    mockState.chatSessionsRow = {
+      pending_actions_content_hash: await computeHash(toSummaries(rows)),
+      pending_actions: [{ id: 'cached' }],
+      pending_actions_generated_at: new Date(0).toISOString(),
+    }
+    mockState.invokeResult = {
+      data: null,
+      error: { context: { status: 429 }, message: 'cooldown' },
+    }
+
+    vi.useFakeTimers()
+    vi.setSystemTime(0)
+    renderHook(() => useGapAnalysisTrigger({ proposalId: 'p1', userId: 'u1' }))
+    await act(async () => {
+      await advanceAndFlush(0)
+    })
+
+    // First edit → 429 → retry armed.
+    mockState.proposalSectionsRows = [{ section_key: 'intro', name: 'Intro', content: 'B' }]
+    mockState.capturedRealtimeHandler!({ new: {} })
+    await act(async () => {
+      await advanceAndFlush(3000)
+    })
+    expect(mockState.invokeSpy).toHaveBeenCalledTimes(1)
+
+    // Newer edit before the window expires → clearRetryTimer cancels the armed retry.
+    // This run succeeds, so it does not arm a fresh retry of its own.
+    mockState.invokeResult = { data: null, error: null }
+    mockState.proposalSectionsRows = [{ section_key: 'intro', name: 'Intro', content: 'C' }]
+    mockState.capturedRealtimeHandler!({ new: {} })
+    await act(async () => {
+      await advanceAndFlush(3000)
+    })
+    expect(mockState.invokeSpy).toHaveBeenCalledTimes(2)
+
+    // Advance well past where the ORIGINAL retry would have fired. If it were not
+    // cancelled it would invoke a 3rd time; staying at 2 proves supersession.
+    await act(async () => {
+      await advanceAndFlush(60_000)
+    })
+    expect(mockState.invokeSpy).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not re-arm after the retry itself gets a 429 (no retry loop)', async () => {
+    // The retry runs with isRetry:true; a second 429 must NOT schedule another retry,
+    // or a perpetually-throttled proposal would invoke forever.
+    const rows = [{ section_key: 'intro', name: 'Intro', content: 'A' }]
+    mockState.proposalSectionsRows = rows
+    mockState.chatSessionsRow = {
+      pending_actions_content_hash: await computeHash(toSummaries(rows)),
+      pending_actions: [{ id: 'cached' }],
+      pending_actions_generated_at: new Date(0).toISOString(),
+    }
+    // Every invoke 429s — including the retry.
+    mockState.invokeResult = {
+      data: null,
+      error: { context: { status: 429 }, message: 'cooldown' },
+    }
+
+    vi.useFakeTimers()
+    vi.setSystemTime(0)
+    renderHook(() => useGapAnalysisTrigger({ proposalId: 'p1', userId: 'u1' }))
+    await act(async () => {
+      await advanceAndFlush(0)
+    })
+
+    mockState.proposalSectionsRows = [{ section_key: 'intro', name: 'Intro', content: 'B' }]
+    mockState.capturedRealtimeHandler!({ new: {} })
+    await act(async () => {
+      await advanceAndFlush(3000)
+    })
+    expect(mockState.invokeSpy).toHaveBeenCalledTimes(1) // the 429'd run
+
+    // Window expires → the single retry fires (and also 429s) ...
+    await act(async () => {
+      await advanceAndFlush(30_000)
+    })
+    expect(mockState.invokeSpy).toHaveBeenCalledTimes(2)
+
+    // ... but isRetry runs never re-arm: no third invoke no matter how long we wait.
+    await act(async () => {
+      await advanceAndFlush(120_000)
+    })
+    expect(mockState.invokeSpy).toHaveBeenCalledTimes(2)
   })
 })

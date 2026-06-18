@@ -23,6 +23,14 @@ import { rebuildFilterSet, identityKey } from '../chat/resolved-items'
 import type { ResolvedItem, FindingType } from '../types/chat'
 
 const DEBOUNCE_MS = 3000
+// The edge function enforces a 30s per-proposal cooldown keyed off
+// pending_actions_generated_at and returns HTTP 429 when throttled. Mirror that
+// window here so a 429'd run can wake itself once, just after it expires.
+// RETRY_BUFFER_MS pads for clock skew between the browser and Postgres now() so
+// the retry lands AFTER the server reopens the window (not a millisecond early,
+// which would just earn a second 429).
+const COOLDOWN_MS = 30_000
+const RETRY_BUFFER_MS = 1500
 
 // Shape matches analyze-proposal-gaps RequestSchema (index.ts: { key, title, content }).
 type SectionSummary = { key: string; title: string; content: string }
@@ -60,6 +68,21 @@ function isSilentStatus(error: unknown): boolean {
   return false
 }
 
+/**
+ * Narrowly detect a 429 (per-proposal cooldown) — distinct from isSilentStatus,
+ * which also matches 402 (no credits). Only a 429 should schedule a cooldown
+ * retry; a 402 means there is nothing to retry until the user buys credits, so
+ * re-arming would just burn a retry on another guaranteed failure.
+ */
+function is429(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false
+  const e = error as { context?: { status?: number }; status?: number; message?: string }
+  const status = e.context?.status ?? e.status
+  if (status === 429) return true
+  if (typeof e.message === 'string' && /\b429\b/.test(e.message)) return true
+  return false
+}
+
 export function useGapAnalysisTrigger(params: {
   proposalId: string | null | undefined
   userId: string | null | undefined
@@ -68,6 +91,7 @@ export function useGapAnalysisTrigger(params: {
 
   const hashRef = useRef<string | null>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isAnalyzingRef = useRef(false)
 
   // Reset session-scoped state when the proposal changes so a new proposal
@@ -77,6 +101,11 @@ export function useGapAnalysisTrigger(params: {
     if (timerRef.current) {
       clearTimeout(timerRef.current)
       timerRef.current = null
+    }
+    // Supersession: a proposal switch cancels any retry armed for the old proposal.
+    if (retryTimerRef.current) {
+      clearTimeout(retryTimerRef.current)
+      retryTimerRef.current = null
     }
   }, [proposalId])
 
@@ -101,7 +130,7 @@ export function useGapAnalysisTrigger(params: {
 
     async function runAnalysis(
       summaries: SectionSummary[],
-      opts: { force?: boolean } = {}
+      opts: { force?: boolean; isRetry?: boolean } = {}
     ): Promise<void> {
       if (isAnalyzingRef.current) return
       if (summaries.length === 0 && !opts.force) return
@@ -131,7 +160,12 @@ export function useGapAnalysisTrigger(params: {
         })
         if (error) {
           if (isSilentStatus(error)) {
-            // Expected silence — server cooldown rejects extra runs. Do NOT log.
+            // Expected silence — server cooldown (429) or no-credits (402). Do NOT log.
+            // A 429 means the 30s per-proposal cooldown rejected THIS run; arm one
+            // retry just past expiry so the user's latest edit still gets analyzed
+            // without them touching the doc again. isRetry runs never re-arm — that
+            // would be an infinite 429 loop.
+            if (!opts.isRetry && is429(error)) void scheduleCooldownRetry()
             return
           }
           // Background trigger — debug only, no toast.
@@ -140,10 +174,48 @@ export function useGapAnalysisTrigger(params: {
       } catch (err) {
         if (!isSilentStatus(err)) {
           console.debug('[useGapAnalysisTrigger] invoke threw:', err)
+        } else if (!opts.isRetry && is429(err)) {
+          void scheduleCooldownRetry()
         }
       } finally {
         isAnalyzingRef.current = false
       }
+    }
+
+    function clearRetryTimer(): void {
+      if (retryTimerRef.current) {
+        clearTimeout(retryTimerRef.current)
+        retryTimerRef.current = null
+      }
+    }
+
+    // After a 429, wake once just past the server's per-proposal cooldown and
+    // re-run with force (the in-memory hash already matches the rejected run, so
+    // without force the retry would no-op on the hash gate). Only ONE retry is ever
+    // pending: clearRetryTimer() first supersedes any prior, and the retry itself
+    // runs with isRetry so a second 429 will not re-arm (no loop). A newer content
+    // edit, a proposal switch, or unmount all cancel the pending retry.
+    async function scheduleCooldownRetry(): Promise<void> {
+      clearRetryTimer()
+      const { data: sessionRow } = await supabase
+        .from('chat_sessions')
+        .select('pending_actions_generated_at')
+        .eq('proposal_id', proposalId as string)
+        .eq('user_id', userId as string)
+        .maybeSingle()
+      if (cancelled) return
+      const generatedAt = sessionRow?.pending_actions_generated_at ?? null
+      const genMs = generatedAt ? new Date(generatedAt).getTime() : 0
+      const remaining = Math.max(0, genMs + COOLDOWN_MS - Date.now())
+      retryTimerRef.current = setTimeout(() => {
+        retryTimerRef.current = null
+        void (async () => {
+          if (cancelled) return
+          const summaries = await fetchSummaries()
+          if (cancelled) return
+          await runAnalysis(summaries, { force: true, isRetry: true })
+        })()
+      }, remaining + RETRY_BUFFER_MS)
     }
 
     // On-mount fire. Originally this only ran when the chat_sessions row did NOT
@@ -232,6 +304,9 @@ export function useGapAnalysisTrigger(params: {
         (_payload) => {
           // Intentionally ignore _payload.new — we re-fetch full sections from
           // the DB before each invoke so the analysis sees whole-proposal context.
+          // Supersession: a newer content change cancels any pending cooldown retry;
+          // the debounced run below will cover the latest state instead.
+          clearRetryTimer()
           if (timerRef.current) clearTimeout(timerRef.current)
           timerRef.current = setTimeout(() => {
             void (async () => {
@@ -251,6 +326,7 @@ export function useGapAnalysisTrigger(params: {
         clearTimeout(timerRef.current)
         timerRef.current = null
       }
+      clearRetryTimer()
       void supabase.removeChannel(channel)
     }
   }, [proposalId, userId])

@@ -11,6 +11,25 @@ const corsHeaders = {
 // Server-side cooldown is durable — survives page reload, unlike client-side debounce
 const PROPOSAL_COOLDOWN_MS = 30_000
 
+/**
+ * 14.2.x cooldown decoupling (#1): the per-proposal cooldown must measure time
+ * since the last COMPLETED analysis — NOT since the last chat_sessions write.
+ * It reads `pending_actions_generated_at`, a column written ONLY by this function
+ * (see the upsert below), never by chat-with-jamo / set_focus / active_task writes.
+ * Previously the cooldown read `last_updated`, which every chat turn bumps — so
+ * clicking a CTA / answering / accepting reset the clock and starved an otherwise
+ * due re-analysis, leaving fixed findings stuck in the queue. Pure + exported for
+ * unit testing.
+ */
+export function isWithinCooldown(
+  generatedAt: string | null | undefined,
+  nowMs: number,
+  cooldownMs: number,
+): boolean {
+  if (!generatedAt) return false
+  return nowMs - new Date(generatedAt).getTime() < cooldownMs
+}
+
 // ── Cap constants (D-28: tunable in one place) ────────────────────────────────
 const QUEUE_CAP = 10
 const TIER_CAPS = { compliance: 4, conflict: 2, gap: 4, missing: 4 } as const
@@ -265,16 +284,14 @@ Deno.serve(async (req) => {
   // This is durable (survives page reload). Client-side debounce (D-30) is a UX optimization only.
   const { data: session } = await supabase
     .from('chat_sessions')
-    .select('last_updated, resolved_items')
+    .select('pending_actions_generated_at, resolved_items')  // #1: cooldown clock is its own column
     .eq('proposal_id', proposalId)
     .eq('user_id', userId)  // D-45: per-user session
     .single()
 
-  if (session?.last_updated) {
-    const ageMs = Date.now() - new Date(session.last_updated).getTime()
-    if (ageMs < PROPOSAL_COOLDOWN_MS) {
-      return new Response(null, { status: 429, headers: corsHeaders })
-    }
+  // #1: gate on time since the last COMPLETED analysis, not last chat write.
+  if (isWithinCooldown(session?.pending_actions_generated_at, Date.now(), PROPOSAL_COOLDOWN_MS)) {
+    return new Response(null, { status: 429, headers: corsHeaders })
   }
 
   // ── Phase 14.2.2 — annotate resolved_items with content_status flag (D-33) ─
@@ -459,6 +476,13 @@ Deno.serve(async (req) => {
         // clean proposal therefore re-analyzes on each open (bounded by the 30s cooldown)
         // — that is intentional; do NOT "optimize" empties back into the cache.
         pending_actions_content_hash: pendingActions.length > 0 ? (contentHash ?? null) : null,
+        // #1 cooldown clock: written on EVERY completed run, INCLUDING empty ones.
+        // This is the DELIBERATE OPPOSITE of pending_actions_content_hash above —
+        // the hash writes null on empty (so the next mount re-runs), but the cooldown
+        // timestamp must always advance so an empty run still starts the 30s window
+        // and back-to-back analyses are throttled. Only this function writes this
+        // column; chat writes never touch it (that decoupling is the whole fix).
+        pending_actions_generated_at: new Date().toISOString(),
         last_updated: new Date().toISOString(),
       },
       { onConflict: 'proposal_id,user_id' }

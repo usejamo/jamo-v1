@@ -1,0 +1,12 @@
+-- Phase: gap-analysis cooldown decouple.
+-- Persist the timestamp of the last completed gap-analysis run so the cooldown
+-- gate keys off when analysis last ran — NOT off last_updated, which chat writes
+-- (CTA/answer/accept) also bump and which previously contaminated the cooldown.
+-- Written on every completed analyze-proposal-gaps run (including empty results),
+-- the deliberate opposite of pending_actions_content_hash's empty→null behavior.
+-- Nullable — existing rows are NULL, read by isWithinCooldown() as "no prior run →
+-- not within cooldown → allow analysis". Backward-compatible with the currently
+-- deployed edge function (which never reads or writes it), so safe to apply anytime.
+-- chat_sessions already has RLS + chat_sessions_org_isolation; ADD COLUMN inherits
+-- existing RLS and column grants — no new policy or GRANT needed.
+ALTER TABLE chat_sessions ADD COLUMN IF NOT EXISTS pending_actions_generated_at timestamptz;

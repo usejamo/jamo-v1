@@ -166,10 +166,27 @@ export default function AIChatPanel({
   // ── Part B state ───────────────────────────────────────────────────────────
   const [pendingActions, setPendingActions] = useState<PendingActionItem[]>([])
   const [activeTask, setActiveTask] = useState<ActiveTask | null>(null)
+  // The streaming SSE loop in handleSendMessage runs across many renders and must read
+  // the LATEST active task when it stamps originating_action onto an ask-then-fill
+  // propose_edit. activeTask is intentionally NOT in handleSendMessage's deps, so reading
+  // the state var directly captures a stale value (the one from before the ask hop created
+  // the task) — leaving originating_action null, which makes computeTerminalWrites skip the
+  // resolve and the finding linger until the next re-analysis. Route the read through this
+  // ref so the mid-flight ask→answer→fill sequence sees the persisted originating_snapshot.
+  const activeTaskRef = useRef<ActiveTask | null>(activeTask)
+  activeTaskRef.current = activeTask
   const [crossTabUpdate, setCrossTabUpdate] = useState(false)
   // Phase 14.2.2 — local filter Set keyed by id and identity-key (D-18, D-20).
   // Hydrated on mount from chat_sessions.resolved_items and on Realtime UPDATE.
   const [resolvedFilterSet, setResolvedFilterSet] = useState<Set<string>>(new Set())
+  // Session-local set of pending-action ids resolved via accept/reject this session.
+  // Distinct from resolvedFilterSet, which is REBUILT from chat_sessions.resolved_items on
+  // every realtime UPDATE and so loses optimistic entries the DB has not yet persisted. A
+  // chat_sessions write that fires right after accept (e.g. the active_task walkthrough-
+  // completion write) carries the server's still-stale pending_actions and replaces our
+  // array, resurrecting the just-resolved finding. visiblePendingActions also honors this
+  // set, which realtime rebuilds never touch, so the finding stays hidden until re-analysis.
+  const [locallyResolvedIds, setLocallyResolvedIds] = useState<Set<string>>(new Set())
 
   // ── Part B trigger (D-30 Realtime debounce + D-35 initial-population) ─────
   // Hook owns its own in-flight ref, content-hash skip, and 429-silence.
@@ -194,8 +211,17 @@ export default function AIChatPanel({
     // "N dismissed" undo section — a fix is resolved, not dismissed. The edge re-adds it
     // on the next analysis if the issue still exists.
     onResolved: useCallback(
-      ({ actionId }: { actionId: string }) =>
-        setPendingActions(prev => prev.filter(a => a.id !== actionId)),
+      ({ actionId }: { actionId: string }) => {
+        // Record in the session-local set FIRST so the removal survives a realtime
+        // pending_actions replace (see locallyResolvedIds). Then drop it from the current
+        // array too, for an instant hide before any realtime event lands.
+        setLocallyResolvedIds(prev => {
+          const next = new Set(prev)
+          next.add(actionId)
+          return next
+        })
+        setPendingActions(prev => prev.filter(a => a.id !== actionId))
+      },
       [],
     ),
   })
@@ -207,6 +233,7 @@ export default function AIChatPanel({
     () =>
       pendingActions.filter((a) => {
         if (a.dismissed) return false
+        if (locallyResolvedIds.has(a.id)) return false
         if (resolvedFilterSet.has(`id:${a.id}`)) return false
         if (
           resolvedFilterSet.has(
@@ -221,7 +248,7 @@ export default function AIChatPanel({
         }
         return true
       }),
-    [pendingActions, resolvedFilterSet],
+    [pendingActions, resolvedFilterSet, locallyResolvedIds],
   )
 
   // Notify parent of pendingActions count changes (for Sidebar badge)
@@ -510,9 +537,10 @@ export default function AIChatPanel({
                   'propose_edit',
                 )
                 // Second try: active_task.originating_snapshot (ask-then-fill path —
-                // survived the ask hop + any mid-walkthrough reload via DB persistence)
-                if (!originatingSnapshot && activeTask?.originating_snapshot) {
-                  originatingSnapshot = activeTask.originating_snapshot as OriginatingActionSnapshot
+                // survived the ask hop + any mid-walkthrough reload via DB persistence).
+                // Read via ref, not the closed-over state, so the fill sees the latest task.
+                if (!originatingSnapshot && activeTaskRef.current?.originating_snapshot) {
+                  originatingSnapshot = activeTaskRef.current.originating_snapshot as OriginatingActionSnapshot
                 }
                 toolData.originating_action = originatingSnapshot
               }
@@ -725,9 +753,19 @@ export default function AIChatPanel({
                     // survives a mid-review re-analyze that replaces pending_actions.
                     // Helper in src/chat/ctaSnapshotMap.ts (unit-tested) owns key shape.
                     captureSnapshot(ctaSnapshotRef.current, action)
-                    if (action.cta_tool === 'ask_user') {
-                      // D-01 condition 2: set focus client-side (set_focus normally does this)
+                    // Focus + scroll the editor to the finding's section on click, for BOTH
+                    // CTA paths (parity with the draft-ready focus). set_focus normally drives
+                    // the highlight client-side (D-01 condition 2); scrollIntoView matches the
+                    // sidebar/restore primitive — section root elements use id={section_key}.
+                    if (action.section_key) {
                       _onSectionFocusChange?.(action.section_key)
+                      requestAnimationFrame(() => {
+                        document
+                          .getElementById(action.section_key)
+                          ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                      })
+                    }
+                    if (action.cta_tool === 'ask_user') {
                       // Risk B client half: embed snapshot in cta_payload so edge can persist
                       // it in active_task.originating_snapshot (Plan 03 reads it there).
                       const payloadWithSnapshot = {

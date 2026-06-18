@@ -42,6 +42,13 @@ export function ActionQueue({
     if (isWalkthroughActive) setIsCollapsed(true)
   }, [isWalkthroughActive])
 
+  // Acting on a suggestion collapses the queue so the editor/walkthrough is unobstructed.
+  // The user re-opens via the header toggle; the parent's onCtaClick still runs as before.
+  const handleCtaClick = (action: PendingActionItem) => {
+    setIsCollapsed(true)
+    onCtaClick(action)
+  }
+
   const active = [...actions.filter(a => !a.dismissed)].sort((a, b) => a.priority - b.priority)
   const dismissed = actions.filter(a => a.dismissed)
 
@@ -115,7 +122,7 @@ export function ActionQueue({
                   >
                     <ActionItem
                       action={action}
-                      onCtaClick={onCtaClick}
+                      onCtaClick={handleCtaClick}
                       onDismiss={onDismiss}
                       onUndoDismiss={onUndoDismiss}
                     />
@@ -162,7 +169,7 @@ export function ActionQueue({
                           <ActionItem
                             key={action.id}
                             action={action}
-                            onCtaClick={onCtaClick}
+                            onCtaClick={handleCtaClick}
                             onDismiss={onDismiss}
                             onUndoDismiss={onUndoDismiss}
                           />
