@@ -9,7 +9,13 @@ export default function Login() {
   const [orgId, setOrgId] = useState('00000000-0000-0000-0000-000000000001') // Default to Org A
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-  const [isSignUp, setIsSignUp] = useState(false)
+  // Sign-up is disabled for the interim public demo deploy (no Netlify password on
+  // our plan, so login is the only wall). The real gate is server-side: signups are
+  // turned off in Supabase Auth — hiding the toggle below is just UI polish, since the
+  // bundle's anon key would otherwise let anyone call supabase.auth.signUp() directly.
+  // To re-enable: restore the setter + the toggle button, AND re-enable signups in
+  // Supabase Auth settings.
+  const [isSignUp] = useState(false)
   const { signIn, signUp } = useAuth()
   const navigate = useNavigate()
 
@@ -153,19 +159,6 @@ export default function Login() {
             {loading ? (isSignUp ? 'Signing up...' : 'Signing in...') : (isSignUp ? 'Sign Up' : 'Sign In')}
           </button>
         </form>
-
-        <div className="mt-4 text-center">
-          <button
-            type="button"
-            onClick={() => {
-              setIsSignUp(!isSignUp)
-              setError(null)
-            }}
-            className="text-sm text-jamo-600 hover:text-jamo-700"
-          >
-            {isSignUp ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
-          </button>
-        </div>
       </div>
     </div>
   )
