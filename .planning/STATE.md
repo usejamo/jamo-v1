@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: context exhaustion at 90% (2026-06-17)
-last_updated: "2026-06-17T22:31:00.606Z"
+stopped_at: Completed 14.3-01-PLAN.md
+last_updated: "2026-07-04T01:14:37.798Z"
 progress:
-  total_phases: 24
+  total_phases: 26
   completed_phases: 22
-  total_plans: 113
-  completed_plans: 113
-  percent: 100
+  total_plans: 118
+  completed_plans: 114
+  percent: 97
 ---
 
 ## Project Status
@@ -31,7 +31,7 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 
 ## Last Session
 
-**Stopped at:** context exhaustion at 90% (2026-06-17)
+**Stopped at:** Completed 14.3-01-PLAN.md
 **Session date:** 2026-06-11
 
 ## Roadmap Evolution
@@ -49,6 +49,7 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 
 ## Active Decisions
 
+- **Shared JWT-auth helper (14.3-01):** `_shared/auth.ts` exports `getAuthedUserAndOrg` which THROWS Response objects on failure (missing Authorization header, invalid/expired JWT, or null org_id) rather than returning null/undefined — consumers wrap the call in try/catch and, when the caught value is `instanceof Response`, return it directly. org_id is never in the JWT; it is always resolved via a service-role `user_profiles` lookup keyed by the verified `user.id`. `isInternalServiceRoleCall` compares the bearer token to `SUPABASE_SERVICE_ROLE_KEY` so retrieve-context's internal caller (chat-with-jamo/rag.ts) can be preserved in Wave 2 without blanket-requiring `auth.getUser()`.
 - **Two-step attribution lookup (14.2.4-04):** At propose_edit arrival, takeSnapshot (Map, direct propose_edit path) runs first; if null, falls back to activeTask?.originating_snapshot (ask-then-fill path — survived ask hop + reload). Direct propose_edit path invariant preserved.
 - **Snapshot-in-cta_payload (14.2.4-04):** originating_snapshot embedded in cta_payload at CTA-click (not a new request-body field) so the edge reads it at ask_user dispatch time without wire changes.
 - **onSkip defer = discard path (14.2.4-04):** AskUserCard onSkip reuses exact stop-walkthrough/discard body (status:'discarded', NO resolved_items write — D-09 load-bearing invariant). Defer and queue-dismiss stay distinct terminal states.
@@ -216,12 +217,16 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 - **Plan 01** (2026-04-02): Migration + write path — `supabase/migrations/20260402000021_compliance_flags_jsonb.sql` adds `compliance_flags JSONB NOT NULL DEFAULT '[]'` to proposal_sections. `ComplianceFlagDB` type alias added to workspace.ts. `persistFlags` helper (useCallback, silent-fail) added to useComplianceCheck, called after all 4 SET_COMPLIANCE_FLAGS dispatch sites. 137 tests passing, 9 skipped.
 - **Plan 02** (2026-04-02): Read path — ProposalDetail selects `compliance_flags` in both fetch paths, state type extended, prop threaded to SectionWorkspace. SectionWorkspace init reads `Array.isArray(s.compliance_flags) ? s.compliance_flags : []` instead of hardcoded `[]`. D-02 background re-check useEffect (500ms delay, keyed on proposalId) fires checkCompliance for all sections with content. 137 tests passing, 9 skipped.
 
+### Phase 14.3: Edge Identity Hardening
+
+- **Plan 01** (2026-07-04): Shared JWT-auth helper — `supabase/functions/_shared/auth.ts` created with `getAuthedUserAndOrg(req)` (two-client derivation: anon+JWT for `auth.getUser()`, service-role for `user_profiles.org_id` lookup; throws 401 Response on missing header/invalid JWT/null org), `isInternalServiceRoleCall(req)` (bearer-matches-SUPABASE_SERVICE_ROLE_KEY predicate), `jsonError(status, msg, cors)`. Unit tests in `auth.test.ts` cover both pure functions (deno unavailable in this environment — verified via grep acceptance per plan contingency; real `deno test` run deferred to plan 05's live checks). This is the contract Wave 2 plans (02 chat-with-jamo, 03 retrieve-context, 04 salesforce-oauth-initiate/disconnect) import against. Commits 36e0b17, e7d6d57.
+
 ### Phase 14.2.1: Part B Trigger Wiring
 
 - **Plan 01** (2026-05-20): useGapAnalysisTrigger hook — D-30 Realtime subscription on proposal_sections (debounced 3s, full-section refetch, content-hash skip), D-35 on-mount fire when no prior chat_sessions row exists, HTTP 429 treated as expected silence. 7/7 Vitest specs pass. Commits 1e051b4, 21fe0ae, ce964a3.
 - **Plan 02** (2026-05-20): Wire useGapAnalysisTrigger into AIChatPanel — removed dead `void triggerAnalysis` stub plus orphaned inline useCallback and unused `isAnalyzing` state. tsc clean for the touched file. Manual D-30/D-35/429 live smoke deferred to human-verify pass (requires running dev server + authed user). Commits 600fcc0, ad9249c.
 
-**Planned Phase:** 14.2.4 (placeholder-resolution-ask-then-fill) — 5 plans — 2026-06-11T22:03:52.543Z
+**Planned Phase:** 14.3 (edge-identity-hardening) — 5 plans — 2026-07-04T00:50:46.868Z
 
 ### Phase 14.2.4: Placeholder Resolution (Ask-Then-Fill)
 
