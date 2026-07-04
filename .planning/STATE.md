@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 14.3-02-PLAN.md
-last_updated: "2026-07-04T02:00:00.000Z"
+stopped_at: Completed 14.3-03-PLAN.md
+last_updated: "2026-07-04T03:00:00.000Z"
 progress:
   total_phases: 26
   completed_phases: 22
@@ -31,7 +31,7 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 
 ## Last Session
 
-**Stopped at:** Completed 14.3-02-PLAN.md
+**Stopped at:** Completed 14.3-03-PLAN.md
 **Session date:** 2026-07-04
 
 ## Roadmap Evolution
@@ -51,6 +51,7 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 
 - **Shared JWT-auth helper (14.3-01):** `_shared/auth.ts` exports `getAuthedUserAndOrg` which THROWS Response objects on failure (missing Authorization header, invalid/expired JWT, or null org_id) rather than returning null/undefined — consumers wrap the call in try/catch and, when the caught value is `instanceof Response`, return it directly. org_id is never in the JWT; it is always resolved via a service-role `user_profiles` lookup keyed by the verified `user.id`. `isInternalServiceRoleCall` compares the bearer token to `SUPABASE_SERVICE_ROLE_KEY` so retrieve-context's internal caller (chat-with-jamo/rag.ts) can be preserved in Wave 2 without blanket-requiring `auth.getUser()`.
 - **chat-with-jamo identity hoist (14.3-02):** Body `user_id`/`org_id` are not destructured at all (not merely unused) — removes any chance of a stray body-identity reference compiling silently. One user-scoped supabase client (anon key + caller's Authorization header) is built immediately after `getAuthedUserAndOrg` and reused for every `chat_sessions` read/write in the handler, replacing both the old headerless-anon read client and the old separately-built late write client.
+- **retrieve-context branch on caller shape (14.3-03):** `isInternalServiceRoleCall(req)` is checked FIRST, before any `getAuthedUserAndOrg` call — the internal service-role caller (`chat-with-jamo/rag.ts`) is preserved exactly (body `orgId` trusted, zero behavioral change), avoiding Pitfall 1 (blanket `auth.getUser()` would 401 the service-role caller and RAG would silently return empty). User calls (`useProposalGeneration.ts`) derive `effectiveOrgId` from the JWT via `getAuthedUserAndOrg`; a body `orgId` present and differing from the JWT org is rejected with 403 'org mismatch' rather than silently overridden. `effectiveOrgId` (never raw body `orgId`) feeds `org_id_filter` on all 4 RPCs (vector+FTS, regulatory+proposal), closing the cross-tenant RAG chunk exfiltration path (T-14.3-09). Full internal-preserved + user-mismatch-403 behavior is live-verified in 14.3-05 (Deno unavailable in this dev environment; grep-based acceptance used per plan contingency, matching plans 01/02).
 - **Two-step attribution lookup (14.2.4-04):** At propose_edit arrival, takeSnapshot (Map, direct propose_edit path) runs first; if null, falls back to activeTask?.originating_snapshot (ask-then-fill path — survived ask hop + reload). Direct propose_edit path invariant preserved.
 - **Snapshot-in-cta_payload (14.2.4-04):** originating_snapshot embedded in cta_payload at CTA-click (not a new request-body field) so the edge reads it at ask_user dispatch time without wire changes.
 - **onSkip defer = discard path (14.2.4-04):** AskUserCard onSkip reuses exact stop-walkthrough/discard body (status:'discarded', NO resolved_items write — D-09 load-bearing invariant). Defer and queue-dismiss stay distinct terminal states.
@@ -222,6 +223,7 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 
 - **Plan 01** (2026-07-04): Shared JWT-auth helper — `supabase/functions/_shared/auth.ts` created with `getAuthedUserAndOrg(req)` (two-client derivation: anon+JWT for `auth.getUser()`, service-role for `user_profiles.org_id` lookup; throws 401 Response on missing header/invalid JWT/null org), `isInternalServiceRoleCall(req)` (bearer-matches-SUPABASE_SERVICE_ROLE_KEY predicate), `jsonError(status, msg, cors)`. Unit tests in `auth.test.ts` cover both pure functions (deno unavailable in this environment — verified via grep acceptance per plan contingency; real `deno test` run deferred to plan 05's live checks). This is the contract Wave 2 plans (02 chat-with-jamo, 03 retrieve-context, 04 salesforce-oauth-initiate/disconnect) import against. Commits 36e0b17, e7d6d57.
 - **Plan 02** (2026-07-04): Hardened `chat-with-jamo` (REQ-1) — JWT identity via `getAuthedUserAndOrg` hoisted to the top of the try block, before the first `chat_sessions` read. Body `user_id`/`org_id` no longer destructured at all. All 9 use-sites (active_task read/expire/writes, `fetchRagContext`, `handleCheckCompliance`, `handleSetFocus`) switched to JWT-derived `userId`/`orgId`. Single user-scoped supabase client (anon+caller's Authorization header) built once and reused for every session read/write, replacing the old headerless anon read client (closes T-14.3-07). `test.ts` gained two `ignore:true` REQ-1 scaffolds naming 14.3-05 as live-validation owner. Commits 06b383c, d0ed9d8.
+- **Plan 03** (2026-07-04): Hardened `retrieve-context` (REQ-2, D-03 — core risk of the phase) — branched on caller shape via `isInternalServiceRoleCall`: internal service-role caller (`chat-with-jamo/rag.ts`) keeps trusting body `orgId` unchanged (Pitfall 1 avoided — never calls `getAuthedUserAndOrg` on that path); user-authenticated caller (`useProposalGeneration.ts`) derives `effectiveOrgId` from the JWT via `getAuthedUserAndOrg`, rejecting a mismatched body `orgId` with 403. `effectiveOrgId` replaces raw body `orgId` at all 4 RPC `org_id_filter` sites (match_chunks_vector/_fts, _proposals variants), closing T-14.3-09 cross-tenant RAG exfiltration. `test.ts` gained 3 active (non-skipped) branch-predicate assertions + 2 `ignore:true` integration scaffolds naming 14.3-05. Full internal-caller-preserved + user-mismatch-403 behavior flagged for mandatory live verification in 14.3-05. Commits 42b2ff0, a3a914b.
 
 ### Phase 14.2.1: Part B Trigger Wiring
 
