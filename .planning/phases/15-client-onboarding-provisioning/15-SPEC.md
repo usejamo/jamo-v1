@@ -2,7 +2,8 @@
 
 **Created:** 2026-07-03
 **Ambiguity score:** 0.13 (gate: ≤ 0.20)
-**Requirements:** 15 locked
+**Requirements:** 13 locked
+**Prerequisite:** Phase 14.3 (Edge Identity Hardening) — go-live gate; deploy + verify before provisioning real tenants
 
 ## Goal
 
@@ -16,7 +17,7 @@ Jamo is a multi-tenant B2B SaaS (React/Vite + Supabase, project ref `fuuvdcvblii
 - **Organizations:** `organizations` table exists (`supabase/migrations/20260305000002_organizations.sql` — columns `id, name, slug UNIQUE, plan default 'trial', is_active, feature_flags jsonb, timestamps`). **Zero** org-creation code path — orgs are created manually in SQL today.
 - **user_profiles + roles:** `user_profiles` (`...000003`) has `org_id NOT NULL FK`, `role default 'user'`; roles are `super_admin` / `admin` / `user`. Trigger `handle_new_user()` (`...000013_rls_policies.sql:82-98`, SECURITY DEFINER) reads `org_id`/`role`/`full_name` from **client-supplied** `raw_user_meta_data` — no validation that the invitee is entitled to that org/role.
 - **Invites:** none. `auth.admin` / `inviteUserByEmail` / `generateLink` appear only in commented `supabase/config.toml:230-232` and research docs.
-- **Security gap:** `chat-with-jamo/index.ts:85-97` reads `user_id`/`org_id` from the request **body** and never calls `auth.getUser()`; these drive all session reads/writes (`:117,135,239,278,310`) and RAG (`:143`). `salesforce-oauth-initiate/:33`, `salesforce-oauth-disconnect/:25`, and `retrieve-context/:161` share the body-trust pattern. Correct JWT-derivation exemplars exist in `analyze-proposal-gaps`, `generate-proposal-section`, `section-ai-action`.
+- **Security gap (now Phase 14.3):** the edge-function JWT identity-trust cleanup (`chat-with-jamo`, `salesforce-oauth-*`, `retrieve-context`) was split into **Phase 14.3 (Edge Identity Hardening)** — its own deployable unit and a prerequisite go-live gate for this phase. Phase 15 retains only the invite-coupled identity work (server-bound org/role via the hardened `handle_new_user` trigger, requirement 12).
 - **Admin surface:** none — `src/App.tsx` has no `/admin` route; `scripts/` holds only RAG ingestion. Role-gating exists only for the Settings Templates tab (`src/pages/Settings.tsx:464`).
 - **Email:** production SMTP is unconfigured — `supabase/config.toml` SMTP block is commented (`:220-227`); local uses inbucket. `[auth.email] enable_confirmations = false`. Local `enable_signup = true` diverges from the prod-disabled state.
 
@@ -84,17 +85,7 @@ This phase builds the org-creation flow, the invite chain (both tiers), the inte
     - Target: `org_id` and `role` for an invited user are fixed by the invite server-side; the trigger/provisioning path does not honor invitee-supplied org/role overrides.
     - Acceptance: An invite issued for Org A + role `user`, when accepted with a tampered client payload attempting Org B / `admin`, still results in a profile in Org A with role `user`.
 
-13. **chat-with-jamo JWT identity fix**: `chat-with-jamo` derives identity from the verified JWT.
-    - Current: `chat-with-jamo/index.ts:85-97` reads `user_id`/`org_id` from the request body; `auth.getUser()` is never called.
-    - Target: `user_id` (and `org_id`) are derived from the authenticated JWT via `auth.getUser()`; body-supplied identity is ignored for all session reads/writes and RAG scoping.
-    - Acceptance: A request whose body carries a `user_id`/`org_id` different from its JWT is served using the JWT identity only (session rows and RAG are scoped to the JWT's user/org, never the body's).
-
-14. **Body-trust cleanup (salesforce-oauth-*, retrieve-context)**: Remaining body-trusted identity paths derive org/identity from the JWT.
-    - Current: `salesforce-oauth-initiate/:33`, `salesforce-oauth-disconnect/:25`, and `retrieve-context/:161` read `org_id`/`orgId` from the body.
-    - Target: These functions derive `org_id` from the authenticated JWT (or otherwise validate it against the caller's org) rather than trusting the body.
-    - Acceptance: For each of the three functions, a request with a mismatched body `org_id` operates on the JWT-derived org (or is rejected), not the body-supplied org.
-
-15. **Remove dead self-serve signup code**: The unreachable signup path is deleted.
+13. **Remove dead self-serve signup code**: The unreachable signup path is deleted.
     - Current: `signUp()` in `AuthContext.tsx`, signup form JSX, and hardcoded Test Org A/B UUIDs remain in `Login.tsx`.
     - Target: The dead `signUp()` method, signup JSX, and hardcoded org UUIDs are removed; the login page offers only sign-in and "forgot password".
     - Acceptance: `signUp` no longer appears in `AuthContext`/`Login`; grep for the Test Org A/B UUIDs returns no hits in `src/`; the app builds and login still works.
@@ -114,11 +105,10 @@ This phase builds the org-creation flow, the invite chain (both tiers), the inte
 - Password-reset flow (request + set-new-password pages)
 - Reproducible super_admin bootstrap (seed migration/script)
 - Server-bound identity integrity (invitee cannot self-assign org/role; `handle_new_user` hardened)
-- JWT identity fix for `chat-with-jamo`
-- Body-trust cleanup for `salesforce-oauth-initiate`, `salesforce-oauth-disconnect`, `retrieve-context`
 - Removal of dead self-serve signup code + hardcoded Test Org UUIDs
 
 **Out of scope:**
+- Edge-function JWT identity cleanup (`chat-with-jamo`, `salesforce-oauth-*`, `retrieve-context`) — split into **Phase 14.3**, a prerequisite gate that ships and deploys before this phase
 - Public/self-serve signup of any kind — permanently disabled; the whole point of the phase
 - Billing / Stripe / plan enforcement — plan is stored but not metered/charged here (Milestone 2)
 - SSO / SAML / social login — not needed for invite-only B2B onboarding in v1
@@ -132,7 +122,8 @@ This phase builds the org-creation flow, the invite chain (both tiers), the inte
 
 - **Hosted Supabase only**, project ref `fuuvdcvbliijffogjnwg` — multi-tenant single instance; RLS org-isolation (62 existing policies + helper functions) must remain intact.
 - **Migrations:** `supabase db push` is diverged/unusable here — apply migrations via the Supabase Management API (`SUPABASE_ACCESS_TOKEN`) or Supabase MCP, and always commit a repo migration file too.
-- **Edge functions must be deployed explicitly** — execute-phase commits but does not deploy; any changed/new edge function (chat-with-jamo, salesforce-oauth-*, retrieve-context, any new invite/provisioning function) must be deployed after code lands.
+- **Edge functions must be deployed explicitly** — execute-phase commits but does not deploy; any new invite/provisioning edge function must be deployed after code lands.
+- **Phase 14.3 is a prerequisite gate** — Edge Identity Hardening must be deployed and verified before any real client org is provisioned (provisioning is what introduces untrusted tenants sharing the instance).
 - **Roles are fixed:** `super_admin`, `admin`, `user` (existing enum/convention) — no new role tiers.
 - **Email:** production transport is **Resend** via Supabase custom SMTP; invite-link/reset expiry uses Supabase defaults.
 - **Identity:** all provisioning binds `org_id`/`role` server-side; no code path may trust client-supplied `org_id`/`role`/`user_id`.
@@ -150,8 +141,6 @@ This phase builds the org-creation flow, the invite chain (both tiers), the inte
 - [ ] A live password-reset email (via Resend) delivers and lets the user set a new password and sign in.
 - [ ] Running the committed super_admin seed on a clean DB produces a super_admin who can reach `/admin`; re-running is safe (idempotent).
 - [ ] An invite accepted with a tampered org/role payload still lands the user in the invited org with the invited role.
-- [ ] `chat-with-jamo` uses JWT-derived `user_id`/`org_id`; a body with mismatched identity is served by JWT identity only.
-- [ ] `salesforce-oauth-initiate`, `salesforce-oauth-disconnect`, and `retrieve-context` no longer trust body `org_id` (JWT-derived or rejected on mismatch).
 - [ ] `signUp` and the Test Org A/B UUIDs no longer appear in `src/`; the app builds and login still works.
 - [ ] All new/changed edge functions are deployed to the live project (verified deployed, not just committed).
 
@@ -174,7 +163,7 @@ Status: ✓ = met minimum, ⚠ = below minimum (planner treats as assumption)
 | 1     | Researcher/Bound | Invite depth in v1?                       | Two tiers — we provision org + first admin; org admin invites teammates |
 | 1     | Boundary Keeper | Provisioning surface?                      | Internal super_admin-only admin panel (UI)                  |
 | 1     | Constraint      | Production email provider?                 | Resend (custom SMTP)                                         |
-| 1     | Boundary Keeper | Security-cleanup scope?                     | chat-with-jamo + salesforce-oauth-* + retrieve-context      |
+| 1     | Boundary Keeper | Security-cleanup scope?                     | chat-with-jamo + salesforce-oauth-* + retrieve-context (later split into Phase 14.3 as an independent deployable unit / go-live gate) |
 | 2     | Boundary Keeper | Org-admin powers over teammates?           | Invite + manage (deactivate/remove + role change)           |
 | 2     | Failure Analyst | Invite-lifecycle management?               | Full lifecycle (pending list, resend, revoke)               |
 | 2     | Boundary Keeper | Ship password reset this phase?            | Yes — include forgot-password flow                          |

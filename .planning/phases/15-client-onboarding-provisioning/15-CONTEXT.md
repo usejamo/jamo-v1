@@ -28,11 +28,10 @@ Invite-based, sales-led provisioning that replaces the dead self-serve demo sign
 - Password-reset flow (request + set-new-password pages)
 - Reproducible super_admin bootstrap (seed migration/script)
 - Server-bound identity integrity (invitee cannot self-assign org/role; `handle_new_user` hardened)
-- JWT identity fix for `chat-with-jamo`
-- Body-trust cleanup for `salesforce-oauth-initiate`, `salesforce-oauth-disconnect`, `retrieve-context`
 - Removal of dead self-serve signup code + hardcoded Test Org UUIDs
 
 **Out of scope (from SPEC.md):**
+- Edge-function JWT identity cleanup (`chat-with-jamo`, `salesforce-oauth-*`, `retrieve-context`) — split into **Phase 14.3** (prerequisite go-live gate)
 - Public/self-serve signup of any kind (permanently disabled)
 - Billing / Stripe / plan enforcement (Milestone 2)
 - SSO / SAML / social login
@@ -56,7 +55,7 @@ Invite-based, sales-led provisioning that replaces the dead self-serve demo sign
 - **D-06 — Revoke/modify-before-acceptance policy.** Revoke = `auth.admin.deleteUser` (FK-cascades the profile) + mark the `invites` row `revoked`. Changes = re-issue (no in-place role edit of a pending invite), so two authoritative role values are never live at once.
 
 ### Identity & Security Cleanup
-- **D-07 — JWT identity fix (SPEC reqs 12–14).** `chat-with-jamo`, `salesforce-oauth-initiate`, `salesforce-oauth-disconnect`, and `retrieve-context` derive `user_id`/`org_id` from the verified JWT via `auth.getUser()` and ignore body-supplied identity. Reuse the existing correct exemplars (`analyze-proposal-gaps`, `generate-proposal-section`, `section-ai-action`). A shared JWT-auth helper for edge functions is encouraged (planner discretion).
+- **D-07 — Edge-function JWT identity cleanup is Phase 14.3 (prerequisite gate), NOT this phase.** The `chat-with-jamo` / `salesforce-oauth-*` / `retrieve-context` JWT derivation was split into **Phase 14.3 (Edge Identity Hardening)** as an independent deployable unit that ships and deploys first. Phase 15 retains only the invite-coupled identity work: server-bound org/role via the hardened `handle_new_user` trigger (see D-02, SPEC req 12). Phase 14.3 must be deployed + verified before real tenants are provisioned. See `.planning/phases/14.3-edge-identity-hardening/14.3-SPEC.md`.
 - **D-08 — Cross-org access = service-role edge functions only.** All cross-org provisioning **and reads** (create org, invite first admin, list/resend/revoke invites per client org) run through **narrowly-scoped, operation-specific** service-role edge functions that bypass RLS. In-function authorization asserts `super_admin` **from the JWT** (not implied by the panel). super_admin RLS bypass stays limited to the `organizations` table only — **no** new per-table super_admin bypass policies (would smear the trust boundary). Cross-org capability stays an auditable, enumerable set of functions. NOT a generic cross-org query proxy.
 
 ### Email
@@ -91,11 +90,9 @@ Invite-based, sales-led provisioning that replaces the dead self-serve demo sign
 - `supabase/migrations/20260305000002_organizations.sql` — `organizations` schema (name, slug UNIQUE, plan, is_active, feature_flags); no `domain` column
 - `supabase/migrations/20260305000003_user_profiles.sql` — `user_profiles` schema; roles `super_admin`/`admin`/`user`; `org_id NOT NULL`
 
-### Edge functions — JWT security cleanup (D-07)
-- `supabase/functions/chat-with-jamo/index.ts` §85-97 — body-trust vuln to fix (never calls `auth.getUser()`)
-- `supabase/functions/salesforce-oauth-initiate/index.ts` §33, `supabase/functions/salesforce-oauth-disconnect/index.ts` §25, `supabase/functions/retrieve-context/index.ts` §161 — body-trust to fix
-- `supabase/functions/analyze-proposal-gaps/index.ts` §180-224 — correct JWT-derivation exemplar to copy
-- `supabase/functions/generate-proposal-section/index.ts` §418-431, `supabase/functions/section-ai-action/index.ts` §54-65 — JWT exemplars
+### Edge-function JWT cleanup — moved to Phase 14.3 (prerequisite gate)
+- `.planning/phases/14.3-edge-identity-hardening/14.3-SPEC.md` — the split-out JWT identity hardening (chat-with-jamo, salesforce-oauth-*, retrieve-context). Deploy + verify before provisioning real tenants.
+- `.planning/phases/14.3-edge-identity-hardening/14.3-CONTEXT.md` — decisions incl. the retrieve-context internal-caller caveat.
 
 ### Frontend integration
 - `src/context/AuthContext.tsx` §76-83 — `signUp()` to remove (SPEC req 15)

@@ -524,6 +524,36 @@ Plans:
 
 ---
 
+### Phase 14.3: Edge Identity Hardening (INSERTED)
+
+**Goal:** Harden four edge functions (`chat-with-jamo`, `salesforce-oauth-initiate`, `salesforce-oauth-disconnect`, `retrieve-context`) to derive caller `user_id`/`org_id` from the verified Supabase JWT instead of trusting request-body values — closing a live cross-tenant impersonation vector. Edge-functions-only, backward-compatible, independently deployable, and a **prerequisite go-live gate** for Phase 15 (must be deployed + verified before invite-based multi-tenant provisioning introduces untrusted tenants sharing the instance). Split out of Phase 15's SPEC as its own deployable unit. `retrieve-context` fix must preserve internal service-role callers.
+
+**Requirements covered:** 2 locked (see 14.3-SPEC.md) — split from Phase 15 SPEC reqs 13–14
+
+**Depends on:** Phase 9 (chat-with-jamo), Phase 12 (salesforce-oauth-*), Phase 4 (retrieve-context)
+
+**SPEC:** 14.3-SPEC.md (2 requirements, ambiguity 0.09)
+**Context:** 14.3-CONTEXT.md
+
+**Plans:** Not planned yet
+
+---
+
+### Phase 15: Client Onboarding & Provisioning
+
+**Goal:** Replace the interim demo signup with a sales-led, invite-only provisioning flow. Public signup stays permanently disabled; an admin (us) provisions each client org and invites the client's first admin by email via Supabase `auth.admin` invite — the invitee follows the link and sets their own password. That org admin can then invite their own teammates (roles: super admin / admin / user). Includes an org-creation flow, production SMTP/email config in Supabase (invites + password resets; `mailer_autoconfirm` off), and a lightweight internal admin surface (panel or script/edge function) to provision clients without manual DB edits. Server-bound identity integrity (invitee cannot self-assign org/role) is in scope; the broader edge-function JWT identity cleanup was split into Phase 14.3 (its prerequisite gate).
+
+**Requirements covered:** 13 locked (see 15-SPEC.md) — provisioning + identity integrity + dead-code removal
+
+**Depends on:** Phase 14.3 (Edge Identity Hardening — go-live gate), Phase 2 (Authentication & Routing), Phase 1 (Supabase Foundation)
+
+**SPEC:** 15-SPEC.md (13 requirements, ambiguity 0.13)
+**Context:** 15-CONTEXT.md
+
+**Plans:** Not planned yet
+
+---
+
 ## Milestone 2: Growth (Post-MVP)
 
 *Planned but not yet phased. Begin planning after Milestone 1 ships.*
