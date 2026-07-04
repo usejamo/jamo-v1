@@ -539,7 +539,7 @@ Plans:
 
 Plans:
 - [x] 14.3-01-PLAN.md — Shared `_shared/auth.ts` JWT helper (getAuthedUserAndOrg, isInternalServiceRoleCall, jsonError) + unit tests [Wave 1]
-- [ ] 14.3-02-PLAN.md — chat-with-jamo: hoist JWT identity above first chat_sessions read; swap all use-sites (REQ-1) [Wave 2]
+- [x] 14.3-02-PLAN.md — chat-with-jamo: hoist JWT identity above first chat_sessions read; swap all use-sites (REQ-1) [Wave 2]
 - [ ] 14.3-03-PLAN.md — retrieve-context: branch internal-service-role vs user-JWT; preserve internal RAG caller (REQ-2, core risk) [Wave 2]
 - [ ] 14.3-04-PLAN.md — salesforce-oauth-initiate + -disconnect: derive org from JWT, 403 on mismatch (REQ-2) [Wave 2]
 - [ ] 14.3-05-PLAN.md — [BLOCKING] deploy all four + siblings; A2 check; live regression/cross-tenant/internal-RAG verification (D-05) [Wave 3]

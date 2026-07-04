@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 14.3-01-PLAN.md
-last_updated: "2026-07-04T01:14:37.798Z"
+stopped_at: Completed 14.3-02-PLAN.md
+last_updated: "2026-07-04T02:00:00.000Z"
 progress:
   total_phases: 26
   completed_phases: 22
   total_plans: 118
-  completed_plans: 114
+  completed_plans: 115
   percent: 97
 ---
 
@@ -31,8 +31,8 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 
 ## Last Session
 
-**Stopped at:** Completed 14.3-01-PLAN.md
-**Session date:** 2026-06-11
+**Stopped at:** Completed 14.3-02-PLAN.md
+**Session date:** 2026-07-04
 
 ## Roadmap Evolution
 
@@ -50,6 +50,7 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 ## Active Decisions
 
 - **Shared JWT-auth helper (14.3-01):** `_shared/auth.ts` exports `getAuthedUserAndOrg` which THROWS Response objects on failure (missing Authorization header, invalid/expired JWT, or null org_id) rather than returning null/undefined — consumers wrap the call in try/catch and, when the caught value is `instanceof Response`, return it directly. org_id is never in the JWT; it is always resolved via a service-role `user_profiles` lookup keyed by the verified `user.id`. `isInternalServiceRoleCall` compares the bearer token to `SUPABASE_SERVICE_ROLE_KEY` so retrieve-context's internal caller (chat-with-jamo/rag.ts) can be preserved in Wave 2 without blanket-requiring `auth.getUser()`.
+- **chat-with-jamo identity hoist (14.3-02):** Body `user_id`/`org_id` are not destructured at all (not merely unused) — removes any chance of a stray body-identity reference compiling silently. One user-scoped supabase client (anon key + caller's Authorization header) is built immediately after `getAuthedUserAndOrg` and reused for every `chat_sessions` read/write in the handler, replacing both the old headerless-anon read client and the old separately-built late write client.
 - **Two-step attribution lookup (14.2.4-04):** At propose_edit arrival, takeSnapshot (Map, direct propose_edit path) runs first; if null, falls back to activeTask?.originating_snapshot (ask-then-fill path — survived ask hop + reload). Direct propose_edit path invariant preserved.
 - **Snapshot-in-cta_payload (14.2.4-04):** originating_snapshot embedded in cta_payload at CTA-click (not a new request-body field) so the edge reads it at ask_user dispatch time without wire changes.
 - **onSkip defer = discard path (14.2.4-04):** AskUserCard onSkip reuses exact stop-walkthrough/discard body (status:'discarded', NO resolved_items write — D-09 load-bearing invariant). Defer and queue-dismiss stay distinct terminal states.
@@ -220,6 +221,7 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 ### Phase 14.3: Edge Identity Hardening
 
 - **Plan 01** (2026-07-04): Shared JWT-auth helper — `supabase/functions/_shared/auth.ts` created with `getAuthedUserAndOrg(req)` (two-client derivation: anon+JWT for `auth.getUser()`, service-role for `user_profiles.org_id` lookup; throws 401 Response on missing header/invalid JWT/null org), `isInternalServiceRoleCall(req)` (bearer-matches-SUPABASE_SERVICE_ROLE_KEY predicate), `jsonError(status, msg, cors)`. Unit tests in `auth.test.ts` cover both pure functions (deno unavailable in this environment — verified via grep acceptance per plan contingency; real `deno test` run deferred to plan 05's live checks). This is the contract Wave 2 plans (02 chat-with-jamo, 03 retrieve-context, 04 salesforce-oauth-initiate/disconnect) import against. Commits 36e0b17, e7d6d57.
+- **Plan 02** (2026-07-04): Hardened `chat-with-jamo` (REQ-1) — JWT identity via `getAuthedUserAndOrg` hoisted to the top of the try block, before the first `chat_sessions` read. Body `user_id`/`org_id` no longer destructured at all. All 9 use-sites (active_task read/expire/writes, `fetchRagContext`, `handleCheckCompliance`, `handleSetFocus`) switched to JWT-derived `userId`/`orgId`. Single user-scoped supabase client (anon+caller's Authorization header) built once and reused for every session read/write, replacing the old headerless anon read client (closes T-14.3-07). `test.ts` gained two `ignore:true` REQ-1 scaffolds naming 14.3-05 as live-validation owner. Commits 06b383c, d0ed9d8.
 
 ### Phase 14.2.1: Part B Trigger Wiring
 
