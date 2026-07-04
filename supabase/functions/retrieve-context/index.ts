@@ -1,6 +1,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from '@supabase/supabase-js'
 import OpenAI from 'openai'
+import { isInternalServiceRoleCall, getAuthedUserAndOrg, jsonError } from '../_shared/auth.ts'
 
 // ============================================================================
 // NAMED CONSTANTS — must be at module top (locked requirement)
@@ -171,6 +172,28 @@ serve(async (req) => {
       })
     }
 
+    // 1b. Branch on caller shape (REQ-2, D-03, T-14.3-09/10/11):
+    //   - INTERNAL (chat-with-jamo/rag.ts): service-role bearer, no end-user JWT —
+    //     trust body orgId as-is. Behavior UNCHANGED. Must NOT call getAuthedUserAndOrg
+    //     here (Pitfall 1) or the service-role caller (which has no end-user) will 401
+    //     and RAG will silently return empty (rag.ts swallows the error).
+    //   - USER call (useProposalGeneration.ts): derive+validate org from the JWT; a
+    //     mismatched body orgId is rejected loudly rather than trusted.
+    let effectiveOrgId: string
+    if (isInternalServiceRoleCall(req)) {
+      effectiveOrgId = orgId
+    } else {
+      let jwtOrgId: string
+      try {
+        ;({ orgId: jwtOrgId } = await getAuthedUserAndOrg(req, corsHeaders))
+      } catch (e) {
+        if (e instanceof Response) return e
+        throw e
+      }
+      if (orgId && orgId !== jwtOrgId) return jsonError(403, 'org mismatch', corsHeaders)
+      effectiveOrgId = jwtOrgId
+    }
+
     // 2. Create clients
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
@@ -196,7 +219,7 @@ serve(async (req) => {
     // 5. Vector search — regulatory chunks
     const { data: regVectorRows, error: regVecErr } = await supabase.rpc('match_chunks_vector', {
       query_embedding: queryVector,
-      org_id_filter: orgId,
+      org_id_filter: effectiveOrgId,
       agencies_filter: agencies,
       therapeutic_areas_filter: therapeuticAreas,
       similarity_threshold: RETRIEVAL_SIMILARITY_THRESHOLD,
@@ -210,7 +233,7 @@ serve(async (req) => {
     // 6. FTS search — regulatory chunks
     const { data: regFtsRows, error: regFtsErr } = await supabase.rpc('match_chunks_fts', {
       query_text: query,
-      org_id_filter: orgId,
+      org_id_filter: effectiveOrgId,
       agencies_filter: agencies,
       therapeutic_areas_filter: therapeuticAreas,
       match_count: effectiveKRegulatory * 2,
@@ -223,7 +246,7 @@ serve(async (req) => {
     // 7. Vector search — proposal chunks (no agency/therapeutic_area filter — org RLS handles isolation)
     const { data: propVectorRows, error: propVecErr } = await supabase.rpc('match_chunks_vector_proposals', {
       query_embedding: queryVector,
-      org_id_filter: orgId,
+      org_id_filter: effectiveOrgId,
       similarity_threshold: RETRIEVAL_SIMILARITY_THRESHOLD,
       match_count: effectiveKProposals * 2,
     })
@@ -235,7 +258,7 @@ serve(async (req) => {
     // 8. FTS search — proposal chunks
     const { data: propFtsRows, error: propFtsErr } = await supabase.rpc('match_chunks_fts_proposals', {
       query_text: query,
-      org_id_filter: orgId,
+      org_id_filter: effectiveOrgId,
       match_count: effectiveKProposals * 2,
     })
 
