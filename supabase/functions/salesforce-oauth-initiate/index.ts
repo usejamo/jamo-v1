@@ -5,6 +5,7 @@ import {
   generateCodeChallenge,
   signState,
 } from '../_shared/salesforce-crypto.ts'
+import { getAuthedUserAndOrg, jsonError } from '../_shared/auth.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -30,13 +31,20 @@ serve(async (req) => {
   }
 
   try {
-    const { org_id, is_sandbox } = await req.json() as { org_id: string; is_sandbox: boolean }
+    const { org_id: body_org_id, is_sandbox } = await req.json() as { org_id?: string; is_sandbox: boolean }
 
-    if (!org_id) {
-      return new Response(
-        JSON.stringify({ error: 'org_id is required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+    // REQ-2/D-01/T-14.3-13: org_id used for signState + oauth_pending must be the
+    // JWT-derived org, never the request body. The body org_id (if present) is only
+    // used to detect a tamper attempt — a mismatch is rejected with 403.
+    let orgId: string
+    try {
+      ({ orgId } = await getAuthedUserAndOrg(req, corsHeaders))
+    } catch (e) {
+      if (e instanceof Response) return e
+      throw e
+    }
+    if (body_org_id && body_org_id !== orgId) {
+      return jsonError(403, 'org mismatch', corsHeaders)
     }
 
     const baseUrl = is_sandbox ? 'https://test.salesforce.com' : 'https://login.salesforce.com'
@@ -47,7 +55,7 @@ serve(async (req) => {
 
     // Generate signed state (CSRF protection — D-03)
     const nonce = crypto.randomUUID()
-    const state = await signState(org_id, nonce, consumerSecret)
+    const state = await signState(orgId, nonce, consumerSecret)
 
     // 5-minute TTL for oauth_pending row
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString()
@@ -60,7 +68,7 @@ serve(async (req) => {
     // Store pending OAuth state — code_verifier must be raw (not re-encoded) to match at token exchange
     const { error: insertError } = await supabase.from('oauth_pending').insert({
       state,
-      org_id,
+      org_id: orgId,
       code_verifier: codeVerifier,
       expires_at: expiresAt,
     })
