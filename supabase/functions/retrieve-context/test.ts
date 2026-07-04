@@ -4,9 +4,21 @@
 // Tests the pure utility functions exported from index.ts directly.
 // The Edge Function handler itself requires a live Supabase + OpenAI connection,
 // so integration tests for the handler are handled via manual smoke testing.
+//
+// REQ-2 / D-03 (14.3-03): retrieve-context branches on caller shape —
+// isInternalServiceRoleCall(req) selects the internal (service-role, body orgId
+// trusted — chat-with-jamo/rag.ts) vs user (JWT-derived org, 403 on mismatch —
+// useProposalGeneration.ts) path. The branch predicate itself is pure and is
+// exercised below with no network. The full request/response integration for
+// each branch (internal caller still returns chunks; user mismatch returns a
+// real 403) requires a live Supabase auth server + service-role secret and is
+// validated live in 14.3-05 — those cases stay `ignore: true` with a pointer.
 
 import { assertEquals, assertStringIncludes } from 'https://deno.land/std@0.168.0/testing/asserts.ts'
 import { mergeHybridResults, buildSystemPromptBlock } from './index.ts'
+import { isInternalServiceRoleCall } from '../_shared/auth.ts'
+
+Deno.env.set('SUPABASE_SERVICE_ROLE_KEY', 'test-sr-key')
 
 Deno.test("retrieve-context: returns top-K regulatory chunks — mergeHybridResults limits to k", () => {
   const vectorResults = [
@@ -71,4 +83,47 @@ Deno.test("retrieve-context: logs warning when below threshold — belowThreshol
   const block = buildSystemPromptBlock(emptyRegResult, emptyPropResult)
   assertStringIncludes(block, '(No relevant regulatory context found)')
   assertStringIncludes(block, '(No relevant proposal history found)')
+})
+
+// ============================================================================
+// REQ-2 / D-03: branch-selection logic (isInternalServiceRoleCall)
+// ============================================================================
+
+Deno.test('retrieve-context: internal service-role caller (chat-with-jamo/rag.ts) is detected — takes the preserved-behavior branch', () => {
+  const req = new Request('http://x', {
+    headers: { Authorization: 'Bearer test-sr-key' },
+  })
+  assertEquals(isInternalServiceRoleCall(req), true)
+})
+
+Deno.test('retrieve-context: user JWT bearer (useProposalGeneration.ts) is NOT internal — takes the JWT-org-scoped branch', () => {
+  const req = new Request('http://x', {
+    headers: { Authorization: 'Bearer some.user.jwt' },
+  })
+  assertEquals(isInternalServiceRoleCall(req), false)
+})
+
+Deno.test('retrieve-context: missing Authorization header is NOT internal — falls through to the user branch (401 via getAuthedUserAndOrg)', () => {
+  const req = new Request('http://x')
+  assertEquals(isInternalServiceRoleCall(req), false)
+})
+
+Deno.test({
+  name: 'retrieve-context: internal service-role caller still returns chunks scoped to the passed body orgId (behavior preserved) — INTEGRATION, live-only, see 14.3-05',
+  ignore: true,
+  fn() {
+    // Requires a live Supabase project (match_chunks_vector/_fts RPCs) + OPENAI_API_KEY.
+    // Live-verified in 14.3-05: internal branch never calls getAuthedUserAndOrg
+    // (Pitfall 1) and effectiveOrgId === body orgId for a service-role bearer.
+  },
+})
+
+Deno.test({
+  name: 'retrieve-context: user call with body orgId mismatched against JWT org returns 403 — INTEGRATION, live-only, see 14.3-05',
+  ignore: true,
+  fn() {
+    // Requires a live Supabase auth server to mint a real JWT + user_profiles row.
+    // Live-verified in 14.3-05: getAuthedUserAndOrg resolves jwtOrgId; a differing
+    // body orgId is rejected with 403 'org mismatch' rather than trusted.
+  },
 })
