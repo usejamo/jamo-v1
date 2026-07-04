@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 14.2.4-04-PLAN.md — Client ask_user branch + defer affordance (AC-4/AC-9 green)
-last_updated: "2026-06-11T23:30:00.000Z"
+stopped_at: context exhaustion at 90% (2026-06-17)
+last_updated: "2026-06-17T22:31:00.606Z"
 progress:
   total_phases: 24
   completed_phases: 22
@@ -31,7 +31,7 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 
 ## Last Session
 
-**Stopped at:** Completed 14.2.4-04-PLAN.md — Client ask_user branch + defer affordance (AC-4/AC-9 green)
+**Stopped at:** context exhaustion at 90% (2026-06-17)
 **Session date:** 2026-06-11
 
 ## Roadmap Evolution
@@ -41,6 +41,8 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 - Phase 14.2.2 inserted after Phase 14.2.1: Resolved Items as Stateful Co-pilot Memory (URGENT) — wires `chat_sessions.resolved_items` so Haiku evolves findings instead of repeating them verbatim; fixes dismissal-persistence bug as a side effect. CONTEXT.md authored by user with locked architectural decisions; awaiting /gsd-discuss-phase 14.2.2.
 - Phase 14.2.3 inserted after Phase 14.2: Fix Gap Analyzer Context Starvation (URGENT) — replaces the 300-char Haiku excerpt slice with full content (5000-char ceiling), sharpens prompt for placeholder detection, persists the whole-proposal content hash to gate the mount trigger, and rebalances tier caps. EXECUTED + verified (6/6 code must-haves). Edge fn deployed live as v8 — root cause of the "no findings" symptom was a STALE DEPLOYMENT (execute-phase commits but never deploys edge fns). 4 live-UAT items remain (14.2.3-HUMAN-UAT.md).
 - Phase 14.2.4 inserted after Phase 14.2.3: Placeholder Resolution Ask-Then-Fill (URGENT) — surfaced by 14.2.3 live UAT: clicking "Fix it" on a placeholder finding force-calls propose_edit (chat-with-jamo:112-122) and bars ask_user, so the agent rewrites the section without filling the placeholder. Root-cause brief in 14.2.4/CONTEXT.md; fix approach (ask-then-fill vs auto-fill) is an open design decision → /gsd-discuss-phase 14.2.4.
+- Phase 15 added: Client Onboarding & Provisioning — replaces interim demo signup with sales-led, invite-only provisioning (admin creates org + invites first admin via Supabase auth.admin; org admin invites teammates). Includes org-creation flow, production SMTP config, lightweight internal admin surface. Adjacent security fix: chat-with-jamo must derive user_id from JWT not request body. Open forks for spec: self-serve org-admin invites in v1 vs us-provisions-everything; email provider; admin panel now vs script. → /gsd-spec-phase 15.
+- Phase 15 SPEC + CONTEXT locked (2026-07-03). SPEC.md: 15 requirements, ambiguity 0.13. CONTEXT.md decisions: dedicated `invites` table as sole source of truth; identity binding via `handle_new_user` trigger reading the pending invites row by email (no app_metadata mirror, atomic, single-path trigger that RAISEs on no-match — "no auth user without a pending invite" is an intentional DB-layer guardrail); Resend via Supabase custom SMTP (v1); dedicated /admin route for platform panel + Settings "Team" tab for org-admin member mgmt; super_admin bootstrap = idempotent admin-API script (Approach A: internal org → pending invite → createUser → flip accepted); cross-org admin ops via narrow service-role edge functions (super_admin RLS bypass stays limited to `organizations`); JWT identity fix for chat-with-jamo + salesforce-oauth-* + retrieve-context. Verified finding: only `organizations` has a super_admin RLS bypass — all other tables scope by home org_id, hence service-role edge functions for cross-org. Ready for /gsd-plan-phase 15.
 
 ---
 
