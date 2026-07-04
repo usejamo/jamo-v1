@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'supabase'
+import { getAuthedUserAndOrg, jsonError } from '../_shared/auth.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -22,13 +23,21 @@ serve(async (req) => {
   }
 
   try {
-    const { org_id } = await req.json() as { org_id: string }
+    const { org_id: body_org_id } = await req.json() as { org_id?: string }
 
-    if (!org_id) {
-      return new Response(
-        JSON.stringify({ error: 'org_id is required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+    // REQ-2/D-01/T-14.3-14: the connections lookup + Vault revoke must operate on
+    // the JWT-derived org, never the request body. The body org_id (if present) is
+    // only used to detect a tamper attempt — a mismatch is rejected with 403 so a
+    // caller cannot disconnect another tenant's Salesforce connection.
+    let orgId: string
+    try {
+      ({ orgId } = await getAuthedUserAndOrg(req, corsHeaders))
+    } catch (e) {
+      if (e instanceof Response) return e
+      throw e
+    }
+    if (body_org_id && body_org_id !== orgId) {
+      return jsonError(403, 'org mismatch', corsHeaders)
     }
 
     const supabase = createClient(
@@ -40,7 +49,7 @@ serve(async (req) => {
     const { data: conn } = await supabase
       .from('salesforce_connections')
       .select('vault_secret_id, instance_url')
-      .eq('org_id', org_id)
+      .eq('org_id', orgId)
       .single()
 
     // Idempotent — if no connection exists, return success
@@ -80,7 +89,7 @@ serve(async (req) => {
     await supabase.rpc('vault_delete_sf_tokens', { p_secret_id: conn.vault_secret_id })
 
     // Delete salesforce_connections row
-    await supabase.from('salesforce_connections').delete().eq('org_id', org_id)
+    await supabase.from('salesforce_connections').delete().eq('org_id', orgId)
 
     return new Response(
       JSON.stringify({ success: true }),
