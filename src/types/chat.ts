@@ -1,5 +1,7 @@
 // src/types/chat.ts
 
+import type { SubstituteTarget } from '../editor/placeholders/substitute'
+
 export interface Citation {
   source: string        // document name
   passage: string       // short quoted text
@@ -21,6 +23,7 @@ export type ToolName =
   | 'check_regulatory_compliance'
   | 'ask_user'
   | 'set_focus'
+  | 'substitute_placeholders'
 
 // ── Tool status labels — present-progressive, implied first-person (D-05) ─────
 // Add a new entry here whenever a new tool is added to ToolName.
@@ -30,6 +33,7 @@ export const TOOL_STATUS_LABELS: Record<ToolName, string> = {
   check_regulatory_compliance: 'Checking compliance...',
   ask_user: 'Working...',
   set_focus: 'Working...',
+  substitute_placeholders: 'Filling placeholders...',
 }
 
 // ── Change type labels for ghost decorations (D-10) ───────────────────────────
@@ -56,6 +60,7 @@ export type ChatMessageType =
   | 'tool-compliance'
   | 'tool-ask-user'
   | 'tool-set-focus'
+  | 'tool-substitute-placeholders'
 
 // ── Tool payload interfaces (stored in tool_data.payload) ─────────────────────
 
@@ -103,6 +108,12 @@ export interface SetFocusPayload {
   section_key: string
 }
 
+// Phase 14.4 — D-03: classification/routing only, never generated edit content.
+export interface SubstitutePlaceholdersPayload {
+  value: string
+  targets: SubstituteTarget[]
+}
+
 // ── Tool data envelope (D-07) — version field is non-negotiable ───────────────
 
 export type ToolPayload =
@@ -111,6 +122,7 @@ export type ToolPayload =
   | CompliancePayload
   | AskUserPayload
   | SetFocusPayload
+  | SubstitutePlaceholdersPayload
 
 export interface ToolDataEnvelope {
   tool: ToolName

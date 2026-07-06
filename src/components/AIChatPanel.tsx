@@ -38,6 +38,7 @@ const KNOWN_TOOL_CARD_TYPES = new Set<string>([
   'tool-compliance',
   'tool-ask-user',
   'tool-set-focus',
+  'tool-substitute-placeholders',
 ])
 
 interface Props {
@@ -564,6 +565,7 @@ export default function AIChatPanel({
                 check_regulatory_compliance: 'tool-compliance',
                 ask_user: 'tool-ask-user',
                 set_focus: 'tool-set-focus',
+                substitute_placeholders: 'tool-substitute-placeholders',
               }
               const messageType: ChatMessageType = toolMsgTypeMap[event.tool] ?? 'chat'
               const toolResultContent = event.result?.overall_summary ?? event.result?.answer ?? event.result?.summary ?? event.result?.question ?? ''
