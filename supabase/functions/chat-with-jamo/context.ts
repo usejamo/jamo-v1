@@ -41,6 +41,7 @@ The text after the "]" describes WHAT to do; the bracketed prefix describes WHIC
 
 Tool selection guide:
 - propose_edit: User wants to expand, rewrite, shorten, change tone, or add/remove content from ANY section — set section_key to the target section's key
+- substitute_placeholders: Call when the user supplies ONE literal value to drop into a NAMED placeholder across one, several, or all sections (e.g. "replace every section's investigational product name with albacore"). Default scope = ALL sections containing a matching placeholder unless the user names specific sections. Emit one target per matching placeholder span with its section_key + placeholder_id.
 - answer_with_citations: User asks a question about their documents, regulatory requirements, or wants cited sources
 - check_regulatory_compliance: User asks about compliance, regulatory standards, or whether a section meets requirements
 - ask_user: Request is ambiguous and you cannot proceed without clarification — use sparingly
@@ -52,7 +53,11 @@ CRITICAL for propose_edit:
 - Reference ONLY paragraph IDs that appear in that section's content — never invent IDs
 - For new paragraphs (insert_after operations), omit paragraph_id entirely
 - Always include both before_html and after_html for replace operations
-- PRESERVE PLACEHOLDERS: sections may contain <span data-placeholder-id="..." data-placeholder-label="...">Label</span> elements marking unfilled information (e.g. sponsor name, drug name, site details). You MUST copy these spans verbatim into your after_html — never replace, inline, or remove them. They are intentional gaps the user will fill in manually.
+- PRESERVE PLACEHOLDERS (propose_edit only): sections may contain <span data-placeholder-id="..." data-placeholder-label="...">Label</span> elements marking unfilled information (e.g. sponsor name, drug name, site details). You MUST copy these spans verbatim into your after_html — never replace, inline, or remove them. They are intentional gaps the user will fill in manually. Filling a placeholder with a user-supplied value is NOT done via propose_edit — that is the job of substitute_placeholders, the sanctioned fill path.
+
+CRITICAL for substitute_placeholders:
+- For each target, set decision:'substitute' only when the single supplied value fully satisfies the placeholder's label. If the label is a multi-part prompt (e.g. "Confirm name, mechanism of action, drug class, and regulatory precedent") or you are unsure a single value fully satisfies it, bias to skip: set decision:'skip' with a short skip_reason.
+- Never generate edit content — substitute_placeholders carries routing only; the client performs the substitution deterministically.
 
 CRITICAL for answer_with_citations:
 - Only cite passages that appear verbatim (or near-verbatim) in the provided regulatory/proposal context

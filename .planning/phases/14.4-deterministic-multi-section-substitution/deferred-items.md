@@ -2,7 +2,7 @@
 
 ## Pre-existing failing tests (out of scope for 14.4-01)
 
-`src/hooks/__tests__/useGapAnalysisTrigger.spec.ts` has 4 failing tests (timer/mock-call-count
+`src/hooks/__tests__/useGapAnalysisTrigger.spec.ts` has failing tests (timer/mock-call-count
 assertions around Realtime debounce + 429 cooldown retry). These are unrelated to Plan 01's
 files (`src/editor/placeholders/substitute.ts` and its two spec files) and predate this plan's
 changes — no file under `src/hooks/` or `src/editor/plugins/` was touched. Not fixed per the
@@ -10,3 +10,10 @@ scope boundary rule (only auto-fix issues directly caused by the current task's 
 
 Full-suite result at time of Plan 01 completion: 1 failed | 48 passed | 2 skipped (test files);
 4 failed | 315 passed | 16 skipped (tests).
+
+## From Plan 14.4-02
+
+- **`src/hooks/__tests__/useGapAnalysisTrigger.spec.ts`** — pre-existing failures found during `npx vitest run` verification:
+  - `skips invocation when content hash is unchanged (content-hash skip)` — expected invokeSpy called 1 time, got 0
+  - `treats HTTP 429 cooldown as expected silence (no console.error)` — expected invokeSpy called 1 time, got 2
+  - Out of scope: this plan touched only `supabase/functions/chat-with-jamo/{index.ts,context.ts,tools/substitute-placeholders.ts}` (edge function files). `useGapAnalysisTrigger` is an unrelated client hook from Phase 14.2.1. Not fixed per scope boundary rule.
