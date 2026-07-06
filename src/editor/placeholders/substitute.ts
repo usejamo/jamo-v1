@@ -4,6 +4,8 @@
 // Downstream consumers (AIChatPanel fan-out, SectionEditorBlock materialize) treat
 // the output of this module as ordinary paragraph replaces (D-07/D-08/D-09).
 
+import type { PendingEdit, ChangeResolution } from '../../types/workspace'
+
 // ── Locate ──────────────────────────────────────────────────────────────────
 
 /** Result of resolving a single `data-placeholder-id` span to its containing
@@ -122,4 +124,104 @@ export function buildSubstitutedParagraphHtml(
   }
 
   return para.outerHTML
+}
+
+// ── Edit-builder ──────────────────────────────────────────────────────────────
+
+/** Builds one synthetic `replace` PendingEdit per paragraph group. Ids are
+ *  namespaced `${bulkMsgId}-${section_key}-${i}` so they stay globally unique
+ *  across the whole fan-out (Pitfall 4). Never sets anchor_hash / anchorFrom /
+ *  anchorTo — anchor_hash is added by materialize, the anchorFrom/anchorTo
+ *  fields are runtime-only decoration state. */
+export function buildSectionPendingEdits(
+  bulkMsgId: string,
+  section_key: string,
+  groups: ParagraphGroup[],
+  value: string
+): PendingEdit[] {
+  return groups.map((group, i) => ({
+    id: `${bulkMsgId}-${section_key}-${i}`,
+    paragraph_id: group.paragraph_id,
+    section_key,
+    operation: 'replace' as const,
+    before_html: group.paragraphOuterHtml,
+    after_html: buildSubstitutedParagraphHtml(group.paragraphOuterHtml, group.placeholderIds, value),
+    change_summary: `filled ${group.labels[0] ?? 'placeholder'} placeholder`,
+    resolution: 'pending' as ChangeResolution,
+    message_id: bulkMsgId,
+    change_index: i,
+    created_at: new Date().toISOString(),
+  }))
+}
+
+// ── Reconciler ──────────────────────────────────────────────────────────────
+
+export interface SkipEntry {
+  section_key: string
+  label: string
+  reason: string
+}
+
+export type ReconcileOutcomeKind = 'full' | 'partial' | 'zero-match'
+
+export interface ReconciledOutcome {
+  applied: number
+  skipped: SkipEntry[]
+  outcome: ReconcileOutcomeKind
+}
+
+export interface ReconcileInput {
+  /** The model's full claimed target list (substitute + skip decisions) — an
+   *  untrusted CLAIM, not the source of truth (D-04). */
+  proposedTargets: SubstituteTarget[]
+  /** Targets the client successfully resolved against the live doc. */
+  resolvedSubstitutions: ResolvedTarget[]
+  /** Genuine model-declared skips — e.g. multi-part values one literal can't
+   *  satisfy. Distinct from client-side resolution failures. */
+  modelSkips: SkipEntry[]
+  /** Proposed-substitute targets the client could NOT resolve from the live
+   *  doc (absent id / no data-id ancestor) — D-15: these move from applied
+   *  into skipped(unresolvable), never a blind write. */
+  clientSkips: SkipEntry[]
+  /** Count of edits actually applied (e.g. via materialize/accept). Clamped
+   *  to resolvedSubstitutions.length so an unresolved target can never be
+   *  double-counted as applied (D-15). */
+  appliedCount: number
+}
+
+/** Reconciles the model's proposed targets against what the client could
+ *  actually resolve/apply into an honest applied/skipped tally + outcome.
+ *  outcome='zero-match' only when nothing applied AND every skip is a client
+ *  resolution failure (never a genuine model multi-part skip) — R7. */
+export function reconcileOutcome(input: ReconcileInput): ReconciledOutcome {
+  const { resolvedSubstitutions, modelSkips, clientSkips, appliedCount } = input
+
+  const applied = Math.max(0, Math.min(appliedCount, resolvedSubstitutions.length))
+  const skipped: SkipEntry[] = [...modelSkips, ...clientSkips]
+
+  let outcome: ReconcileOutcomeKind
+  if (applied === 0 && modelSkips.length === 0 && clientSkips.length > 0) {
+    outcome = 'zero-match'
+  } else if (skipped.length > 0) {
+    outcome = 'partial'
+  } else {
+    outcome = 'full'
+  }
+
+  return { applied, skipped, outcome }
+}
+
+/** Composes the one chat one-liner for a bulk-substitute outcome (R7). */
+export function composeChatSummary(
+  value: string,
+  reconciled: ReconciledOutcome,
+  targetLabel: string
+): string {
+  if (reconciled.outcome === 'zero-match') {
+    return `"${targetLabel}" isn't a fillable placeholder — nothing to substitute.`
+  }
+  if (reconciled.outcome === 'partial') {
+    return `Substituted in ${reconciled.applied} sections, skipped ${reconciled.skipped.length}.`
+  }
+  return `Substituted "${value}" in ${reconciled.applied} sections.`
 }
