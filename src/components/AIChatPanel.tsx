@@ -12,6 +12,7 @@ import {
   composeChatSummary,
 } from '../editor/placeholders/substitute'
 import type { ResolvedTarget, SkipEntry, SubstituteTarget } from '../editor/placeholders/substitute'
+import { BulkSubstitutionSummaryCard } from './chat/BulkSubstitutionSummaryCard'
 import { captureSnapshot, takeSnapshot } from '../chat/ctaSnapshotMap'
 import {
   rebuildFilterSet,
@@ -48,6 +49,15 @@ const KNOWN_TOOL_CARD_TYPES = new Set<string>([
   'tool-set-focus',
   'tool-substitute-placeholders',
 ])
+
+// Phase 14.4 R7 — a substitute_placeholders result where nothing could be filled still
+// speaks (via the client-composed chat one-liner pushed alongside it, see handleSendMessage)
+// but must NOT render an empty aggregate card. Checked at the top-level message-render branch.
+function isZeroMatchBulkSubstitution(msg: ChatMessage): boolean {
+  if (msg.messageType !== 'tool-substitute-placeholders') return false
+  const state = msg.toolData?.state as { outcome?: string } | undefined
+  return state?.outcome === 'zero-match'
+}
 
 interface Props {
   proposalId: string
@@ -1048,7 +1058,7 @@ export default function AIChatPanel({
                               />
                             ))}
                           </div>
-                        ) : msg.role === 'assistant' && msg.messageType?.startsWith('tool-') && msg.toolData ? (
+                        ) : isZeroMatchBulkSubstitution(msg) ? null : msg.role === 'assistant' && msg.messageType?.startsWith('tool-') && msg.toolData ? (
                           <div className="rounded-xl border border-gray-200 bg-white px-3 py-2.5 max-w-[88%]">
                             {msg.messageType === 'tool-propose-edit' && (
                               (() => {
@@ -1227,6 +1237,70 @@ export default function AIChatPanel({
                                 const label = sectionTitles[sk] ?? sectionKeyToTitle(sk)
                                 return (
                                   <div className="text-xs text-gray-500">Switched focus to <span className="font-medium text-gray-700">{label}</span>.</div>
+                                )
+                              })()
+                            )}
+
+                            {/* Bulk substitute_placeholders aggregate review card (D-13/D-14).
+                                zero-match is suppressed entirely at the top-level branch above —
+                                this component only ever sees full/partial outcomes here. */}
+                            {msg.messageType === 'tool-substitute-placeholders' && (
+                              (() => {
+                                const state = (msg.toolData!.state ?? {}) as {
+                                  value?: string
+                                  outcome?: 'full' | 'partial' | 'zero-match'
+                                  appliedBySection?: Array<{ section_key: string; section_title?: string; count: number }>
+                                  skipped?: SkipEntry[]
+                                  editIdsBySection?: Record<string, string[]>
+                                  resolved?: 'accepted' | 'rejected'
+                                }
+                                // Defensive: only render for a fully reconciled full/partial state.
+                                const outcome = state.outcome
+                                if (!outcome || outcome === 'zero-match') return null
+                                const editIdsBySection = state.editIdsBySection ?? {}
+                                const affectedSectionKeys = Object.keys(editIdsBySection)
+                                return (
+                                  <BulkSubstitutionSummaryCard
+                                    value={state.value ?? ''}
+                                    appliedBySection={state.appliedBySection ?? []}
+                                    skipped={state.skipped ?? []}
+                                    outcome={outcome}
+                                    resolved={state.resolved}
+                                    onAcceptAll={() => {
+                                      // Fan BATCH_ACCEPT across every affected section — one
+                                      // dispatch per section, each a single undo step (D-14).
+                                      for (const section_key of affectedSectionKeys) {
+                                        workspaceDispatch({
+                                          type: 'BATCH_ACCEPT_PENDING_EDITS',
+                                          payload: { section_key, edit_ids: editIdsBySection[section_key] },
+                                        })
+                                      }
+                                      const prevState = (msg.toolData?.state ?? {}) as Record<string, unknown>
+                                      const nextState = { ...prevState, resolved: 'accepted' }
+                                      setMessages(prev => prev.map(m => {
+                                        if (m.id !== msg.id) return m
+                                        return { ...m, toolData: m.toolData ? { ...m.toolData, state: nextState } : m.toolData }
+                                      }))
+                                      persistToolDataState(msg.id, nextState)
+                                    }}
+                                    onRejectAll={() => {
+                                      for (const section_key of affectedSectionKeys) {
+                                        for (const edit_id of editIdsBySection[section_key]) {
+                                          workspaceDispatch({
+                                            type: 'REJECT_PENDING_EDIT',
+                                            payload: { section_key, edit_id },
+                                          })
+                                        }
+                                      }
+                                      const prevState = (msg.toolData?.state ?? {}) as Record<string, unknown>
+                                      const nextState = { ...prevState, resolved: 'rejected' }
+                                      setMessages(prev => prev.map(m => {
+                                        if (m.id !== msg.id) return m
+                                        return { ...m, toolData: m.toolData ? { ...m.toolData, state: nextState } : m.toolData }
+                                      }))
+                                      persistToolDataState(msg.id, nextState)
+                                    }}
+                                  />
                                 )
                               })()
                             )}

@@ -1,15 +1,11 @@
 import React from 'react'
+import type { SkipEntry } from '../../editor/placeholders/substitute'
 
-// NOTE: SkipEntry mirrors the contract exported by Plan 01's
-// src/editor/placeholders/substitute.ts (ReconciledOutcome/SkipEntry). That module had not
-// landed in this worktree at execution time, so the shape is declared locally here to keep
-// this card purely presentational and independently type-checkable. Plan 04 will thread the
-// real SkipEntry type through from substitute.ts — the shapes are structurally identical.
-export interface SkipEntry {
-  section_key: string
-  label: string
-  reason: string
-}
+// Phase 14.4 Plan 04: SkipEntry now threads through from Plan 01's
+// src/editor/placeholders/substitute.ts (the module had not landed in this worktree at
+// Plan 03 execution time, so a structurally-identical local shim was used there). Re-exported
+// here so existing imports of `SkipEntry` from this module keep working.
+export type { SkipEntry }
 
 export interface BulkSubstitutionSummaryCardProps {
   value: string
