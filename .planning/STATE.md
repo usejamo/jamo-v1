@@ -4,13 +4,13 @@ milestone: v1.0
 milestone_name: milestone
 status: unknown
 stopped_at: Completed 14.3-04-PLAN.md
-last_updated: "2026-07-04T04:00:00.000Z"
+last_updated: "2026-07-06T23:01:34.076Z"
 progress:
-  total_phases: 26
+  total_phases: 27
   completed_phases: 22
-  total_plans: 118
-  completed_plans: 116
-  percent: 98
+  total_plans: 123
+  completed_plans: 117
+  percent: 95
 ---
 
 ## Project Status
@@ -44,6 +44,7 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 - Phase 15 added: Client Onboarding & Provisioning — replaces interim demo signup with sales-led, invite-only provisioning (admin creates org + invites first admin via Supabase auth.admin; org admin invites teammates). Includes org-creation flow, production SMTP config, lightweight internal admin surface. Adjacent security fix: chat-with-jamo must derive user_id from JWT not request body. Open forks for spec: self-serve org-admin invites in v1 vs us-provisions-everything; email provider; admin panel now vs script. → /gsd-spec-phase 15.
 - Phase 15 SPEC + CONTEXT locked (2026-07-03). SPEC.md: 15 requirements, ambiguity 0.13. CONTEXT.md decisions: dedicated `invites` table as sole source of truth; identity binding via `handle_new_user` trigger reading the pending invites row by email (no app_metadata mirror, atomic, single-path trigger that RAISEs on no-match — "no auth user without a pending invite" is an intentional DB-layer guardrail); Resend via Supabase custom SMTP (v1); dedicated /admin route for platform panel + Settings "Team" tab for org-admin member mgmt; super_admin bootstrap = idempotent admin-API script (Approach A: internal org → pending invite → createUser → flip accepted); cross-org admin ops via narrow service-role edge functions (super_admin RLS bypass stays limited to `organizations`); JWT identity fix for chat-with-jamo + salesforce-oauth-* + retrieve-context. Verified finding: only `organizations` has a super_admin RLS bypass — all other tables scope by home org_id, hence service-role edge functions for cross-org. Ready for /gsd-plan-phase 15.
 - Phase 14.3 inserted (2026-07-03): Edge Identity Hardening — SPEC reqs 13–14 split OUT of Phase 15 into their own deployable unit, running BEFORE 15 as a go-live gate. Reason: the edge-function JWT identity-trust fix (chat-with-jamo + salesforce-oauth-* + retrieve-context) is edge-functions-only, backward-compatible, fixes a live cross-tenant impersonation vuln, and is logically upstream of the multi-tenancy Phase 15 builds — so it ships/deploys/verifies independently on its own timeline. Split is by DEPLOYABLE UNIT (its own execute→deploy→verify lifecycle), not just plan structure. 14.3-SPEC.md (2 reqs, ambiguity 0.09) + 14.3-CONTEXT.md written. Key caveat captured: retrieve-context likely has internal service-role callers, so its fix must preserve them (not blanket-require auth.getUser()). Phase 15 slimmed to 13 reqs (provisioning + identity integrity via trigger + dead-code removal); its req 12 (server-bound invite identity) stays because it's coupled to the invites table. NOTE: after 14.3 deploys, the `edge-chat-session-writes-not-landing` memory becomes outdated (chat-with-jamo will derive user_id from JWT, not body). Next: /gsd-plan-phase 14.3, then /gsd-plan-phase 15.
+- Phase 14.4 inserted after Phase 14.3 / before Phase 15 (2026-07-06): Deterministic Multi-Section Substitution — makes the AI chat actually perform bulk placeholder substitution across sections. Live capture (isolated Anthropic repro + browser SSE tee) proved the model already fans out into N correct parallel propose_edit calls (stop_reason=tool_use, not truncation), but the chat is single-section/single-turn by construction (one section_key per edit; per-section review UX: ghost decorations, accept/reject, one summary card, one active_task; no set_focus→propose_edit chaining in one turn), so ambiguous bulk requests deflect to set_focus (dead-end) or a clarifying question instead of editing. Target placeholders are structured data-placeholder-id amber spans — deterministically locatable but semantically HETEROGENEOUS (single-value vs multi-part prompts one value can't satisfy). Locked design direction: cheap intent parse → deterministic LOCATE by id/label (no generation) → deterministic SUBSTITUTE single-value placeholders (NO LLM generation, avoids "generative tokens for find-and-replace") → route by heterogeneity (single-value substitute, multi-part skip-and-REPORT) → multi-section review orchestration (per-section changesets each independently reviewable, or a new multi-section review surface — the real build). Builds on already-shipped/deployed reliability fix-class (commit 3da0b40) so failures are visible not silent. Explicitly NOT routed through ask-then-fill (14.2.4 — capture proved it redundant). No code until spec locked. Next: /gsd-spec-phase 14.4.
 
 ---
 
@@ -232,7 +233,7 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 - **Plan 01** (2026-05-20): useGapAnalysisTrigger hook — D-30 Realtime subscription on proposal_sections (debounced 3s, full-section refetch, content-hash skip), D-35 on-mount fire when no prior chat_sessions row exists, HTTP 429 treated as expected silence. 7/7 Vitest specs pass. Commits 1e051b4, 21fe0ae, ce964a3.
 - **Plan 02** (2026-05-20): Wire useGapAnalysisTrigger into AIChatPanel — removed dead `void triggerAnalysis` stub plus orphaned inline useCallback and unused `isAnalyzing` state. tsc clean for the touched file. Manual D-30/D-35/429 live smoke deferred to human-verify pass (requires running dev server + authed user). Commits 600fcc0, ad9249c.
 
-**Planned Phase:** 14.3 (edge-identity-hardening) — 5 plans — 2026-07-04T00:50:46.868Z
+**Planned Phase:** 14.4 (deterministic-multi-section-substitution) — 5 plans — 2026-07-06T23:01:34.056Z
 
 ### Phase 14.2.4: Placeholder Resolution (Ask-Then-Fill)
 
