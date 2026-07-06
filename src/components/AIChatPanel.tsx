@@ -16,8 +16,10 @@ import type { Json } from '../types/database.types'
 import { ComplianceCard } from './chat/ComplianceCard'
 import { AskUserCard } from './chat/AskUserCard'
 import { InlineMarkdown } from './chat/InlineMarkdown'
-import type { SectionEditorHandle, PendingEdit, ChangeResolution } from '../types/workspace'
-import { buildContextPayload } from '../utils/chatContext'
+import type { SectionEditorHandle, PendingEdit, ChangeResolution, MaterializeResult } from '../types/workspace'
+import { buildContextPayload, sectionKeyToTitle } from '../utils/chatContext'
+import { formatEditApplyFailure } from '../utils/editApplyFeedback'
+import { drainSSEChunk } from '../utils/sse'
 import { EditSummaryCard } from './chat/EditSummaryCard'
 import { CitationsBlock } from './chat/CitationsBlock'
 import { ToolStatusLabel } from './chat/ToolStatusLabel'
@@ -26,6 +28,17 @@ import { ActionQueue } from './chat/ActionQueue'
 import { WalkthroughProgress } from './chat/WalkthroughProgress'
 import { useAuth } from '../context/AuthContext'
 import { useGapAnalysisTrigger } from '../hooks/useGapAnalysisTrigger'
+
+// Tool message types that have a dedicated card/status renderer below. Any assistant
+// `tool-*` message NOT in this set falls through to a defensive catch-all so it can
+// never render as an empty (blank) bubble. Keep in sync when adding a new tool card.
+const KNOWN_TOOL_CARD_TYPES = new Set<string>([
+  'tool-propose-edit',
+  'tool-answer-cited',
+  'tool-compliance',
+  'tool-ask-user',
+  'tool-set-focus',
+])
 
 interface Props {
   proposalId: string
@@ -484,14 +497,14 @@ export default function AIChatPanel({
       const reader = response.body!.getReader()
       const decoder = new TextDecoder()
 
-      // New SSE event loop
+      // New SSE event loop — buffered so a `data:` frame split across reads isn't dropped
+      let sseBuffer = ''
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
-        const chunk = decoder.decode(value, { stream: true })
-        const lines = chunk.split('\n').filter(line => line.startsWith('data: '))
-        for (const line of lines) {
-          const data = line.slice(6).trim()
+        const { events, buffer: nextBuffer } = drainSSEChunk(sseBuffer, decoder.decode(value, { stream: true }))
+        sseBuffer = nextBuffer
+        for (const data of events) {
           if (data === '[DONE]') {
             // Finalize streaming message
             if (fullContent.trim()) {
@@ -582,7 +595,21 @@ export default function AIChatPanel({
                   created_at: new Date().toISOString(),
                 }))
                 const handle = editorRefs.current?.get(propPayload.section_key)
-                handle?.materializePendingEdits(newMsgId, edits)
+                const applyResult: MaterializeResult = handle
+                  ? handle.materializePendingEdits(newMsgId, edits)
+                  : { ok: false, reason: 'editor-not-mounted' }
+
+                // Never drop a failed application silently (the blank-bubble bug):
+                // surface a user-visible message naming the section and the reason.
+                if (!applyResult.ok) {
+                  const label = sectionTitles[propPayload.section_key] ?? sectionKeyToTitle(propPayload.section_key)
+                  setMessages(prev => [...prev, {
+                    id: crypto.randomUUID(),
+                    role: 'assistant',
+                    content: formatEditApplyFailure(applyResult.reason, label),
+                    messageType: 'chat' as ChatMessageType,
+                  }])
+                }
 
                 // Auto-dismiss any propose_edit pending_actions that targeted this section —
                 // the user clicked "Fix it" and the chat produced an edit, so the suggestion
@@ -614,7 +641,7 @@ export default function AIChatPanel({
               setMessages(prev => [...prev, {
                 id: crypto.randomUUID(),
                 role: 'assistant',
-                content: 'Something went wrong. Try again.',
+                content: typeof event.message === 'string' && event.message ? event.message : 'Something went wrong. Try again.',
                 messageType: 'chat' as ChatMessageType,
               }])
               setIsStreaming(false)
@@ -885,6 +912,11 @@ export default function AIChatPanel({
                             {msg.messageType === 'tool-propose-edit' && (
                               (() => {
                                 const payload = msg.toolData.payload as ProposeEditPayload
+                                // Defensive: a malformed propose_edit (no changes[]) must not crash
+                                // the whole panel — surface it instead of throwing on .map below.
+                                if (!payload || !Array.isArray(payload.changes)) {
+                                  return <div className="text-sm text-gray-500">This edit couldn’t be displayed — it arrived without any changes. Ask me to try again.</div>
+                                }
                                 const persistedState: ProposeEditState = (msg.toolData.state as unknown as ProposeEditState) ?? { resolutions: {}, stale_ids: [] }
                                 // When this message's edits are live in workspace state, derive
                                 // resolutions from them so Accept/Reject updates the card tally
@@ -1044,6 +1076,24 @@ export default function AIChatPanel({
                                   />
                                 )
                               })()
+                            )}
+
+                            {/* set_focus is a side-effect tool with no card — render a status
+                                line so it never shows as an empty (blank) bubble. */}
+                            {msg.messageType === 'tool-set-focus' && (
+                              (() => {
+                                const sk = (msg.toolData!.payload as { section_key?: string }).section_key ?? ''
+                                const label = sectionTitles[sk] ?? sectionKeyToTitle(sk)
+                                return (
+                                  <div className="text-xs text-gray-500">Switched focus to <span className="font-medium text-gray-700">{label}</span>.</div>
+                                )
+                              })()
+                            )}
+
+                            {/* Defensive catch-all: any tool message type without a dedicated
+                                renderer above must still show something — never a blank bubble. */}
+                            {!KNOWN_TOOL_CARD_TYPES.has(msg.messageType ?? '') && (
+                              <div className="text-xs text-gray-500">{msg.content?.trim() || 'Done.'}</div>
                             )}
                           </div>
                         ) : (

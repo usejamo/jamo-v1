@@ -213,6 +213,18 @@ Deno.serve(async (req) => {
               }
             }
 
+            // Truncation guard: if the model hit the output-token ceiling mid-response,
+            // the tool JSON is incomplete and would otherwise be dropped silently (the
+            // blank-bubble failure). Surface a user-visible error instead of a 200 with
+            // no result. A clean multi-tool turn ends with stop_reason "tool_use", not this.
+            if (event.type === "message_delta" && event.delta.stop_reason === "max_tokens") {
+              console.error("[chat-with-jamo] Response truncated — stop_reason=max_tokens")
+              sendSSE(controller, {
+                type: "error",
+                message: "That request was too large to finish in one response. Try narrowing it — for example, editing one section at a time.",
+              })
+            }
+
             if (event.type === "content_block_delta") {
               if (event.delta.type === "text_delta") {
                 // Plain text response (no tool call) — forward as simplified event
@@ -230,6 +242,11 @@ Deno.serve(async (req) => {
                 toolInput = JSON.parse(jsonBuffer)
               } catch {
                 console.error(`[chat-with-jamo] Failed to parse tool input for ${currentToolName}`)
+                // Don't drop silently — tell the client the action couldn't be applied.
+                sendSSE(controller, {
+                  type: "error",
+                  message: `The ${currentToolName} response was cut off or malformed and couldn't be applied. Try a smaller request.`,
+                })
                 currentToolName = null
                 jsonBuffer = ""
                 continue

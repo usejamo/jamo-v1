@@ -157,6 +157,18 @@ export interface PatchResult {
   newParagraphId?: string  // ID of the most recently inserted paragraph (insert_after only)
 }
 
+/** Why an AI-proposed edit could not be applied to a section. Surfaced to the user —
+ *  never dropped silently (that was the blank-bubble bug). */
+export type EditApplyFailureReason =
+  | 'editor-not-mounted'   // the section's editor isn't available in the DOM
+  | 'section-not-active'   // the section isn't in workspace state
+  | 'no-valid-edits'       // every change referenced a paragraph no longer in the doc
+  | 'ghost-leak'           // ghost-isolation guard blocked the dispatch
+
+export type MaterializeResult =
+  | { ok: true; applied: number }
+  | { ok: false; reason: EditApplyFailureReason }
+
 export interface SectionEditorHandle {
   insertContentAt: (pos: number, content: string) => void
   setContent: (html: string) => void
@@ -167,9 +179,10 @@ export interface SectionEditorHandle {
    *  provably consistent with the persisted DB content. */
   saveNow: (html: string) => Promise<void>
   /** Dispatches SET_PENDING_EDITS to workspace reducer, triggering PendingEditsPlugin refresh.
-   *  Runs ghostContentLeakDetected guard before dispatch — blocks and logs if ghost leak detected.
+   *  Runs ghostContentLeakDetected guard before dispatch. Returns a MaterializeResult so the
+   *  caller can surface a user-visible message on failure instead of dropping silently.
    *  Both initial propose_edit arrival AND 'Review in editor →' use this as the single entry point. */
-  materializePendingEdits: (messageId: string, edits: PendingEdit[]) => void
+  materializePendingEdits: (messageId: string, edits: PendingEdit[]) => MaterializeResult
 }
 
 export const DEFAULT_WORKSPACE_STATE: WorkspaceState = {

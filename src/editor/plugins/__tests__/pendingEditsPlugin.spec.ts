@@ -1,9 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { Editor, Node as TiptapNode } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
 import { DecorationSet } from '@tiptap/pm/view'
 import { PendingEditsPlugin, PendingEditsPluginKey } from '../pendingEdits/PendingEditsPlugin'
-import { ghostContentLeakDetected, unregisterGhostContent } from '../pendingEdits/decorations'
+import { ghostContentLeakDetected } from '../pendingEdits/decorations'
 import type { PendingEdit } from '../../../types/workspace'
 
 // Custom Paragraph with id attribute — mirrors UniqueID pattern but works headless
@@ -54,11 +54,6 @@ const baseExtensions = (pending: PendingEdit[], dispatch: ReturnType<typeof vi.f
 const CONTENT = `<p data-id="${KNOWN_PARA_ID}">Old content</p>`
 
 describe('PendingEditsPlugin', () => {
-  beforeEach(() => {
-    unregisterGhostContent('<p>New content</p>')
-    unregisterGhostContent('<p>Inserted content</p>')
-  })
-
   it('14.2-A1-01: plugin state initializes empty, no ghost in getHTML()', () => {
     const dispatch = vi.fn()
     const pending: PendingEdit[] = []

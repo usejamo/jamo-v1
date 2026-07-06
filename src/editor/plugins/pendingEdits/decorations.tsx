@@ -3,22 +3,30 @@ import { Node as PMNode } from '@tiptap/pm/model'
 import { CHANGE_TYPE_LABELS } from '../../../types/chat'
 import type { PendingEdit, WorkspaceAction } from '../../../types/workspace'
 
-// Registry of known ghost HTML strings — populated when buildDecorations materializes a ghost.
-// ghostContentLeakDetected checks against this registry instead of raw substring search,
-// which prevents false positives when proposed text naturally exists in the document.
-const ghostRegistry = new Set<string>()
-
-export function registerGhostContent(html: string): void {
-  if (html) ghostRegistry.add(html)
-}
-
-export function unregisterGhostContent(html: string): void {
-  ghostRegistry.delete(html)
-}
-
-export function ghostContentLeakDetected(editorHtml: string, _pending: PendingEdit[]): boolean {
-  for (const ghost of ghostRegistry) {
-    if (ghost && editorHtml.includes(ghost.slice(0, 40))) return true
+/**
+ * Detect whether a still-pending ghost's proposed content has leaked into the
+ * committed document. Stateless and per-section by construction: `editorHtml` is
+ * always the current section's document, so there is no cross-section registry to
+ * false-positive between editors.
+ *
+ * A leak is defined precisely (id-based, not content-slice): a pending edit whose
+ * `after_html` declares a *new* block `data-id` — one that is NOT the edit's own
+ * anchor paragraph — which already exists as a committed node in `editorHtml`. That
+ * means the ghost widget's content was committed to the doc while still pending.
+ *
+ * Text-prefix overlap between `after_html` and the document is deliberately NOT a
+ * leak — that is the normal shape of a placeholder swap or a partial rewrite, where
+ * `after_html` shares most of its text with the paragraph it replaces.
+ */
+export function ghostContentLeakDetected(editorHtml: string, pending: PendingEdit[]): boolean {
+  const committedIds = new Set(extractDataIds(editorHtml))
+  if (committedIds.size === 0) return false
+  for (const edit of pending) {
+    if (edit.resolution && edit.resolution !== 'pending') continue
+    for (const id of extractDataIds(edit.after_html)) {
+      if (id === edit.paragraph_id) continue // anchor legitimately in the doc (replace target)
+      if (committedIds.has(id)) return true
+    }
   }
   return false
 }
@@ -83,9 +91,6 @@ function buildGhostWidget(
   dispatch: (action: WorkspaceAction) => void,
   sectionKey: string,
 ): HTMLElement {
-  // Register ghost content in registry when widget is created
-  if (change.after_html) registerGhostContent(change.after_html)
-
   const label = CHANGE_TYPE_LABELS[change.operation]
 
   const container = document.createElement('div')

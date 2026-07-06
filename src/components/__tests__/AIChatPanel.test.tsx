@@ -94,7 +94,7 @@ function makeEditorRefs(handle?: Partial<SectionEditorHandle>) {
       getContent: vi.fn(() => '<p></p>'),
       setContent: vi.fn(),
       saveNow: vi.fn(() => Promise.resolve()),
-      materializePendingEdits: vi.fn(),
+      materializePendingEdits: vi.fn(() => ({ ok: true as const, applied: 1 })),
       ...handle,
     }
     map.set('understanding', fullHandle)

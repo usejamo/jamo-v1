@@ -19,7 +19,7 @@ import { useSectionAIAction } from '../../hooks/useSectionAIAction'
 import { migratePlaceholders } from '../../lib/migratePlaceholders'
 import { PlaceholderMark } from './extensions/PlaceholderMark'
 import UniqueID from '@tiptap/extension-unique-id'
-import type { PendingEdit } from '../../types/workspace'
+import type { PendingEdit, MaterializeResult } from '../../types/workspace'
 import { PendingEditsPlugin, PendingEditsPluginKey } from '../../editor/plugins/pendingEdits/PendingEditsPlugin'
 import { ghostContentLeakDetected, collectFutureAnchorIds, computeAnchorHash } from '../../editor/plugins/pendingEdits/decorations'
 import { usePendingEditsSync } from '../../hooks/usePendingEditsSync'
@@ -371,22 +371,22 @@ export const SectionEditorBlock = forwardRef<SectionEditorHandle, SectionEditorB
       dispatch({ type: 'REJECT_AI_ACTION', payload: { section_key: sectionKey } })
     }, [dispatch, sectionKey])
 
-    const materializePendingEdits = useCallback((messageId: string, edits: PendingEdit[]) => {
+    const materializePendingEdits = useCallback((messageId: string, edits: PendingEdit[]): MaterializeResult => {
       // Error path 1: editor not mounted
       if (!editor) {
         console.warn('[PendingEdits] materializePendingEdits called but editor not mounted', { sectionKey, messageId })
-        return
+        return { ok: false, reason: 'editor-not-mounted' }
       }
 
       // Error path 2: section not active (no-op)
       const section = workspaceState.sections[sectionKey]
-      if (!section) return
+      if (!section) return { ok: false, reason: 'section-not-active' }
 
       // Idempotency guard: if these edits are already in plugin state (same edit IDs), skip
       const existingIds = new Set(section.pending_edits.map((e) => e.id))
       const allAlreadyPresent = edits.every((e) => existingIds.has(e.id))
       if (allAlreadyPresent && edits.length === section.pending_edits.length) {
-        return  // No-op — same edits already materialized
+        return { ok: true, applied: section.pending_edits.length }  // No-op — same edits already materialized
       }
 
       // Error path 3: validate each edit before applying — skip stale paragraph IDs.
@@ -418,7 +418,7 @@ export const SectionEditorBlock = forwardRef<SectionEditorHandle, SectionEditorB
         return true
       })
 
-      if (validatedEdits.length === 0) return
+      if (validatedEdits.length === 0) return { ok: false, reason: 'no-valid-edits' }
 
       // Capture each anchor paragraph's content hash at materialization time so
       // staleness detection can later tell if the user edited it before review.
@@ -439,7 +439,7 @@ export const SectionEditorBlock = forwardRef<SectionEditorHandle, SectionEditorB
       const html = editor.getHTML()
       if (ghostContentLeakDetected(html, editsWithHash)) {
         console.error('[PendingEdits] Ghost isolation violation — blocking SET_PENDING_EDITS', { sectionKey, messageId })
-        return
+        return { ok: false, reason: 'ghost-leak' }
       }
 
       workspaceDispatch({
@@ -450,6 +450,8 @@ export const SectionEditorBlock = forwardRef<SectionEditorHandle, SectionEditorB
       // Scroll this section into view
       const editorEl = editor.view.dom
       editorEl?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+
+      return { ok: true, applied: editsWithHash.length }
     }, [editor, workspaceState, workspaceDispatch, sectionKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
     useImperativeHandle(ref, (): SectionEditorHandle => ({

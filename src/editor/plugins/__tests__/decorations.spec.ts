@@ -1,7 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import { Schema, Node as PMNode } from '@tiptap/pm/model'
-import { buildDecorations, ghostContentLeakDetected, registerGhostContent, unregisterGhostContent, extractDataIds, collectFutureAnchorIds } from '../pendingEdits/decorations'
+import { buildDecorations, ghostContentLeakDetected, extractDataIds, collectFutureAnchorIds } from '../pendingEdits/decorations'
 import type { PendingEdit } from '../../../types/workspace'
 
 // Minimal schema for testing — paragraph with optional id attr
@@ -45,12 +45,6 @@ function makePendingEdit(overrides: Partial<PendingEdit> = {}): PendingEdit {
 }
 
 describe('decorations — staleness detection', () => {
-  beforeEach(() => {
-    // Clear registry between tests
-    unregisterGhostContent('<p>New text</p>')
-    unregisterGhostContent('<p>Insert text</p>')
-  })
-
   it.skip('14.2-A4-01: staleness detection fires auto_rejected_stale when anchor deleted', () => {
     // This is tested via the plugin spec (PendingEditsPlugin.spec.ts)
     // Wave 0 stub — implemented in Plan 03
@@ -231,5 +225,76 @@ describe('decorations — chained-edit anchor detection', () => {
     const ids = collectFutureAnchorIds(edits)
     expect(ids.has('orphan-anchor')).toBe(false)
     expect(ids.has('stale-anchor')).toBe(false)
+  })
+})
+
+// ── ghostContentLeakDetected: stateless, per-section, id-based (14.3.x reliability fix) ──
+// A leak = a still-pending edit whose after_html declares a *new* block data-id
+// (not its own anchor paragraph_id) that already exists as a committed node in THIS
+// section's editor HTML. Text-prefix overlap between after_html and the document is
+// NOT a leak — that is the normal shape of a placeholder swap or partial rewrite.
+describe('ghostContentLeakDetected — id-based, per-section', () => {
+  it('LEAK-01: genuine leak — after_html introduces a new block id already committed in the doc', () => {
+    const editorHtml =
+      '<p data-id="p1">Anchor paragraph</p><p data-id="leaked-new">Ghost body that got committed</p>'
+    const pending = [
+      makePendingEdit({
+        operation: 'insert_after',
+        paragraph_id: 'p1',
+        after_html: '<p data-id="leaked-new">Ghost body that got committed</p>',
+      }),
+    ]
+    expect(ghostContentLeakDetected(editorHtml, pending)).toBe(true)
+  })
+
+  it('LEAK-02: placeholder swap — after_html shares a long text prefix with the doc, reuses its anchor id → NOT a leak', () => {
+    const editorHtml =
+      '<p data-id="p1">The Sponsor will provide the investigational product [name] to all sites</p>'
+    const after =
+      '<p data-id="p1">The Sponsor will provide the investigational product albacore to all sites</p>'
+    const pending = [makePendingEdit({ operation: 'replace', paragraph_id: 'p1', after_html: after })]
+    expect(ghostContentLeakDetected(editorHtml, pending)).toBe(false)
+  })
+
+  it('LEAK-03: cross-section — near-identical boilerplate in another section does not leak into this one', () => {
+    // Section B (executive_summary) shares the same boilerplate prefix as other sections
+    // but the guard only ever sees THIS section's editorHtml + pending — no global registry.
+    const sectionBHtml =
+      '<p data-id="b1">On behalf of the CRO, we are pleased to submit this proposal for [name]</p>'
+    const pending = [
+      makePendingEdit({
+        section_key: 'executive_summary',
+        operation: 'replace',
+        paragraph_id: 'b1',
+        after_html:
+          '<p data-id="b1">On behalf of the CRO, we are pleased to submit this proposal for albacore</p>',
+      }),
+    ]
+    expect(ghostContentLeakDetected(sectionBHtml, pending)).toBe(false)
+  })
+
+  it('LEAK-04: insert_after with a brand-new (uncommitted) id → NOT a leak', () => {
+    const editorHtml = '<p data-id="p1">Anchor</p>'
+    const pending = [
+      makePendingEdit({
+        operation: 'insert_after',
+        paragraph_id: 'p1',
+        after_html: '<p data-id="fresh-99">Brand new inserted content</p>',
+      }),
+    ]
+    expect(ghostContentLeakDetected(editorHtml, pending)).toBe(false)
+  })
+
+  it('LEAK-05: resolved (non-pending) edits are ignored — only live ghosts can leak', () => {
+    const editorHtml = '<p data-id="p1">Anchor</p><p data-id="committed">Accepted content now real</p>'
+    const pending = [
+      makePendingEdit({
+        operation: 'insert_after',
+        paragraph_id: 'p1',
+        resolution: 'accepted',
+        after_html: '<p data-id="committed">Accepted content now real</p>',
+      }),
+    ]
+    expect(ghostContentLeakDetected(editorHtml, pending)).toBe(false)
   })
 })
