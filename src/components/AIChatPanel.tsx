@@ -3,7 +3,15 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../lib/supabase'
 import type { ChatMessage, ProposeEditPayload, ProposeEditState, AnswerWithCitationsPayload, CompliancePayload, AskUserPayload } from '../types/chat'
 import type { ToolDataEnvelope, ChatMessageType, OriginatingActionSnapshot, ResolvedItem } from '../types/chat'
-import type { PendingActionItem, ActiveTask } from '../types/chat'
+import type { PendingActionItem, ActiveTask, SubstitutePlaceholdersPayload } from '../types/chat'
+import {
+  resolvePlaceholderTarget,
+  groupTargetsByParagraph,
+  buildSectionPendingEdits,
+  reconcileOutcome,
+  composeChatSummary,
+} from '../editor/placeholders/substitute'
+import type { ResolvedTarget, SkipEntry, SubstituteTarget } from '../editor/placeholders/substitute'
 import { captureSnapshot, takeSnapshot } from '../chat/ctaSnapshotMap'
 import {
   rebuildFilterSet,
@@ -535,6 +543,132 @@ export default function AIChatPanel({
                 payload: event.result,
                 state: {},
               }
+              // Generated up-front (not just before the push below) so the substitute_placeholders
+              // fan-out (D-06) can use it as the shared bulkMsgId across every per-section
+              // materialize call, before the message carrying toolData is ever pushed.
+              const newMsgId = crypto.randomUUID()
+
+              // Phase 14.4 D-06/D-15: substitute_placeholders fan-out. One tool_result carries
+              // the model's classification-only targets (D-03); the client resolves each
+              // target against its OWN section's live doc (D-04), groups same-paragraph
+              // targets (D-09), and materializes ONE PendingEdit set per section. The
+              // reconciled applied/skipped outcome is stamped onto toolData.state BEFORE the
+              // message is pushed, so BulkSubstitutionSummaryCard renders honest counts from
+              // the first paint (D-15) — never the raw model claim.
+              let bulkSummaryMessage: ChatMessage | null = null
+              const bulkFailureMessages: ChatMessage[] = []
+              if (event.tool === 'substitute_placeholders' && Array.isArray(event.result?.targets)) {
+                const subPayload = event.result as SubstitutePlaceholdersPayload
+                const bulkMsgId = newMsgId
+
+                const bySection = new Map<string, SubstituteTarget[]>()
+                for (const t of subPayload.targets) {
+                  const arr = bySection.get(t.section_key) ?? []
+                  arr.push(t)
+                  bySection.set(t.section_key, arr)
+                }
+
+                const modelSkips: SkipEntry[] = []
+                const clientSkips: SkipEntry[] = []
+                const allResolved: ResolvedTarget[] = []
+                let totalApplied = 0
+                const appliedBySection: Array<{ section_key: string; section_title?: string; count: number }> = []
+                const editIdsBySection: Record<string, string[]> = {}
+
+                for (const [section_key, sectionTargets] of bySection) {
+                  const substituteTargets = sectionTargets.filter((t) => t.decision === 'substitute')
+                  const skipTargets = sectionTargets.filter((t) => t.decision === 'skip')
+
+                  // Genuine model-declared skips (e.g. multi-part label one value can't satisfy).
+                  for (const t of skipTargets) {
+                    modelSkips.push({
+                      section_key,
+                      label: t.placeholder_id,
+                      reason: t.skip_reason ?? 'this placeholder needs more than one value',
+                    })
+                  }
+
+                  if (substituteTargets.length === 0) continue
+
+                  // A foreign/unopened section_key returns no handle — client-skip, never a
+                  // blind write (T-14.4-09).
+                  const handle = editorRefs.current?.get(section_key)
+                  if (!handle) {
+                    for (const t of substituteTargets) {
+                      clientSkips.push({ section_key, label: t.placeholder_id, reason: 'section is not open in the editor' })
+                    }
+                    continue
+                  }
+
+                  // Resolve every target against THIS section's own live doc — the client
+                  // doc-walk is authoritative over the model's claim (D-04).
+                  const sectionHtml = handle.getContent()
+                  const resolved: ResolvedTarget[] = []
+                  for (const t of substituteTargets) {
+                    const location = resolvePlaceholderTarget(sectionHtml, t.placeholder_id)
+                    if (!location) {
+                      clientSkips.push({ section_key, label: t.placeholder_id, reason: 'placeholder not found in this section' })
+                      continue
+                    }
+                    resolved.push({ ...location, section_key, placeholder_id: t.placeholder_id })
+                  }
+                  allResolved.push(...resolved)
+                  if (resolved.length === 0) continue
+
+                  // Two placeholders in one paragraph compose ONE after_html (D-09) — never
+                  // two competing replace edits on the same paragraph_id.
+                  const groups = groupTargetsByParagraph(resolved)
+                  const sectionEdits = buildSectionPendingEdits(bulkMsgId, section_key, groups, subPayload.value)
+                  const res: MaterializeResult = handle.materializePendingEdits(bulkMsgId, sectionEdits)
+
+                  if (!res.ok) {
+                    const label = sectionTitles[section_key] ?? sectionKeyToTitle(section_key)
+                    bulkFailureMessages.push({
+                      id: crypto.randomUUID(),
+                      role: 'assistant',
+                      content: formatEditApplyFailure(res.reason, label),
+                      messageType: 'chat' as ChatMessageType,
+                    })
+                    for (const t of substituteTargets) {
+                      clientSkips.push({ section_key, label: t.placeholder_id, reason: 'could not be applied to this section' })
+                    }
+                    continue
+                  }
+
+                  totalApplied += res.applied
+                  appliedBySection.push({ section_key, section_title: sectionTitles[section_key], count: res.applied })
+                  editIdsBySection[section_key] = sectionEdits.map((e) => e.id)
+                }
+
+                const reconciled = reconcileOutcome({
+                  proposedTargets: subPayload.targets,
+                  resolvedSubstitutions: allResolved,
+                  modelSkips,
+                  clientSkips,
+                  appliedCount: totalApplied,
+                })
+
+                // Persisted on the tool message itself so counts survive reload (mirrors the
+                // existing tool-state pattern) and BulkSubstitutionSummaryCard's accept-all /
+                // reject-all can fan across every affected section.
+                toolData.state = {
+                  value: subPayload.value,
+                  outcome: reconciled.outcome,
+                  appliedBySection,
+                  skipped: reconciled.skipped,
+                  editIdsBySection,
+                }
+
+                // R7 — chat emits a one-line summary on EVERY run (full / partial / zero-match).
+                const targetLabel = reconciled.skipped[0]?.label ?? subPayload.value
+                bulkSummaryMessage = {
+                  id: crypto.randomUUID(),
+                  role: 'assistant',
+                  content: composeChatSummary(subPayload.value, reconciled, targetLabel),
+                  messageType: 'chat' as ChatMessageType,
+                }
+              }
+
               // Phase 14.2.2 D-9/D-10: for propose_edit results, take-and-delete the
               // originating-action snapshot captured at CTA-click time and stamp it
               // onto tool_data BEFORE the message is enqueued or persisted. Helper
@@ -569,7 +703,6 @@ export default function AIChatPanel({
               }
               const messageType: ChatMessageType = toolMsgTypeMap[event.tool] ?? 'chat'
               const toolResultContent = event.result?.overall_summary ?? event.result?.answer ?? event.result?.summary ?? event.result?.question ?? ''
-              const newMsgId = crypto.randomUUID()
               setMessages(prev => [...prev, {
                 id: newMsgId,
                 role: 'assistant',
@@ -577,6 +710,12 @@ export default function AIChatPanel({
                 messageType,
                 toolData,
               }])
+
+              // Surface any per-section materialize failures + the client-composed one-liner
+              // for the substitute_placeholders fan-out above (never silent — R7).
+              if (bulkFailureMessages.length > 0 || bulkSummaryMessage) {
+                setMessages(prev => [...prev, ...bulkFailureMessages, ...(bulkSummaryMessage ? [bulkSummaryMessage] : [])])
+              }
 
               // Initial propose_edit arrival — route through materializePendingEdits (BLOCKER 5).
               // materializePendingEdits runs ghostContentLeakDetected + stale paragraph check before dispatch.
