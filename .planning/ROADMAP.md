@@ -546,6 +546,25 @@ Plans:
 
 ---
 
+### Phase 14.4: Deterministic Multi-Section Substitution (INSERTED)
+
+**Goal:** Make the AI chat actually perform bulk placeholder substitution across sections (e.g. "replace every section's Investigational product name placeholder with albacore"). Live capture proved the model already fans out into N correct parallel `propose_edit` calls, but the chat is single-section / single-turn by construction (one `section_key` per edit; per-section review UX — ghost decorations, accept/reject, one summary card, one `active_task`; no set_focus→propose_edit chaining), so ambiguous bulk requests deflect to `set_focus` or a clarifying question instead of editing. Deliver: cheap intent parse; deterministic LOCATION of matching `data-placeholder-id` spans by id/label (no generation to find); deterministic SUBSTITUTION of single-value placeholders with the supplied value (NO LLM generation); heterogeneity routing (single-value → substitute, multi-part prompts a single value can't satisfy → skip-and-REPORT to user); and multi-section review orchestration (fan out into per-section changesets each independently reviewable, or a new multi-section review surface — the real build, since today's single-section review UX cannot show N changesets). Builds on the already-shipped/deployed reliability fix-class (commit 3da0b40: id-based ghost-isolation guard, MaterializeResult errors, error SSEs on max_tokens/parse-fail edge v17, buffered SSE parser, set_focus status line) so failures are visible, not silent. Do NOT route through ask-then-fill (Phase 14.2.4) — capture proved it redundant (model already emits correct edits; user already supplied the value).
+
+**Requirements covered:** 7 locked (see 14.4-SPEC.md R1–R7) — deterministic intent-parse, span locate, literal substitution, heterogeneity routing (bias-to-skip), multi-section fan-out review, aggregate review control, honest full/partial/zero-match reporting
+
+**Depends on:** Phase 14.1 (AI Chat Foundation), Phase 14.2 (AI Chat Co-pilot — propose_edit/set_focus, per-section review UX, materialize), Phase 14.3 (Edge Identity Hardening — chat-with-jamo JWT identity)
+
+**Plans:** 5 plans in 4 waves
+- [ ] 14.4-01-PLAN.md (Wave 0) — Pure deterministic substitute.ts (locate/substitute/group/edit-build/reconcile) + vitest fixtures [R2,R3,R4,R5,R7]
+- [ ] 14.4-02-PLAN.md (Wave 1) — Edge tool substitute_placeholders + index.ts registration + context.ts system-prompt guidance [R1,R4]
+- [ ] 14.4-03-PLAN.md (Wave 1) — BulkSubstitutionSummaryCard aggregate review component [R6]
+- [ ] 14.4-04-PLAN.md (Wave 2) — AIChatPanel fan-out + reconciliation + render branch + honest one-liner [R5,R6,R7]
+- [ ] 14.4-05-PLAN.md (Wave 3) — Deploy chat-with-jamo + live multi-section/partial/zero-match UAT (blocking checkpoint) [R4,R5,R6,R7]
+
+**Status:** Planned — ready for /gsd-execute-phase 14.4
+
+---
+
 ### Phase 15: Client Onboarding & Provisioning
 
 **Goal:** Replace the interim demo signup with a sales-led, invite-only provisioning flow. Public signup stays permanently disabled; an admin (us) provisions each client org and invites the client's first admin by email via Supabase `auth.admin` invite — the invitee follows the link and sets their own password. That org admin can then invite their own teammates (roles: super admin / admin / user). Includes an org-creation flow, production SMTP/email config in Supabase (invites + password resets; `mailer_autoconfirm` off), and a lightweight internal admin surface (panel or script/edge function) to provision clients without manual DB edits. Server-bound identity integrity (invitee cannot self-assign org/role) is in scope; the broader edge-function JWT identity cleanup was split into Phase 14.3 (its prerequisite gate).
