@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 14.3-04-PLAN.md
-last_updated: "2026-07-06T23:10:03.138Z"
+stopped_at: Completed 14.4-04-PLAN.md
+last_updated: "2026-07-06T23:34:30.612Z"
 progress:
   total_phases: 27
   completed_phases: 22
   total_plans: 123
-  completed_plans: 117
-  percent: 95
+  completed_plans: 121
+  percent: 98
 ---
 
 ## Project Status
@@ -31,8 +31,8 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 
 ## Last Session
 
-**Stopped at:** Completed 14.3-04-PLAN.md
-**Session date:** 2026-07-04
+**Stopped at:** Completed 14.4-04-PLAN.md
+**Session date:** 2026-07-06
 
 ## Roadmap Evolution
 
@@ -53,6 +53,8 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 - **Shared JWT-auth helper (14.3-01):** `_shared/auth.ts` exports `getAuthedUserAndOrg` which THROWS Response objects on failure (missing Authorization header, invalid/expired JWT, or null org_id) rather than returning null/undefined — consumers wrap the call in try/catch and, when the caught value is `instanceof Response`, return it directly. org_id is never in the JWT; it is always resolved via a service-role `user_profiles` lookup keyed by the verified `user.id`. `isInternalServiceRoleCall` compares the bearer token to `SUPABASE_SERVICE_ROLE_KEY` so retrieve-context's internal caller (chat-with-jamo/rag.ts) can be preserved in Wave 2 without blanket-requiring `auth.getUser()`.
 - **chat-with-jamo identity hoist (14.3-02):** Body `user_id`/`org_id` are not destructured at all (not merely unused) — removes any chance of a stray body-identity reference compiling silently. One user-scoped supabase client (anon key + caller's Authorization header) is built immediately after `getAuthedUserAndOrg` and reused for every `chat_sessions` read/write in the handler, replacing both the old headerless-anon read client and the old separately-built late write client.
 - **retrieve-context branch on caller shape (14.3-03):** `isInternalServiceRoleCall(req)` is checked FIRST, before any `getAuthedUserAndOrg` call — the internal service-role caller (`chat-with-jamo/rag.ts`) is preserved exactly (body `orgId` trusted, zero behavioral change), avoiding Pitfall 1 (blanket `auth.getUser()` would 401 the service-role caller and RAG would silently return empty). User calls (`useProposalGeneration.ts`) derive `effectiveOrgId` from the JWT via `getAuthedUserAndOrg`; a body `orgId` present and differing from the JWT org is rejected with 403 'org mismatch' rather than silently overridden. `effectiveOrgId` (never raw body `orgId`) feeds `org_id_filter` on all 4 RPCs (vector+FTS, regulatory+proposal), closing the cross-tenant RAG chunk exfiltration path (T-14.3-09). Full internal-preserved + user-mismatch-403 behavior is live-verified in 14.3-05 (Deno unavailable in this dev environment; grep-based acceptance used per plan contingency, matching plans 01/02).
+- **Bulk substitution fan-out seam (14.4-04):** `AIChatPanel.tsx`'s `substitute_placeholders` tool_result handler generates `newMsgId` up-front (moved earlier than the existing originating_action stamping block) so it can serve as the shared `bulkMsgId` across every per-section `materializePendingEdits` call. Targets are grouped by `section_key`; each section's targets are resolved against THAT section's own live doc via `resolvePlaceholderTarget` (client doc-walk authoritative, D-04) — a foreign/unopened section or unresolvable placeholder_id becomes a client-skip, never a blind write. `reconcileOutcome`'s result is stamped onto `toolData.state` BEFORE the message is pushed into React state (mirrors the existing originating_action stamping pattern) so `BulkSubstitutionSummaryCard` renders honest counts from first paint and survives reload.
+- **Bulk substitution state shape (14.4-04):** `toolData.state` for `tool-substitute-placeholders` messages is `{ value, outcome, appliedBySection, skipped, editIdsBySection, resolved? }` — `editIdsBySection` (not present in `ProposeEditState`) is required so `onAcceptAll`/`onRejectAll` can fan `BATCH_ACCEPT_PENDING_EDITS`/`REJECT_PENDING_EDIT` across every affected section without re-deriving edit ids. Zero-match is suppressed at the top-level message-render branch (`isZeroMatchBulkSubstitution`) rather than by omitting the tool message — the message is still pushed/persisted, it just renders as null so no empty bordered card ever appears; the client-composed one-liner (a separate, unpersisted `chat`-type message) is what speaks for a zero-match run (R7).
 - **salesforce-oauth-initiate/disconnect JWT org (14.3-04):** Both functions are user-authenticated ONLY (no internal service-role caller per RESEARCH Q4), so both directly adopt `getAuthedUserAndOrg` with no branch — unlike 14.3-03's `retrieve-context`. Body `org_id` renamed to `body_org_id` in both handlers so it can never be mistaken for the trusted value; used only to detect and reject (403 'org mismatch') a tamper attempt. `signState(orgId, ...)` (CSRF state) + `oauth_pending` insert (initiate) and `salesforce_connections` lookup/delete + Vault revoke (disconnect) all bind to the JWT-derived org exclusively, closing T-14.3-13 (CSRF state forgeable for another org) and T-14.3-14 (cross-tenant disconnect/Vault-revoke hijack). Service-role clients unchanged (still used for the privileged Vault ops / oauth_pending insert). Live behavioral verification deferred to 14.3-05, matching plans 01–03's Deno-unavailable contingency.
 - **Two-step attribution lookup (14.2.4-04):** At propose_edit arrival, takeSnapshot (Map, direct propose_edit path) runs first; if null, falls back to activeTask?.originating_snapshot (ask-then-fill path — survived ask hop + reload). Direct propose_edit path invariant preserved.
 - **Snapshot-in-cta_payload (14.2.4-04):** originating_snapshot embedded in cta_payload at CTA-click (not a new request-body field) so the edge reads it at ask_user dispatch time without wire changes.
@@ -234,6 +236,13 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 - **Plan 02** (2026-05-20): Wire useGapAnalysisTrigger into AIChatPanel — removed dead `void triggerAnalysis` stub plus orphaned inline useCallback and unused `isAnalyzing` state. tsc clean for the touched file. Manual D-30/D-35/429 live smoke deferred to human-verify pass (requires running dev server + authed user). Commits 600fcc0, ad9249c.
 
 **Planned Phase:** 14.4 (deterministic-multi-section-substitution) — 5 plans — 2026-07-06T23:01:34.056Z
+
+### Phase 14.4: Deterministic Multi-Section Substitution
+
+- **Plan 01** (2026-07-06): Pure deterministic primitives — `src/editor/placeholders/substitute.ts` (resolvePlaceholderTarget, groupTargetsByParagraph, buildSubstitutedParagraphHtml, buildSectionPendingEdits, reconcileOutcome, composeChatSummary). DOMParser-based locate/substitute, no CSS.escape (happy-dom gap), XSS-safe via createTextNode. 16 unit tests green. Commits 1997825, 07800b6, c3c258a, f1030a3.
+- **Plan 02** (2026-07-06): Edge tool `substitute_placeholders` registered in `chat-with-jamo` (classification/routing only, no generated edit content) + system-prompt bias-to-skip guidance in context.ts.
+- **Plan 03** (2026-07-06): `BulkSubstitutionSummaryCard` aggregate review component — composes EditSummaryCard's visual/accept-reject patterns; renders applied-by-section counts + enumerated skips; accept-all/reject-all props; terminal resolved state. Commit ea3c83a.
+- **Plan 04** (2026-07-06): `AIChatPanel.tsx` wired end-to-end — recognizes `substitute_placeholders` tool_result SSE; fans one result out into N per-section `materializePendingEdits` calls (section-namespaced edit ids, client doc-walk authoritative per D-04, D-09 paragraph grouping); reconciles applied/skipped into an honest outcome stamped on `toolData.state`; renders `BulkSubstitutionSummaryCard` with cross-section accept-all/reject-all; zero-match suppresses the card and speaks only via a chat one-liner (R7). `BulkSubstitutionSummaryCard` now imports the real `SkipEntry` from `substitute.ts` (Plan 03's local shim removed). Commits ded609c, f1eff9f, 88173bb. Wave 3 (Plan 05: deploy chat-with-jamo + live UAT) remains — this client path cannot be exercised live until the edge function is deployed.
 
 ### Phase 14.2.4: Placeholder Resolution (Ask-Then-Fill)
 

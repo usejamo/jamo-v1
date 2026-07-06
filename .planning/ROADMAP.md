@@ -555,13 +555,13 @@ Plans:
 **Depends on:** Phase 14.1 (AI Chat Foundation), Phase 14.2 (AI Chat Co-pilot — propose_edit/set_focus, per-section review UX, materialize), Phase 14.3 (Edge Identity Hardening — chat-with-jamo JWT identity)
 
 **Plans:** 5 plans in 4 waves
-- [ ] 14.4-01-PLAN.md (Wave 0) — Pure deterministic substitute.ts (locate/substitute/group/edit-build/reconcile) + vitest fixtures [R2,R3,R4,R5,R7]
-- [ ] 14.4-02-PLAN.md (Wave 1) — Edge tool substitute_placeholders + index.ts registration + context.ts system-prompt guidance [R1,R4]
-- [ ] 14.4-03-PLAN.md (Wave 1) — BulkSubstitutionSummaryCard aggregate review component [R6]
-- [ ] 14.4-04-PLAN.md (Wave 2) — AIChatPanel fan-out + reconciliation + render branch + honest one-liner [R5,R6,R7]
+- [x] 14.4-01-PLAN.md (Wave 0) — Pure deterministic substitute.ts (locate/substitute/group/edit-build/reconcile) + vitest fixtures [R2,R3,R4,R5,R7]
+- [x] 14.4-02-PLAN.md (Wave 1) — Edge tool substitute_placeholders + index.ts registration + context.ts system-prompt guidance [R1,R4]
+- [x] 14.4-03-PLAN.md (Wave 1) — BulkSubstitutionSummaryCard aggregate review component [R6]
+- [x] 14.4-04-PLAN.md (Wave 2) — AIChatPanel fan-out + reconciliation + render branch + honest one-liner [R5,R6,R7]
 - [ ] 14.4-05-PLAN.md (Wave 3) — Deploy chat-with-jamo + live multi-section/partial/zero-match UAT (blocking checkpoint) [R4,R5,R6,R7]
 
-**Status:** Planned — ready for /gsd-execute-phase 14.4
+**Status:** Waves 0-2 executed (Plans 01-04 complete) — Wave 3 (Plan 05: deploy + live UAT, blocking checkpoint) remains
 
 ---
 
