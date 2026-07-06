@@ -2,6 +2,7 @@ import Anthropic from "npm:@anthropic-ai/sdk"
 import { createClient } from "npm:@supabase/supabase-js@2"
 import { getAuthedUserAndOrg } from "../_shared/auth.ts"
 import { proposeEditTool, handleProposeEdit } from "./tools/propose-edit.ts"
+import { substitutePlaceholdersTool, handleSubstitutePlaceholders, type SubstitutePlaceholdersInput } from "./tools/substitute-placeholders.ts"
 import { answerWithCitationsTool, handleAnswerWithCitations } from "./tools/answer-with-citations.ts"
 import { checkRegulatoryComplianceTool, handleCheckCompliance } from "./tools/check-regulatory-compliance.ts"
 import { askUserTool, handleAskUser } from "./tools/ask-user.ts"
@@ -71,6 +72,7 @@ const corsHeaders = {
 
 const tools = [
   proposeEditTool,
+  substitutePlaceholdersTool,
   answerWithCitationsTool,
   checkRegulatoryComplianceTool,
   askUserTool,
@@ -267,6 +269,9 @@ Deno.serve(async (req) => {
                         .eq('proposal_id', proposal_id)
                         .eq('user_id', userId)  // D-45
                     }
+                    break
+                  case "substitute_placeholders":
+                    toolResult = handleSubstitutePlaceholders(toolInput as SubstitutePlaceholdersInput)
                     break
                   case "answer_with_citations":
                     toolResult = handleAnswerWithCitations(
