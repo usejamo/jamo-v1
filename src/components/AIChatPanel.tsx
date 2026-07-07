@@ -26,7 +26,7 @@ import { ComplianceCard } from './chat/ComplianceCard'
 import { AskUserCard } from './chat/AskUserCard'
 import { InlineMarkdown } from './chat/InlineMarkdown'
 import type { SectionEditorHandle, PendingEdit, ChangeResolution, MaterializeResult } from '../types/workspace'
-import { buildContextPayload, sectionKeyToTitle } from '../utils/chatContext'
+import { buildContextPayload, sectionKeyToTitle, resolveLiveSections } from '../utils/chatContext'
 import { formatEditApplyFailure } from '../utils/editApplyFeedback'
 import { drainSSEChunk } from '../utils/sse'
 import { EditSummaryCard } from './chat/EditSummaryCard'
@@ -482,14 +482,19 @@ export default function AIChatPanel({
     })
     if (userInsertError) console.error('[AIChatPanel] Failed to persist user message:', userInsertError)
 
-    // Build context payload
+    // Build context payload. Overlay LIVE editor content onto the section snapshot so
+    // the model classifies placeholders against the exact data-placeholder-id values the
+    // client will resolve against (D-04). Sending the stale `sections` prop (proposalSections
+    // DB snapshot, not refreshed on in-session edits) let substitute_placeholders emit dead
+    // ids for edited sections → "placeholder not found in this section". Phase 14.4 debug.
+    const liveSections = resolveLiveSections(sections, (key) => editorRefs.current?.get(key)?.getContent())
     const payload = buildContextPayload({
       proposalId,
       orgId,
       userId,
       userMessage: text,
-      targetSectionKey: activeSectionKey ?? (sections[0]?.section_key ?? ''),
-      sections,
+      targetSectionKey: activeSectionKey ?? (liveSections[0]?.section_key ?? ''),
+      sections: liveSections,
       chatHistory: messages,
       sectionTitles,
       forcedTool,
@@ -1335,6 +1340,33 @@ export default function AIChatPanel({
                     >
                       <div className="max-w-[88%] rounded-2xl px-3.5 py-2.5 text-xs leading-relaxed bg-gray-100/80 backdrop-blur-sm text-gray-700 rounded-tl-sm">
                         <InlineMarkdown text={streamingContent} />
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {/* Tool working indicator — shows a live status pill BELOW the streamed prose
+                      while a tool call is still streaming / fanning out (e.g. substitute_placeholders
+                      routing many targets across sections). Without this the pill is suppressed the
+                      moment any prose streams (the thinking indicator below is gated on !streamingContent),
+                      leaving a silent stretch where the user can't tell anything is happening. */}
+                  {isStreaming && streamingContent && currentToolName && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="flex justify-start"
+                    >
+                      <div className="bg-gray-100/80 backdrop-blur-sm rounded-2xl rounded-tl-sm px-4 py-2.5 flex items-center gap-2">
+                        <div className="flex items-center gap-1">
+                          {[0, 1, 2].map(j => (
+                            <motion.span
+                              key={j}
+                              className="w-1.5 h-1.5 rounded-full bg-gray-400"
+                              animate={{ opacity: [0.3, 1, 0.3], y: [0, -3, 0] }}
+                              transition={{ duration: 0.9, repeat: Infinity, delay: j * 0.18 }}
+                            />
+                          ))}
+                        </div>
+                        <ToolStatusLabel toolName={currentToolName} />
                       </div>
                     </motion.div>
                   )}

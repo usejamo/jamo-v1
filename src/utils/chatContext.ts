@@ -98,6 +98,31 @@ export function buildSlidingWindow(
 }
 
 /**
+ * Overlay live editor content onto the section snapshot so the model classifies
+ * against the SAME placeholder ids the client will later resolve against (D-04).
+ *
+ * Without this, the chat context is built from the `proposalSections` DB snapshot
+ * (only refreshed on load / post-generation), while substitute_placeholders
+ * resolution reads the live editor via `handle.getContent()`. When a section is
+ * edited in-session, the snapshot's `data-placeholder-id`s go stale — the model
+ * emits dead ids and every target reports "placeholder not found in this section".
+ * Mirrors ProposalDetail.getLiveSections (used for export) — same single-source-of-
+ * truth rule, now applied to the chat context too. See Phase 14.4 substitution debug.
+ *
+ * Falls back to the snapshot content only when no live handle exists (unmounted
+ * editor), matching getLiveSections' `?? s.content` semantics.
+ */
+export function resolveLiveSections<T extends { section_key: string; content: string }>(
+  sections: T[],
+  getLiveContent: (sectionKey: string) => string | undefined
+): T[] {
+  return sections.map((s) => {
+    const live = getLiveContent(s.section_key)
+    return live != null ? { ...s, content: live } : s
+  })
+}
+
+/**
  * Build a structured context payload for the chat-with-jamo edge function.
  *
  * IMPORTANT: target_section.content is HTML with paragraph data-id attributes intact.

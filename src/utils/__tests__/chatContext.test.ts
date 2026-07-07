@@ -1,6 +1,39 @@
 import { describe, it, expect } from 'vitest'
-import { detectGaps, buildSlidingWindow, stripHtml, buildContextPayload } from '../chatContext'
+import { detectGaps, buildSlidingWindow, stripHtml, buildContextPayload, resolveLiveSections } from '../chatContext'
 import type { ChatMessage } from '../../types/chat'
+
+describe('resolveLiveSections', () => {
+  // Regression: substitute_placeholders classified against the stale proposalSections
+  // DB snapshot while the client resolved against the live editor — divergent
+  // data-placeholder-id values made every target "placeholder not found". The model
+  // MUST see the same ids the client will resolve against (D-04). See Phase 14.4 debug.
+  it('overlays live editor content so the model sees current placeholder ids', () => {
+    const sections = [
+      { section_key: 'sec_8', content: '<span data-placeholder-id="OLD-id">Drug</span>' },
+      { section_key: 'sec_2', content: '<span data-placeholder-id="stable">Drug</span>' },
+    ]
+    const live = new Map([
+      ['sec_8', '<span data-placeholder-id="NEW-id">Drug</span>'],
+      ['sec_2', '<span data-placeholder-id="stable">Drug</span>'],
+    ])
+    const result = resolveLiveSections(sections, (k) => live.get(k))
+    expect(result[0].content).toContain('NEW-id')
+    expect(result[0].content).not.toContain('OLD-id')
+    expect(result[1].content).toContain('stable')
+  })
+
+  it('keeps the snapshot when the editor is unmounted (no live handle)', () => {
+    const sections = [{ section_key: 'sec_1', content: 'snapshot' }]
+    const result = resolveLiveSections(sections, () => undefined)
+    expect(result[0].content).toBe('snapshot')
+  })
+
+  it('preserves non-content fields on each section', () => {
+    const sections = [{ section_key: 'sec_1', content: 'old', name: 'Cover Letter' }]
+    const result = resolveLiveSections(sections, () => 'live')
+    expect(result[0]).toEqual({ section_key: 'sec_1', content: 'live', name: 'Cover Letter' })
+  })
+})
 
 describe('stripHtml', () => {
   it('removes tags and trims whitespace', () => {
