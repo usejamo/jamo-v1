@@ -575,7 +575,15 @@ Plans:
 
 **Out of scope:** modality column/filter; recency/time-decay ranking; generic `metadata->>` jsonb filtering; LLM/HyDE query synthesis; per-org regulatory ingest path (schema permits, build nothing); any proposal-side filtering change beyond existing org isolation
 
-**Plans:** Not planned yet
+**Plans:** 7 plans in 4 waves
+
+- [ ] 14.5-01-PLAN.md — Schema foundation migrations (regulatory_documents + trigger, chunks tier/FK/CHECK/RLS, proposals.geography + backfill) [Wave 1]
+- [ ] 14.5-02-PLAN.md — RPC migrations (regulatory match RPC rewrite + atomic SECURITY DEFINER ingest RPC) [Wave 1]
+- [ ] 14.5-03-PLAN.md — [BLOCKING] Apply all 5 migrations via Supabase MCP + live schema smoke [Wave 2]
+- [ ] 14.5-04-PLAN.md — Port ingest-regulatory.ts Deno→tsx/Node + new flags + Vitest coverage [Wave 3]
+- [ ] 14.5-05-PLAN.md — Deterministic query construction + retrieve-context relaxation + [BLOCKING] edge deploy [Wave 3]
+- [ ] 14.5-06-PLAN.md — Geography persistence wiring + retire regions-in-description blob (audited) [Wave 3]
+- [ ] 14.5-07-PLAN.md — [BLOCKING] Scripted E2E supersession protocol (ICH-E6R2→R3) live acceptance [Wave 4]
 
 ---
 
