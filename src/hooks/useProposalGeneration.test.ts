@@ -3,6 +3,7 @@ import {
   generationReducer,
   readSSEStream,
   fetchRagChunks,
+  buildRegulatoryQuery,
 } from './useProposalGeneration'
 import type { GenerationState, SectionState } from '../types/generation'
 
@@ -232,12 +233,47 @@ describe('readSSEStream', () => {
 // fetchRagChunks tests
 // ---------------------------------------------------------------------------
 
+describe('buildRegulatoryQuery', () => {
+  it('composes all attributes into the documented shape', () => {
+    expect(
+      buildRegulatoryQuery({
+        sectionName: 'Study Design',
+        studyPhase: 'Phase 2',
+        therapeuticArea: 'Oncology',
+        indication: 'NSCLC',
+      })
+    ).toBe('Study Design — Phase 2 Oncology study of NSCLC')
+  })
+
+  it('returns just the section name when no attributes are present', () => {
+    expect(buildRegulatoryQuery({ sectionName: 'Study Design' })).toBe('Study Design')
+  })
+
+  it('omits "study of {indication}" when indication is missing', () => {
+    expect(
+      buildRegulatoryQuery({ sectionName: 'Study Design', studyPhase: 'Phase 2', therapeuticArea: 'Oncology' })
+    ).toBe('Study Design — Phase 2 Oncology')
+  })
+
+  it('drops null/empty attributes without dangling separators or double spaces', () => {
+    const q = buildRegulatoryQuery({
+      sectionName: 'Study Design',
+      studyPhase: null,
+      therapeuticArea: 'Oncology',
+      indication: '',
+    })
+    expect(q).toBe('Study Design — Oncology')
+    expect(q).not.toMatch(/ {2,}/)
+    expect(q).not.toMatch(/study of\s*$/)
+  })
+})
+
 describe('fetchRagChunks', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  it('calls retrieve-context with sectionName and therapeuticArea', async () => {
+  it('composes the query and passes studyPhase + geography in the invoke body', async () => {
     const { supabase } = await import('../lib/supabase')
     const invokeMock = vi.mocked(supabase.functions.invoke)
     invokeMock.mockResolvedValueOnce({
@@ -245,12 +281,21 @@ describe('fetchRagChunks', () => {
       error: null,
     })
 
-    const result = await fetchRagChunks('org-1', 'Understanding of the Study', 'Oncology')
+    const result = await fetchRagChunks(
+      'org-1',
+      'Study Design',
+      'Oncology',
+      'Phase 2',
+      ['US', 'EU'],
+      'NSCLC'
+    )
     expect(invokeMock).toHaveBeenCalledWith('retrieve-context', {
       body: {
         orgId: 'org-1',
-        query: 'Understanding of the Study',
+        query: 'Study Design — Phase 2 Oncology study of NSCLC',
         therapeuticArea: 'Oncology',
+        studyPhase: 'Phase 2',
+        geography: ['US', 'EU'],
       },
     })
     expect(result).toHaveLength(1)

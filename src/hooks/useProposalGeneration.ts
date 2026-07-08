@@ -173,15 +173,39 @@ export async function readSSEStream(
 // RAG helper
 // ---------------------------------------------------------------------------
 
+/**
+ * buildRegulatoryQuery composes a deterministic (NO LLM) attribute-rich query string from the
+ * section name plus the proposal's structured attributes:
+ *   "{sectionName} — {study_phase} {therapeutic_area} study of {indication}"
+ * Any null/empty attribute is omitted; whitespace is collapsed; no dangling "—", double spaces,
+ * or trailing "study of". If no attributes are present, returns just the section name.
+ */
+export function buildRegulatoryQuery(opts: {
+  sectionName: string
+  studyPhase?: string | null
+  therapeuticArea?: string | null
+  indication?: string | null
+}): string {
+  const { sectionName, studyPhase, therapeuticArea, indication } = opts
+  const lead = [studyPhase, therapeuticArea].filter((v) => v && v.trim()).join(' ').trim()
+  const tail = indication && indication.trim() ? `study of ${indication.trim()}` : ''
+  const descriptor = [lead, tail].filter((v) => v).join(' ').trim()
+  const composed = descriptor ? `${sectionName} — ${descriptor}` : sectionName
+  return composed.replace(/\s+/g, ' ').trim()
+}
+
 export async function fetchRagChunks(
   orgId: string,
   sectionName: string,
-  therapeuticArea: string
+  therapeuticArea: string,
+  studyPhase?: string,
+  geography?: string[],
+  indication?: string
 ): Promise<Array<{ content: string; doc_type: string; agency: string }>> {
   try {
-    const query = sectionName
+    const query = buildRegulatoryQuery({ sectionName, studyPhase, therapeuticArea, indication })
     const { data, error } = await supabase.functions.invoke('retrieve-context', {
-      body: { orgId, query, therapeuticArea },
+      body: { orgId, query, therapeuticArea, studyPhase, geography },
     })
     if (error) {
       console.warn('[useProposalGeneration] retrieve-context error:', error)
@@ -451,7 +475,10 @@ export function useProposalGeneration(proposalId: string) {
           const ragChunks = await fetchRagChunks(
             profile?.org_id ?? '',
             section.name,
-            enrichedContext.studyInfo.therapeuticArea
+            enrichedContext.studyInfo.therapeuticArea,
+            enrichedContext.studyInfo.studyPhase,
+            enrichedContext.studyInfo.countries,
+            enrichedContext.studyInfo.indication
           )
           const sectionDescription = (sectionRows.find((r: any) => r.id === section.id) as any)?.description ?? null
           const content = await streamSection(
@@ -516,7 +543,10 @@ export function useProposalGeneration(proposalId: string) {
       const ragChunks = await fetchRagChunks(
         profile?.org_id ?? '',
         section.name,
-        proposalContext.studyInfo.therapeuticArea
+        proposalContext.studyInfo.therapeuticArea,
+        proposalContext.studyInfo.studyPhase,
+        proposalContext.studyInfo.countries,
+        proposalContext.studyInfo.indication
       )
 
       return streamSection(
