@@ -4,13 +4,13 @@ milestone: v1.0
 milestone_name: milestone
 status: unknown
 stopped_at: Completed 14.4-04-PLAN.md
-last_updated: "2026-07-06T23:34:30.612Z"
+last_updated: "2026-07-08T22:34:46.375Z"
 progress:
-  total_phases: 27
-  completed_phases: 22
-  total_plans: 123
-  completed_plans: 121
-  percent: 98
+  total_phases: 28
+  completed_phases: 23
+  total_plans: 130
+  completed_plans: 122
+  percent: 94
 ---
 
 ## Project Status
@@ -236,7 +236,7 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 - **Plan 01** (2026-05-20): useGapAnalysisTrigger hook — D-30 Realtime subscription on proposal_sections (debounced 3s, full-section refetch, content-hash skip), D-35 on-mount fire when no prior chat_sessions row exists, HTTP 429 treated as expected silence. 7/7 Vitest specs pass. Commits 1e051b4, 21fe0ae, ce964a3.
 - **Plan 02** (2026-05-20): Wire useGapAnalysisTrigger into AIChatPanel — removed dead `void triggerAnalysis` stub plus orphaned inline useCallback and unused `isAnalyzing` state. tsc clean for the touched file. Manual D-30/D-35/429 live smoke deferred to human-verify pass (requires running dev server + authed user). Commits 600fcc0, ad9249c.
 
-**Planned Phase:** 14.4 (deterministic-multi-section-substitution) — 5 plans — 2026-07-06T23:01:34.056Z
+**Planned Phase:** 14.5 (RAG Retrieval Overhaul + Regulatory Corpus Foundation) — 7 plans — 2026-07-08T22:07:36.824Z
 
 ### Phase 14.4: Deterministic Multi-Section Substitution
 
