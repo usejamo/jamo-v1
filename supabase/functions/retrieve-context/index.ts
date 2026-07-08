@@ -19,6 +19,8 @@ interface RetrieveRequest {
   orgId: string
   query: string
   therapeuticArea?: string
+  studyPhase?: string       // NEW (14.5) — regulatory phase pre-filter
+  geography?: string[]      // NEW (14.5) — regulatory geography pre-filter (GLOBAL always matches)
   k_regulatory?: number   // optional — falls back to RETRIEVAL_K_REGULATORY
   k_proposal?: number     // optional — falls back to RETRIEVAL_K_PROPOSALS
 }
@@ -41,6 +43,7 @@ interface RetrieveResponse {
     regulatoryCount: number
     proposalCount: number
     belowThreshold: boolean
+    regulatoryRelaxationLevel: number   // 0=full filters, 1=phase dropped, 2=phase+TA dropped
   }
 }
 
@@ -159,7 +162,7 @@ serve(async (req) => {
 
   try {
     // 1. Parse request
-    const { orgId, query, therapeuticArea, k_regulatory, k_proposal } = await req.json() as RetrieveRequest
+    const { orgId, query, therapeuticArea, studyPhase, geography, k_regulatory, k_proposal } = await req.json() as RetrieveRequest
 
     // Resolve effective K values — cap at 20 to prevent DoS via unbounded pgvector queries (T-14.1-04)
     const effectiveKRegulatory = Math.min(k_regulatory ?? RETRIEVAL_K_REGULATORY, 20)
@@ -212,36 +215,65 @@ serve(async (req) => {
     })
     const queryVector = embeddingResponse.data[0].embedding
 
-    // 4. Resolve filters — agencies column doesn't exist on organizations, pass null to skip filter
+    // 4. Resolve filters — agencies column doesn't exist on organizations, pass null to skip filter.
+    // Pass null (not []) when an attribute is absent so the RPC's `filter IS NULL OR ...` skips it;
+    // an empty array would make `= ANY('{}')` always false and wrongly exclude every row.
     const agencies: string[] | null = null
-    const therapeuticAreas: string[] = therapeuticArea ? [therapeuticArea] : []
+    const baseTherapeuticAreas: string[] | null = therapeuticArea ? [therapeuticArea] : null
+    const phasesFilter: string[] | null = studyPhase ? [studyPhase] : null
+    const geographiesFilter: string[] | null = geography && geography.length ? geography : null
 
-    // 5. Vector search — regulatory chunks
-    const { data: regVectorRows, error: regVecErr } = await supabase.rpc('match_chunks_vector', {
-      query_embedding: queryVector,
-      org_id_filter: effectiveOrgId,
-      agencies_filter: agencies,
-      therapeutic_areas_filter: therapeuticAreas,
-      similarity_threshold: RETRIEVAL_SIMILARITY_THRESHOLD,
-      match_count: effectiveKRegulatory * 2,
-    })
+    // 5-6. Regulatory hybrid search with GRADED FILTER RELAXATION.
+    // Tighten first (phase + TA); if the merged regulatory result is under the per-doc_type budget,
+    // relax one dimension at a time: drop phases_filter, then drop therapeutic_areas_filter.
+    // ALWAYS keep geographies_filter; status='active' is enforced inside the RPC. (inlined — Deno)
+    const relaxationLevels: Array<{ level: number; ta: string[] | null; phases: string[] | null }> = [
+      { level: 0, ta: baseTherapeuticAreas, phases: phasesFilter }, // full tight filter set
+      { level: 1, ta: baseTherapeuticAreas, phases: null },         // drop phase
+      { level: 2, ta: null, phases: null },                         // drop TA too
+    ]
 
-    if (regVecErr) {
-      console.warn(`[retrieve-context] Vector search (regulatory) error: ${regVecErr.message}`)
+    let regulatoryChunks: Chunk[] = []
+    let relaxationLevelUsed = 0
+    for (const lvl of relaxationLevels) {
+      const { data: regVectorRows, error: regVecErr } = await supabase.rpc('match_chunks_vector', {
+        query_embedding: queryVector,
+        org_id_filter: effectiveOrgId,
+        agencies_filter: agencies,
+        therapeutic_areas_filter: lvl.ta,
+        phases_filter: lvl.phases,
+        geographies_filter: geographiesFilter,
+        similarity_threshold: RETRIEVAL_SIMILARITY_THRESHOLD,
+        match_count: effectiveKRegulatory * 2,
+      })
+      if (regVecErr) {
+        console.warn(`[retrieve-context] Vector search (regulatory, relax=${lvl.level}) error: ${regVecErr.message}`)
+      }
+
+      const { data: regFtsRows, error: regFtsErr } = await supabase.rpc('match_chunks_fts', {
+        query_text: query,
+        org_id_filter: effectiveOrgId,
+        agencies_filter: agencies,
+        therapeutic_areas_filter: lvl.ta,
+        phases_filter: lvl.phases,
+        geographies_filter: geographiesFilter,
+        match_count: effectiveKRegulatory * 2,
+      })
+      if (regFtsErr) {
+        console.warn(`[retrieve-context] FTS search (regulatory, relax=${lvl.level}) error: ${regFtsErr.message}`)
+      }
+
+      regulatoryChunks = mergeHybridResults(
+        (regVectorRows ?? []) as VectorResult[],
+        (regFtsRows ?? []) as TextResult[],
+        effectiveKRegulatory
+      )
+      relaxationLevelUsed = lvl.level
+      if (regulatoryChunks.length >= effectiveKRegulatory) break
     }
-
-    // 6. FTS search — regulatory chunks
-    const { data: regFtsRows, error: regFtsErr } = await supabase.rpc('match_chunks_fts', {
-      query_text: query,
-      org_id_filter: effectiveOrgId,
-      agencies_filter: agencies,
-      therapeutic_areas_filter: therapeuticAreas,
-      match_count: effectiveKRegulatory * 2,
-    })
-
-    if (regFtsErr) {
-      console.warn(`[retrieve-context] FTS search (regulatory) error: ${regFtsErr.message}`)
-    }
+    console.log(
+      `[retrieve-context] regulatory relaxation level used: ${relaxationLevelUsed}, count=${regulatoryChunks.length}`
+    )
 
     // 7. Vector search — proposal chunks (no agency/therapeutic_area filter — org RLS handles isolation)
     const { data: propVectorRows, error: propVecErr } = await supabase.rpc('match_chunks_vector_proposals', {
@@ -266,13 +298,7 @@ serve(async (req) => {
       console.warn(`[retrieve-context] FTS search (proposals) error: ${propFtsErr.message}`)
     }
 
-    // 9. Merge hybrid results
-    const regulatoryChunks = mergeHybridResults(
-      (regVectorRows ?? []) as VectorResult[],
-      (regFtsRows ?? []) as TextResult[],
-      effectiveKRegulatory
-    )
-
+    // 9. Merge hybrid results (regulatory already merged per relaxation level above)
     const proposalChunks = mergeHybridResults(
       (propVectorRows ?? []) as VectorResult[],
       (propFtsRows ?? []) as TextResult[],
@@ -298,6 +324,7 @@ serve(async (req) => {
         regulatoryCount: regulatoryChunks.length,
         proposalCount: proposalChunks.length,
         belowThreshold: regulatoryChunks.length < 1 || proposalChunks.length < 1,
+        regulatoryRelaxationLevel: relaxationLevelUsed,
       },
     }
 
