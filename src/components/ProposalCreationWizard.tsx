@@ -149,7 +149,8 @@ export function ProposalCreationWizard() {
       dueDate: studyInfo.dueDate,
       status: 'draft',
       value: 0,
-      description: JSON.stringify({ services: studyInfo.services, regions: studyInfo.regions }),
+      geography: studyInfo.regions,
+      description: JSON.stringify({ services: studyInfo.services }),
     }).then((id) => {
       dispatch({ type: 'SET_PROPOSAL_ID', id })
     }).catch((err) => {
@@ -210,7 +211,8 @@ export function ProposalCreationWizard() {
           dueDate: studyInfo.dueDate,
           status: 'draft',
           value: 0,
-          description: JSON.stringify({ services: studyInfo.services, regions: studyInfo.regions }),
+          geography: studyInfo.regions,
+          description: JSON.stringify({ services: studyInfo.services }),
         })
       }
 

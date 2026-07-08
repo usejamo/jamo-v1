@@ -408,8 +408,10 @@ const isStreamingMode = genState.isGenerating
   }, [])
 
   const buildProposalInput = useCallback((): GenerateSectionPayloadV2['proposalContext'] => {
-    // services and regions are stored as JSON in proposal.description by the wizard
-    const meta: { services?: string[]; regions?: string[] } = (() => {
+    // services is stored as JSON in proposal.description by the wizard.
+    // geography (countries) now comes from the real proposals.geography column (Phase 14.5);
+    // the legacy description.regions blob key is retired.
+    const meta: { services?: string[] } = (() => {
       try { return JSON.parse(proposal?.description ?? '{}') } catch { return {} }
     })()
     return {
@@ -418,7 +420,7 @@ const isStreamingMode = genState.isGenerating
         therapeuticArea: proposal?.therapeuticArea ?? '',
         indication: proposal?.indication ?? '',
         studyPhase: proposal?.studyType ?? '',
-        countries: meta.regions ?? [],
+        countries: proposal?.geography ?? [],
         dueDate: proposal?.dueDate ?? '',
         services: meta.services ?? [],
       },
