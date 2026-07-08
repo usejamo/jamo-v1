@@ -565,6 +565,20 @@ Plans:
 
 ---
 
+### Phase 14.5: RAG Retrieval Overhaul + Regulatory Corpus Foundation (INSERTED)
+
+**Goal:** Make proposal generation retrieve relevant, version-current regulatory content by fixing query construction, introducing a global (`org_id` NULL) regulatory tier, and adding a versioned `regulatory_documents` parent table with supersession. Today the regulatory corpus is empty (all 171 chunks are `doc_type='proposal'`, tag columns 100% NULL) and retrieval is driven by bare section-title queries with no proposal-attribute signal and no proposal/regulatory scoping. This phase builds the STRUCTURE and WIRING — schema (versioned parent + tier-pairing CHECK + `regulatory_document_id` FK), global regulatory tier, ingest-CLI flags, deterministic query construction from structured proposal attributes, graded filter relaxation, per-`doc_type` retrieval budgets, RLS defense-in-depth — NOT the corpus content itself. Supersession resolves on a stable operator-supplied `document_key` (UNIQUE, immutable across re-ingest — enforced by a BEFORE UPDATE trigger; parent rows update-in-place so `id`/FK targets never drift). Authoritative spec: **14.5-BRIEF.md**.
+
+**Requirements covered:** see 14.5-BRIEF.md — versioned `regulatory_documents` + document_key-keyed supersession; global regulatory chunk tier (`org_id` NULL); chunks tier-pairing CHECK + `regulatory_document_id` FK; `proposals.geography` + wizard wiring + `studyInfo.countries` backing; ingest-CLI `--document-key`/`--geography`/`--effective-date`/`--status`/`--phase`/`--supersedes`; regulatory RPC join + `status='active'` + geography/phase/TA pre-filters + `(org_id OR NULL)` tenant clause; deterministic attribute-based query construction; graded filter relaxation; per-`doc_type` retrieval budgets; regulatory-read RLS policy
+
+**Depends on:** Phase 04 (Regulatory Knowledge Base RAG — chunks table, match RPCs, retrieve-context), Phase 07 (Proposal Generation Engine — fetchRagChunks, generate-proposal-section), Phase 05 (Proposal Creation Wizard — Step1StudyInfo), RAG proposal-ingestion fix (2026-07-08 — extract-document now populates proposal chunks; backfill + probe scripts exist)
+
+**Out of scope:** modality column/filter; recency/time-decay ranking; generic `metadata->>` jsonb filtering; LLM/HyDE query synthesis; per-org regulatory ingest path (schema permits, build nothing); any proposal-side filtering change beyond existing org isolation
+
+**Plans:** Not planned yet
+
+---
+
 ### Phase 15: Client Onboarding & Provisioning
 
 **Goal:** Replace the interim demo signup with a sales-led, invite-only provisioning flow. Public signup stays permanently disabled; an admin (us) provisions each client org and invites the client's first admin by email via Supabase `auth.admin` invite — the invitee follows the link and sets their own password. That org admin can then invite their own teammates (roles: super admin / admin / user). Includes an org-creation flow, production SMTP/email config in Supabase (invites + password resets; `mailer_autoconfirm` off), and a lightweight internal admin surface (panel or script/edge function) to provision clients without manual DB edits. Server-bound identity integrity (invitee cannot self-assign org/role) is in scope; the broader edge-function JWT identity cleanup was split into Phase 14.3 (its prerequisite gate).
