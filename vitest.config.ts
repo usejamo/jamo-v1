@@ -34,5 +34,15 @@ export default defineConfig({
         execArgv: ['--max-old-space-size=4096'],
       },
     },
+    // Run test FILES one at a time. Several suites are timing-sensitive — they mix
+    // fake timers (vi.advanceTimersByTimeAsync) with real-async work that fake timers
+    // can't drive (crypto.subtle.digest in useGapAnalysisTrigger, React act() render
+    // flushes in SectionWorkspace, document parse-status polling). With fileParallelism
+    // on, other files' async work interleaves on the shared event loop and starves those
+    // drain loops, so exact-count assertions flake nondeterministically (the failing set
+    // varies run-to-run and even spreads across files). Files pass reliably in isolation;
+    // serializing them removes the interleaving. Full-run cost ~10s → ~56s; watch mode only
+    // re-runs changed files, so local feedback stays fast. See fix/test-flakiness debug.
+    fileParallelism: false,
   },
 })

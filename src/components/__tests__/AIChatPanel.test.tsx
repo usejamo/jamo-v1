@@ -43,6 +43,14 @@ vi.mock('framer-motion', () => ({
 // ── chatContext mock ─────────────────────────────────────────────────────────
 vi.mock('../../utils/chatContext', () => ({
   buildContextPayload: vi.fn(() => ({ payload: 'mock' })),
+  // Faithful to the real helper: overlay live editor content, else keep the snapshot.
+  resolveLiveSections: (
+    sections: Array<{ section_key: string; content: string }>,
+    getLive: (k: string) => string | undefined,
+  ) => sections.map((s) => {
+    const live = getLive(s.section_key)
+    return live != null ? { ...s, content: live } : s
+  }),
 }))
 
 // ── SectionWorkspaceContext mock ─────────────────────────────────────────────
