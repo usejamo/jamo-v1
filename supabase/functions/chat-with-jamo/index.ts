@@ -89,7 +89,6 @@ Deno.serve(async (req) => {
     const {
       proposal_id,
       user_message,
-      session_id,
       target_section,
       other_sections = [],
       chat_history = [],
@@ -317,7 +316,7 @@ Deno.serve(async (req) => {
                       toolInput as Parameters<typeof handleSetFocus>[0],
                       proposal_id,
                       orgId,
-                      session_id
+                      userId  // JWT-derived (14.3); chat_sessions PK is (proposal_id, user_id)
                     )
                     // Write active_task on set_focus dispatch (fire-and-forget)
                     if (proposal_id && userId) {
