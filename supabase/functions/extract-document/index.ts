@@ -1,5 +1,89 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'supabase'
+import { chunkDocument } from './chunker.ts'
+
+// ============================================================================
+// CHUNK + EMBED (proposal RAG ingestion)
+// ============================================================================
+// After extraction, documents must be chunked + embedded into public.chunks
+// (doc_type='proposal') so retrieve-context can surface them. Model + dims match
+// retrieve-context and scripts/backfill-proposal-chunks.ts (text-embedding-3-small,
+// 1536). This step is best-effort: a failure here must NOT fail extraction.
+
+const EMBED_MODEL = 'text-embedding-3-small'
+const EMBED_DIMS = 1536
+const EMBED_BATCH_SIZE = 100
+
+async function embedTexts(texts: string[], apiKey: string): Promise<number[][]> {
+  const out: number[][] = []
+  for (let i = 0; i < texts.length; i += EMBED_BATCH_SIZE) {
+    const batch = texts.slice(i, i + EMBED_BATCH_SIZE)
+    const resp = await fetch('https://api.openai.com/v1/embeddings', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: EMBED_MODEL, input: batch }),
+    })
+    if (!resp.ok) {
+      throw new Error(`OpenAI embeddings failed (${resp.status}): ${await resp.text()}`)
+    }
+    const json = await resp.json() as { data: Array<{ embedding: number[]; index: number }> }
+    for (const item of json.data.sort((a, b) => a.index - b.index)) {
+      if (item.embedding.length !== EMBED_DIMS) {
+        throw new Error(`Embedding dim mismatch: expected ${EMBED_DIMS}, got ${item.embedding.length}`)
+      }
+      out.push(item.embedding)
+    }
+  }
+  return out
+}
+
+/**
+ * Chunk + embed extracted text into public.chunks (doc_type='proposal').
+ * Idempotent per document: clears prior proposal chunks for this documentId first.
+ * Returns the number of chunks inserted. Never throws — logs and returns 0 on failure.
+ */
+async function chunkAndEmbedProposal(
+  supabase: ReturnType<typeof createClient>,
+  params: { documentId: string; orgId: string; source: string; text: string }
+): Promise<number> {
+  try {
+    const apiKey = Deno.env.get('OPENAI_API_KEY')
+    if (!apiKey) {
+      console.warn('[extract-document] OPENAI_API_KEY not set — skipping chunk+embed')
+      return 0
+    }
+    const chunks = chunkDocument(params.text, params.source)
+    if (chunks.length === 0) return 0
+
+    const embeddings = await embedTexts(chunks.map((c) => c.content), apiKey)
+    const rows = chunks.map((c, idx) => ({
+      org_id: params.orgId,
+      doc_type: 'proposal',
+      source: params.source,
+      content: c.content,
+      embedding: embeddings[idx],
+      metadata: { document_id: params.documentId, tokenCount: c.tokenCount, sectionRef: c.sectionRef ?? null },
+    }))
+
+    // Idempotency: remove any prior proposal chunks for this document before re-inserting.
+    await supabase
+      .from('chunks')
+      .delete()
+      .eq('org_id', params.orgId)
+      .eq('doc_type', 'proposal')
+      .eq('metadata->>document_id', params.documentId)
+
+    const { error } = await supabase.from('chunks').insert(rows)
+    if (error) {
+      console.error(`[extract-document] chunk insert failed: ${error.message}`)
+      return 0
+    }
+    return rows.length
+  } catch (err) {
+    console.error('[extract-document] chunk+embed failed (non-fatal):', err instanceof Error ? err.message : err)
+    return 0
+  }
+}
 
 // ============================================================================
 // EXTRACTION HANDLER FUNCTIONS (exported for testability)
@@ -154,7 +238,16 @@ serve(async (req) => {
       word_count: wordCount
     })
 
-    // 10. Update proposal_documents with parse_status='complete' and doc_type
+    // 10. Chunk + embed into public.chunks (doc_type='proposal') for RAG.
+    //     Best-effort: never fails extraction (see chunkAndEmbedProposal).
+    const chunksInserted = await chunkAndEmbedProposal(supabase, {
+      documentId,
+      orgId: doc.org_id,
+      source: doc.name || `document:${documentId}`,
+      text: extractedText,
+    })
+
+    // 11. Update proposal_documents with parse_status='complete' and doc_type
     await supabase
       .from('proposal_documents')
       .update({
@@ -163,14 +256,15 @@ serve(async (req) => {
       })
       .eq('id', documentId)
 
-    // 11. Return success response
+    // 12. Return success response
     return new Response(JSON.stringify({
       success: true,
       documentId,
       extractedLength: extractedText.length,
       wordCount,
       pageCount,
-      docType
+      docType,
+      chunksInserted
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
