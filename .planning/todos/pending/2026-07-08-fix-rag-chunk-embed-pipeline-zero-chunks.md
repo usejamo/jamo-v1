@@ -41,3 +41,28 @@ TBD — investigation first:
 Note: `chunks` columns = id, org_id, doc_type, source, content, embedding, agency,
 guideline_type, therapeutic_area, search_vector, metadata, created_at. Embedding model in
 retrieve-context = OpenAI `text-embedding-3-small`.
+
+## RESOLVED — 2026-07-08
+
+**Root cause:** the proposal ingestion path (`document_extracts` → chunk → embed →
+`chunks` doc_type='proposal') was **never built**. `extract-document` stopped after writing
+`document_extracts`; nothing consumed it. The only chunk-writer, `scripts/ingest-regulatory.ts`,
+handles regulatory PDFs only and was never run. So `chunks` was empty by construction — NOT the
+"committed-not-deployed" pattern.
+
+**Fix (contained — no phase needed):**
+1. Backfill: `scripts/backfill-proposal-chunks.ts` (reuses the tested `src/lib/chunker.ts`),
+   chunked+embedded the 35 existing extracts → **171 proposal chunks** inserted (org …0001).
+   Re-runnable / idempotent per org.
+2. Forward wiring: `extract-document` now chunks+embeds into `chunks` (doc_type='proposal')
+   after writing `document_extracts` — best-effort/non-fatal, idempotent per document_id.
+   Vendored `chunker.ts` into the function + added `js-tiktoken` to its import map. Deployed
+   (v7, --no-verify-jwt). Verified live: a re-invoke returned `chunksInserted: 9`.
+
+**Verified E2E:** POST `/functions/v1/retrieve-context` {orgId:…0001, query:'clinical trial
+safety monitoring requirements'} → HTTP 200, **proposalChunks: 4** (was 0). Full vitest suite
+green (322 passed). Probe kept at `scripts/verify-retrieve-context.ts`.
+
+**STILL OPEN — regulatory chunks = 0 (data gap, not a bug):** no regulatory PDFs exist on disk
+(`regulatory-docs/**` empty) and `ingest-regulatory.ts` was never run, so `doc_type='regulatory'`
+retrieval stays empty until the KB PDFs are sourced and ingested. Track separately.
