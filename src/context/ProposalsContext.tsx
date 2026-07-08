@@ -20,6 +20,7 @@ function mapRow(row: Record<string, any>): Proposal {
     updatedAt: row.updated_at ?? row.created_at ?? '',
     indication: row.indication ?? '',
     description: row.description ?? '',
+    geography: row.geography ?? [],
     selected_template_id: row.selected_template_id ?? null,
   }
 }
@@ -80,6 +81,7 @@ export function ProposalsProvider({ children }: { children: ReactNode }) {
       therapeutic_area: data.therapeuticArea,
       indication: data.indication,
       description: data.description,
+      geography: data.geography ?? null,
       due_date: data.dueDate || null,
       estimated_value: data.value || null,
     }
@@ -110,6 +112,7 @@ export function ProposalsProvider({ children }: { children: ReactNode }) {
     if (data.value !== undefined) updateData.estimated_value = data.value
     if (data.indication !== undefined) updateData.indication = data.indication
     if (data.description !== undefined) updateData.description = data.description
+    if (data.geography !== undefined) updateData.geography = data.geography
 
     const { error } = await supabase.from('proposals').update(updateData).eq('id', id)
 

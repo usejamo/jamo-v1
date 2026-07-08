@@ -13,5 +13,6 @@ export interface Proposal {
   updatedAt?: string
   indication?: string
   description?: string
+  geography?: string[]
   selected_template_id?: string | null
 }
