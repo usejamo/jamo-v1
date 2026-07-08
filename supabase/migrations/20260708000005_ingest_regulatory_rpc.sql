@@ -60,5 +60,7 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.ingest_regulatory_document(TEXT,TEXT,TEXT,TEXT,TEXT[],TEXT[],DATE,TEXT,TEXT,TEXT,JSONB) FROM PUBLIC;
+-- Supabase's default privileges GRANT EXECUTE to anon/authenticated/service_role directly on
+-- function creation, so revoking from PUBLIC alone is insufficient — revoke the direct grants too.
+REVOKE ALL ON FUNCTION public.ingest_regulatory_document(TEXT,TEXT,TEXT,TEXT,TEXT[],TEXT[],DATE,TEXT,TEXT,TEXT,JSONB) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.ingest_regulatory_document(TEXT,TEXT,TEXT,TEXT,TEXT[],TEXT[],DATE,TEXT,TEXT,TEXT,JSONB) TO service_role;
