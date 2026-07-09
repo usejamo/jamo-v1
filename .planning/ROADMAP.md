@@ -600,9 +600,9 @@ Plans:
 **Plans:** 5 plans in 4 waves
 
 - [x] 14.6-01-PLAN.md — (b) client tier-separation: split payload contract + fetchRagChunks threading [Wave 1]
-- [ ] 14.6-02-PLAN.md — (b) edge conditional compliance + dual-header assembly + unit test + [BLOCKING] deploy [Wave 2]
-- [ ] 14.6-03-PLAN.md — (a) ingest supersedes RAISE migration + [BLOCKING] apply via Supabase MCP [Wave 1]
-- [ ] 14.6-04-PLAN.md — seeder manifest + seed-regulatory.ts (pre-validation, dep-ordering, --validate-only) + tests [Wave 3]
+- [x] 14.6-02-PLAN.md — (b) edge conditional compliance + dual-header assembly + unit test + [BLOCKING] deploy [Wave 2]
+- [x] 14.6-03-PLAN.md — (a) ingest supersedes RAISE migration + [BLOCKING] apply via Supabase MCP [Wave 1]
+- [x] 14.6-04-PLAN.md — seeder manifest + seed-regulatory.ts (pre-validation, dep-ordering, --validate-only) + tests [Wave 3]
 - [ ] 14.6-05-PLAN.md — [BLOCKING] live seed run + E2E (US retrieves E6R3; JP surfaces the (b) marker) [Wave 4]
 
 ---

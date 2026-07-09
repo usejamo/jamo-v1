@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 14.6-01-PLAN.md
-last_updated: "2026-07-09T19:39:56.113Z"
+stopped_at: Completed 14.6-04-PLAN.md
+last_updated: "2026-07-09T20:34:22.757Z"
 progress:
   total_phases: 30
   completed_phases: 24
   total_plans: 135
-  completed_plans: 130
-  percent: 96
+  completed_plans: 133
+  percent: 99
 ---
 
 ## Project Status
@@ -31,7 +31,7 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 
 ## Last Session
 
-**Stopped at:** Completed 14.6-01-PLAN.md
+**Stopped at:** Completed 14.6-04-PLAN.md
 **Session date:** 2026-07-09
 
 ## Roadmap Evolution
@@ -59,6 +59,7 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 - **Bulk substitution state shape (14.4-04):** `toolData.state` for `tool-substitute-placeholders` messages is `{ value, outcome, appliedBySection, skipped, editIdsBySection, resolved? }` — `editIdsBySection` (not present in `ProposeEditState`) is required so `onAcceptAll`/`onRejectAll` can fan `BATCH_ACCEPT_PENDING_EDITS`/`REJECT_PENDING_EDIT` across every affected section without re-deriving edit ids. Zero-match is suppressed at the top-level message-render branch (`isZeroMatchBulkSubstitution`) rather than by omitting the tool message — the message is still pushed/persisted, it just renders as null so no empty bordered card ever appears; the client-composed one-liner (a separate, unpersisted `chat`-type message) is what speaks for a zero-match run (R7).
 - **salesforce-oauth-initiate/disconnect JWT org (14.3-04):** Both functions are user-authenticated ONLY (no internal service-role caller per RESEARCH Q4), so both directly adopt `getAuthedUserAndOrg` with no branch — unlike 14.3-03's `retrieve-context`. Body `org_id` renamed to `body_org_id` in both handlers so it can never be mistaken for the trusted value; used only to detect and reject (403 'org mismatch') a tamper attempt. `signState(orgId, ...)` (CSRF state) + `oauth_pending` insert (initiate) and `salesforce_connections` lookup/delete + Vault revoke (disconnect) all bind to the JWT-derived org exclusively, closing T-14.3-13 (CSRF state forgeable for another org) and T-14.3-14 (cross-tenant disconnect/Vault-revoke hijack). Service-role clients unchanged (still used for the privileged Vault ops / oauth_pending insert). Live behavioral verification deferred to 14.3-05, matching plans 01–03's Deno-unavailable contingency.
 - **Two-step attribution lookup (14.2.4-04):** At propose_edit arrival, takeSnapshot (Map, direct propose_edit path) runs first; if null, falls back to activeTask?.originating_snapshot (ask-then-fill path — survived ask hop + reload). Direct propose_edit path invariant preserved.
+- **Starter-corpus seeder pre-validation + ordering (14.6-04):** `validateManifest` aggregates ALL failure classes (duplicate `documentKey`, missing folder/PDF, missing `supersedes` target, cyclic graph, plus a path-traversal guard on `folder` per threat T-14.6-08) into one report and returns `order:[]` on any failure — the CLI never spends an embedding call on an invalid batch. `topoSortBySupersedes` (Kahn's algorithm) computes dependency order independent of manifest array declaration order, doubling as cycle detection (indegree never reaches 0). `main(argv, entries?, docsRoot?)` takes overridable manifest/docsRoot params so Vitest can exercise the real CLI entrypoint end-to-end against `mkdtemp` fixtures (embedBatch mocked + spy-asserted not-called on invalid `--validate-only` runs) without touching `STARTER_MANIFEST` or requiring live env vars. `extractPdfText` duplicated (not imported) from `scripts/ingest-regulatory.ts` since it isn't exported there — matches the existing per-script `loadEnv()` duplication convention rather than a shared scripts/ utils module.
 - **Split RAG payload contract (14.6-01):** `GenerateSectionPayloadV2.ragChunks` (merged array) replaced with `regulatoryChunks: RagChunk[]`, `proposalChunks: RagChunk[]`, `regulatoryCount: number` — no merged alias kept, so every unthreaded call site surfaces a type error. `fetchRagChunks` returns the split object instead of `[...regulatory, ...proposal]`; `regulatoryCount` sourced from `retrievalMeta.regulatoryCount` (authoritative) with a fallback to `regulatoryChunks.length` only if `retrievalMeta` is absent. Both the `error` and `catch` early-returns in `fetchRagChunks` return the same symmetric zeroed shape (`{ regulatoryChunks: [], proposalChunks: [], regulatoryCount: 0 }`), preserving the non-blocking RAG behavior. Contract-half only (Plan 01 of 14.6) — the edge function (generate-proposal-section) still reads the old `ragChunks` field name until Plan 02 ships the edge half; they deploy together.
 - **Snapshot-in-cta_payload (14.2.4-04):** originating_snapshot embedded in cta_payload at CTA-click (not a new request-body field) so the edge reads it at ask_user dispatch time without wire changes.
 - **onSkip defer = discard path (14.2.4-04):** AskUserCard onSkip reuses exact stop-walkthrough/discard body (status:'discarded', NO resolved_items write — D-09 load-bearing invariant). Defer and queue-dismiss stay distinct terminal states.
@@ -241,6 +242,9 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 ### Phase 14.6: Regulatory Grounding Correctness + Ingest Hardening + Starter Corpus Seeder
 
 - **Plan 01** (2026-07-09): Split RAG payload contract (client half of the (b) fix) — `src/types/generation.ts` `GenerateSectionPayloadV2.ragChunks` (merged array) replaced with `regulatoryChunks`/`proposalChunks`/`regulatoryCount` (new exported `RagChunk` interface); `src/hooks/useProposalGeneration.ts` `fetchRagChunks` no longer merges `[...regulatory, ...proposal]` — returns the split object with `regulatoryCount` from `retrievalMeta.regulatoryCount`; `streamSection`/`generateAll`/`generateSection` thread the split through instead of the old merged field. `npm run build` clean, zero `ragChunks` tokens remain in either file. Edge half (Plan 02) still expects the old field name until it deploys together with this. Commits 501e508, 15529c5.
+- **Plan 02** (2026-07-09): Edge half of the (b) fix — `generate-proposal-section` gates the ICH-GCP compliance clause on `regulatoryCount > 0` and assembles a dual-header `[REGULATORY CONTEXT]`/`[PROPOSAL HISTORY]` prompt block (both `buildSectionPrompt` and the primary `buildSectionPromptV2`) instead of dumping merged chunks under one header. Deployed live as v18. Commits c3e2b68, b219b04, 0c51b0b.
+- **Plan 03** (2026-07-09): (a) sibling — `ingest_regulatory_document` RPC now `RAISE EXCEPTION`s when `p_supersedes_document_key` is passed but unresolved (previously a silent no-op fall-through); the `p_supersedes_document_key IS NULL` non-superseding path is unchanged (regression-verified so GLOBAL starter docs still ingest cleanly). Migration applied live via Supabase MCP `apply_migration`. Commits eed4927, 5718870.
+- **Plan 04** (2026-07-09): Starter-corpus seeder build (manifest + validator + ingest loop + tests — NO live run). `scripts/regulatory-starter-manifest.ts`: typed PROPOSAL `STARTER_MANIFEST` (5 ICH docs); `ICH-E6R3` scoped `{US,EU,UK}` NOT `GLOBAL` with the load-bearing rationale comment preserved verbatim. `scripts/seed-regulatory.ts`: `validateManifest` aggregates ALL failures (duplicate keys, missing folder/PDF, missing supersedes target, cycle, plus a path-traversal guard on `folder` per threat T-14.6-08) before any embedding/DB call; `topoSortBySupersedes` (Kahn's algorithm) computes dependency order independent of manifest array order; ingest loop reuses `embedBatch`/`chunkDocument`/`ingest_regulatory_document` RPC from `scripts/ingest-regulatory.ts` (extractPdfText duplicated, not exported there); `main(argv, entries?, docsRoot?)` overridable for testing; `--validate-only` exits after validation with zero embedding spend. `npm run seed:regulatory` script added; `regulatory-docs/**/*.pdf` gitignored. `scripts/seed-regulatory.test.ts`: 8 Vitest specs (mkdtemp fixtures) proving pre-validation hard-fails before `embedBatch` is ever called (spy-asserted) and ordering correctness; full suite 344/344 passing, no regressions. Live seed run deferred to Plan 05. Commits f5769fd, b18052b, 86bd765.
 
 ### Phase 14.4: Deterministic Multi-Section Substitution
 
