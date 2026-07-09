@@ -680,3 +680,22 @@ Plans:
 
 Plans:
 - [ ] TBD (promote with /gsd-review-backlog when ready)
+
+### Phase 999.3: Regulatory retrieval strategy for design-oriented sections (BACKLOG)
+
+**Goal:** Make a design-oriented proposal section (e.g. "Study Design") retrieve the semantically-appropriate regulatory grounding under the 0.65 cosine threshold. Surfaced during Phase 14.6 e2e (Plan 05, Task 3): the (b)+(a)+seeder chain is verified correct, but the specific "Study Design" case does not clear threshold — and the diagnosis is a genuine retrieval-strategy gap, NOT a query-construction defect.
+
+**Evidence (captured at 14.6 e2e, threshold = 0.65, geography=[US], org 00000000-...-0001):**
+- `buildRegulatoryQuery` correctly enriches — composed query was: `"Study Design — Phase 2 Oncology study of non-small cell lung cancer"` (sectionName + phase + TA + indication all present; NO collapse).
+- Top-10 candidates for that exact query (all filters relaxed, threshold lowered to 0 to expose scores):
+  - 0.5286 [ICH-E3], 0.5065 [ICH-E3], 0.4952 [ICH-E9], 0.4938 [ICH-E8R1], 0.4935 [ICH-E9], 0.4918 [ICH-M3R2], 0.4908 [ICH-E3], 0.4884 [ICH-M3R2], 0.4857 [ICH-M3R2], 0.4834 [ICH-M3R2].
+  - ICH-E6R3 (the GCP guideline) did NOT appear in the top 10; 0 rows cleared 0.65.
+  - For comparison, ICH-E6R3 scores 0.72–0.69 (clears 0.65, top-ranked) for GCP-phrased queries like "Good Clinical Practice requirements and responsibilities in clinical trial conduct" — so the seed is retrievable; the gap is section-query ↔ doc semantics.
+- Note: the nearest matches for "Study Design" are ICH-E9 (Statistical Principles) / E3 (Study Reports) design content — arguably the *correct* grounding for a design section, just below 0.65.
+
+**Explicitly NOT the fix:** do NOT globally lower `RETRIEVAL_SIMILARITY_THRESHOLD` (0.65) — that degrades precision everywhere. Candidate directions instead: section-type → doc-type/agency routing or per-section query templates; per-doc_type or adaptive thresholds; query expansion for GCP-relevant sections; reconsider whether "Study Design" should target E9/E3 rather than E6R3. Requires clinical-domain input on which guideline grounds which section.
+**Requirements:** TBD
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with /gsd-review-backlog when ready)
