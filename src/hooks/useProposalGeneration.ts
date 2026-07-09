@@ -8,6 +8,7 @@ import {
   SectionStatus,
   GenerateSectionPayloadV2,
   AnchorPayload,
+  RagChunk,
 } from '../types/generation'
 
 // ---------------------------------------------------------------------------
@@ -201,7 +202,7 @@ export async function fetchRagChunks(
   studyPhase?: string,
   geography?: string[],
   indication?: string
-): Promise<Array<{ content: string; doc_type: string; agency: string }>> {
+): Promise<{ regulatoryChunks: RagChunk[]; proposalChunks: RagChunk[]; regulatoryCount: number }> {
   try {
     const query = buildRegulatoryQuery({ sectionName, studyPhase, therapeuticArea, indication })
     const { data, error } = await supabase.functions.invoke('retrieve-context', {
@@ -209,14 +210,15 @@ export async function fetchRagChunks(
     })
     if (error) {
       console.warn('[useProposalGeneration] retrieve-context error:', error)
-      return []
+      return { regulatoryChunks: [], proposalChunks: [], regulatoryCount: 0 }
     }
-    const regulatory: Array<{ content: string; doc_type: string; agency: string }> = data?.regulatoryChunks ?? []
-    const proposal: Array<{ content: string; doc_type: string; agency: string }> = data?.proposalChunks ?? []
-    return [...regulatory, ...proposal]
+    const regulatoryChunks: RagChunk[] = data?.regulatoryChunks ?? []
+    const proposalChunks: RagChunk[] = data?.proposalChunks ?? []
+    const regulatoryCount: number = data?.retrievalMeta?.regulatoryCount ?? regulatoryChunks.length
+    return { regulatoryChunks, proposalChunks, regulatoryCount }
   } catch (err) {
     console.warn('[useProposalGeneration] fetchRagChunks failed:', err)
-    return []
+    return { regulatoryChunks: [], proposalChunks: [], regulatoryCount: 0 }
   }
 }
 
@@ -345,7 +347,7 @@ export function useProposalGeneration(proposalId: string) {
       priorSections: Array<{ id: string; name: string; content: string }>,
       anchor: string,
       proposalContext: GenerateSectionPayloadV2['proposalContext'],
-      ragChunks: GenerateSectionPayloadV2['ragChunks'],
+      rag: { regulatoryChunks: RagChunk[]; proposalChunks: RagChunk[]; regulatoryCount: number },
       debug?: boolean,
       signal?: AbortSignal
     ): Promise<string> => {
@@ -366,7 +368,9 @@ export function useProposalGeneration(proposalId: string) {
         sectionRole: section.role,
         priorSections,
         proposalContext,
-        ragChunks,
+        regulatoryChunks: rag.regulatoryChunks,
+        proposalChunks: rag.proposalChunks,
+        regulatoryCount: rag.regulatoryCount,
         tone: state.tone,
         consistencyAnchor: anchor,
         debug,
@@ -472,7 +476,7 @@ export function useProposalGeneration(proposalId: string) {
         let anchor = ''
 
         for (const section of sections) {
-          const ragChunks = await fetchRagChunks(
+          const rag = await fetchRagChunks(
             profile?.org_id ?? '',
             section.name,
             enrichedContext.studyInfo.therapeuticArea,
@@ -487,7 +491,7 @@ export function useProposalGeneration(proposalId: string) {
             completedSections,
             anchor,
             enrichedContext,
-            ragChunks,
+            rag,
             isDebug,
             abortController.signal
           )
@@ -540,7 +544,7 @@ export function useProposalGeneration(proposalId: string) {
         error: null,
       }
 
-      const ragChunks = await fetchRagChunks(
+      const rag = await fetchRagChunks(
         profile?.org_id ?? '',
         section.name,
         proposalContext.studyInfo.therapeuticArea,
@@ -555,7 +559,7 @@ export function useProposalGeneration(proposalId: string) {
         [],
         state.consistencyAnchor,
         proposalContext,
-        ragChunks
+        rag
       )
     },
     [proposalId, profile, streamSection, state.consistencyAnchor]
