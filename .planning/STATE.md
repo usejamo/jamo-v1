@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: ready_to_plan
-stopped_at: Completed 14.4-04-PLAN.md
-last_updated: "2026-07-08T22:34:46.375Z"
+status: unknown
+stopped_at: Completed 14.6-01-PLAN.md
+last_updated: "2026-07-09T19:39:56.113Z"
 progress:
-  total_phases: 28
+  total_phases: 30
   completed_phases: 24
-  total_plans: 130
-  completed_plans: 122
-  percent: 86
+  total_plans: 135
+  completed_plans: 130
+  percent: 96
 ---
 
 ## Project Status
@@ -31,8 +31,8 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 
 ## Last Session
 
-**Stopped at:** Completed 14.4-04-PLAN.md
-**Session date:** 2026-07-06
+**Stopped at:** Completed 14.6-01-PLAN.md
+**Session date:** 2026-07-09
 
 ## Roadmap Evolution
 
@@ -59,6 +59,7 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 - **Bulk substitution state shape (14.4-04):** `toolData.state` for `tool-substitute-placeholders` messages is `{ value, outcome, appliedBySection, skipped, editIdsBySection, resolved? }` — `editIdsBySection` (not present in `ProposeEditState`) is required so `onAcceptAll`/`onRejectAll` can fan `BATCH_ACCEPT_PENDING_EDITS`/`REJECT_PENDING_EDIT` across every affected section without re-deriving edit ids. Zero-match is suppressed at the top-level message-render branch (`isZeroMatchBulkSubstitution`) rather than by omitting the tool message — the message is still pushed/persisted, it just renders as null so no empty bordered card ever appears; the client-composed one-liner (a separate, unpersisted `chat`-type message) is what speaks for a zero-match run (R7).
 - **salesforce-oauth-initiate/disconnect JWT org (14.3-04):** Both functions are user-authenticated ONLY (no internal service-role caller per RESEARCH Q4), so both directly adopt `getAuthedUserAndOrg` with no branch — unlike 14.3-03's `retrieve-context`. Body `org_id` renamed to `body_org_id` in both handlers so it can never be mistaken for the trusted value; used only to detect and reject (403 'org mismatch') a tamper attempt. `signState(orgId, ...)` (CSRF state) + `oauth_pending` insert (initiate) and `salesforce_connections` lookup/delete + Vault revoke (disconnect) all bind to the JWT-derived org exclusively, closing T-14.3-13 (CSRF state forgeable for another org) and T-14.3-14 (cross-tenant disconnect/Vault-revoke hijack). Service-role clients unchanged (still used for the privileged Vault ops / oauth_pending insert). Live behavioral verification deferred to 14.3-05, matching plans 01–03's Deno-unavailable contingency.
 - **Two-step attribution lookup (14.2.4-04):** At propose_edit arrival, takeSnapshot (Map, direct propose_edit path) runs first; if null, falls back to activeTask?.originating_snapshot (ask-then-fill path — survived ask hop + reload). Direct propose_edit path invariant preserved.
+- **Split RAG payload contract (14.6-01):** `GenerateSectionPayloadV2.ragChunks` (merged array) replaced with `regulatoryChunks: RagChunk[]`, `proposalChunks: RagChunk[]`, `regulatoryCount: number` — no merged alias kept, so every unthreaded call site surfaces a type error. `fetchRagChunks` returns the split object instead of `[...regulatory, ...proposal]`; `regulatoryCount` sourced from `retrievalMeta.regulatoryCount` (authoritative) with a fallback to `regulatoryChunks.length` only if `retrievalMeta` is absent. Both the `error` and `catch` early-returns in `fetchRagChunks` return the same symmetric zeroed shape (`{ regulatoryChunks: [], proposalChunks: [], regulatoryCount: 0 }`), preserving the non-blocking RAG behavior. Contract-half only (Plan 01 of 14.6) — the edge function (generate-proposal-section) still reads the old `ragChunks` field name until Plan 02 ships the edge half; they deploy together.
 - **Snapshot-in-cta_payload (14.2.4-04):** originating_snapshot embedded in cta_payload at CTA-click (not a new request-body field) so the edge reads it at ask_user dispatch time without wire changes.
 - **onSkip defer = discard path (14.2.4-04):** AskUserCard onSkip reuses exact stop-walkthrough/discard body (status:'discarded', NO resolved_items write — D-09 load-bearing invariant). Defer and queue-dismiss stay distinct terminal states.
 - **Gap analyzer excerpt (14.2.3-01):** Full section content sent to Haiku up to a 5000-char ceiling; over-ceiling sections cut + clearly-meta end-marker `[…section truncated for length…]`. 300-char slice removed. Single Haiku call preserved.
@@ -237,7 +238,9 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 - **Plan 01** (2026-05-20): useGapAnalysisTrigger hook — D-30 Realtime subscription on proposal_sections (debounced 3s, full-section refetch, content-hash skip), D-35 on-mount fire when no prior chat_sessions row exists, HTTP 429 treated as expected silence. 7/7 Vitest specs pass. Commits 1e051b4, 21fe0ae, ce964a3.
 - **Plan 02** (2026-05-20): Wire useGapAnalysisTrigger into AIChatPanel — removed dead `void triggerAnalysis` stub plus orphaned inline useCallback and unused `isAnalyzing` state. tsc clean for the touched file. Manual D-30/D-35/429 live smoke deferred to human-verify pass (requires running dev server + authed user). Commits 600fcc0, ad9249c.
 
-**Planned Phase:** 14.5 (RAG Retrieval Overhaul + Regulatory Corpus Foundation) — 7 plans — 2026-07-08T22:07:36.824Z
+### Phase 14.6: Regulatory Grounding Correctness + Ingest Hardening + Starter Corpus Seeder
+
+- **Plan 01** (2026-07-09): Split RAG payload contract (client half of the (b) fix) — `src/types/generation.ts` `GenerateSectionPayloadV2.ragChunks` (merged array) replaced with `regulatoryChunks`/`proposalChunks`/`regulatoryCount` (new exported `RagChunk` interface); `src/hooks/useProposalGeneration.ts` `fetchRagChunks` no longer merges `[...regulatory, ...proposal]` — returns the split object with `regulatoryCount` from `retrievalMeta.regulatoryCount`; `streamSection`/`generateAll`/`generateSection` thread the split through instead of the old merged field. `npm run build` clean, zero `ragChunks` tokens remain in either file. Edge half (Plan 02) still expects the old field name until it deploys together with this. Commits 501e508, 15529c5.
 
 ### Phase 14.4: Deterministic Multi-Section Substitution
 
