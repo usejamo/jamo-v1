@@ -34,6 +34,13 @@ export type GenerationAction =
   | { type: 'CREDITS_EXHAUSTED' }
   | { type: 'RESET' }
 
+export interface RagChunk {
+  content: string
+  source: string
+  agency?: string
+  doc_type?: string
+}
+
 /** V2 payload for generate-proposal-section Edge Function (D-09) */
 export interface GenerateSectionPayloadV2 {
   version: 2
@@ -60,7 +67,9 @@ export interface GenerateSectionPayloadV2 {
     assumptions: Array<{ category: string; value: string; confidence: string }>
     services: string[]
   }
-  ragChunks: Array<{ content: string; doc_type: string; agency: string }>
+  regulatoryChunks: RagChunk[]
+  proposalChunks: RagChunk[]
+  regulatoryCount: number
   tone: ToneOption
   consistencyAnchor?: string             // retained as safety net alongside priorSections
   debug?: boolean
