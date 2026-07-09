@@ -17,7 +17,11 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { resolve, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { createClient } from '@supabase/supabase-js'
+import { PDFParse } from 'pdf-parse'
 import { STARTER_MANIFEST, type ManifestEntry } from './regulatory-starter-manifest'
+import { embedBatch } from './ingest-regulatory'
+import { chunkDocument } from '../src/lib/chunker'
 
 export const DEFAULT_DOCS_ROOT = 'regulatory-docs'
 
@@ -168,12 +172,133 @@ function loadEnv(): Record<string, string> {
   return out
 }
 
+// ---- PDF text extraction (pdf-parse v2 class API — mirrors scripts/ingest-regulatory.ts) ----
+async function extractPdfText(path: string): Promise<string> {
+  const buffer = readFileSync(path)
+  const parser = new PDFParse({ data: buffer })
+  try {
+    const result = await parser.getText()
+    return result.text
+  } finally {
+    await parser.destroy()
+  }
+}
+
+interface IngestEnv {
+  supabaseUrl: string
+  serviceKey: string
+  openaiKey: string
+}
+
+/**
+ * Ingest a single manifest entry: read its PDFs, chunk, embed (reused embedBatch — never
+ * re-implemented), and write atomically via the ingest_regulatory_document RPC. Throws on any failure
+ * (including an RPC raise, e.g. an unresolved --supersedes target) so the caller can abort the whole
+ * run and report which entry failed — all-or-nothing at the batch level.
+ */
+async function ingestEntry(entry: ManifestEntry, docsRoot: string, env: IngestEnv): Promise<void> {
+  const folder = entry.folder ?? entry.documentKey
+  const dir = join(docsRoot, folder)
+  const pdfFiles = readdirSync(dir)
+    .filter((f) => f.toLowerCase().endsWith('.pdf'))
+    .sort()
+  if (pdfFiles.length === 0) {
+    throw new Error(`No PDF files found for '${entry.documentKey}' in ${dir}`)
+  }
+
+  console.log(
+    `Ingesting '${entry.documentKey}' (agency=${entry.agency}, geography=${entry.geography.join(',')})` +
+      `${entry.supersedes ? ` supersedes=${entry.supersedes}` : ''}`,
+  )
+
+  const allChunks: Array<{ content: string; sectionRef?: string; tokenCount: number; source: string }> = []
+  for (const filename of pdfFiles) {
+    const text = await extractPdfText(join(dir, filename))
+    const chunks = chunkDocument(text, filename)
+    console.log(`  ${filename}: ${chunks.length} chunk(s)`)
+    for (const c of chunks) {
+      allChunks.push({ content: c.content, sectionRef: c.sectionRef, tokenCount: c.tokenCount, source: filename })
+    }
+  }
+
+  const primaryFilename = pdfFiles[0]
+  const embeddings = await embedBatch(allChunks.map((c) => c.content), env.openaiKey)
+  if (embeddings.length !== allChunks.length) {
+    throw new Error(
+      `Embedding count mismatch for '${entry.documentKey}': ${embeddings.length} != ${allChunks.length}`,
+    )
+  }
+
+  const pChunks = allChunks.map((c, i) => ({
+    content: c.content,
+    embedding: embeddings[i],
+    guideline_type: c.sectionRef ?? null,
+    source: c.source,
+    token_count: c.tokenCount,
+  }))
+
+  const supabase = createClient(env.supabaseUrl, env.serviceKey, { auth: { persistSession: false } })
+
+  const { data, error } = await supabase.rpc('ingest_regulatory_document', {
+    p_document_key: entry.documentKey,
+    p_title: entry.title,
+    p_agency: entry.agency,
+    p_therapeutic_area: entry.therapeuticArea ?? null,
+    p_phase: entry.phase ?? null,
+    p_geography: entry.geography,
+    p_effective_date: entry.effectiveDate ?? null,
+    p_status: entry.status ?? 'active',
+    p_source: primaryFilename,
+    p_supersedes_document_key: entry.supersedes ?? null,
+    p_chunks: pChunks,
+  })
+
+  if (error) {
+    throw new Error(`ingest_regulatory_document RPC error for '${entry.documentKey}': ${error.message}`)
+  }
+
+  console.log(`  Done. regulatory_documents.id = ${data} (${pChunks.length} chunk(s) written).`)
+}
+
+/**
+ * Runs the ingest loop over the pre-validated, dependency-ordered entries. All-or-nothing: aborts on
+ * the first entry that fails (including an RPC raise) and lets the caller report the failure and exit
+ * non-zero — never continues past a failed entry.
+ */
+async function runIngest(order: ManifestEntry[], docsRoot: string): Promise<void> {
+  const env = loadEnv()
+  const supabaseUrl = env.VITE_SUPABASE_URL || env.SUPABASE_URL
+  const serviceKey = env.SUPABASE_SERVICE_ROLE_KEY
+  const openaiKey = env.OPENAI_API_KEY
+
+  if (!supabaseUrl || !serviceKey) {
+    throw new Error('Missing VITE_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY')
+  }
+  if (!openaiKey) {
+    throw new Error('Missing OPENAI_API_KEY')
+  }
+
+  for (const entry of order) {
+    await ingestEntry(entry, docsRoot, { supabaseUrl, serviceKey, openaiKey })
+  }
+
+  console.log(`\nSeed complete. ${order.length} document(s) ingested in dependency order.`)
+}
+
 // ---- CLI entrypoint ----
 
-export async function main(argv: string[] = process.argv.slice(2)) {
+/**
+ * `entries`/`docsRoot` are overridable so tests can exercise main() against fixture manifests without
+ * touching STARTER_MANIFEST or the real regulatory-docs/ tree.
+ */
+export async function main(
+  argv: string[] = process.argv.slice(2),
+  entries: ManifestEntry[] = STARTER_MANIFEST,
+  docsRoot: string = DEFAULT_DOCS_ROOT,
+) {
   const validateOnly = argv.includes('--validate-only')
 
-  const { ok, errors, order } = validateManifest(STARTER_MANIFEST, DEFAULT_DOCS_ROOT)
+  const { ok, errors, order } = validateManifest(entries, docsRoot)
 
   if (!ok) {
     console.error(`Manifest pre-validation FAILED (${errors.length} error(s)) — no embedding or DB call made:`)
@@ -190,13 +315,7 @@ export async function main(argv: string[] = process.argv.slice(2)) {
     return
   }
 
-  const env = loadEnv()
-  // TODO(Task 3): non-validate ingest path — for each entry in `order`, read
-  // regulatory-docs/<folder ?? documentKey>/*.pdf, extractPdfText -> chunkDocument -> embedBatch ->
-  // supabase.rpc('ingest_regulatory_document', ...). All-or-nothing per entry; abort non-zero if the
-  // RPC raises. Reuses embedBatch/chunkDocument from scripts/ingest-regulatory.ts and src/lib/chunker.ts.
-  void env
-  console.log('Ingest loop not yet implemented in this task (pre-validation only). See Task 3.')
+  await runIngest(order, docsRoot)
   process.exit(0)
 }
 
