@@ -298,11 +298,15 @@ describe('fetchRagChunks', () => {
         geography: ['US', 'EU'],
       },
     })
-    expect(result).toHaveLength(1)
-    expect(result[0].content).toBe('chunk1')
+    // fetchRagChunks now returns the split object (Plan 14.6-01), not a merged array.
+    // regulatoryCount falls back to regulatoryChunks.length when retrievalMeta is absent.
+    expect(result.regulatoryChunks).toHaveLength(1)
+    expect(result.regulatoryChunks[0].content).toBe('chunk1')
+    expect(result.proposalChunks).toEqual([])
+    expect(result.regulatoryCount).toBe(1)
   })
 
-  it('returns empty array on retrieve-context error', async () => {
+  it('returns the zeroed split on retrieve-context error', async () => {
     const { supabase } = await import('../lib/supabase')
     const invokeMock = vi.mocked(supabase.functions.invoke)
     invokeMock.mockResolvedValueOnce({
@@ -311,7 +315,7 @@ describe('fetchRagChunks', () => {
     })
 
     const result = await fetchRagChunks('org-1', 'understanding', 'Oncology')
-    expect(result).toEqual([])
+    expect(result).toEqual({ regulatoryChunks: [], proposalChunks: [], regulatoryCount: 0 })
   })
 })
 
