@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "test:run": "vitest run",
     "test:watch": "vitest",
-    "db:types": "npx supabase gen types typescript --linked > src/types/database.types.ts"
+    "db:types": "npx supabase gen types typescript --linked > src/types/database.types.ts",
+    "seed:regulatory": "npx tsx scripts/seed-regulatory.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",

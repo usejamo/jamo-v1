@@ -39,3 +39,6 @@ supabase/.temp
 
 # Playwright test results
 test-results/
+
+# Regulatory starter-corpus PDFs (operator-supplied; folder structure documented, not the binaries)
+regulatory-docs/**/*.pdf
