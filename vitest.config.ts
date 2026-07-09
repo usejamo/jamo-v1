@@ -25,7 +25,18 @@ export default defineConfig({
   test: {
     environment: 'happy-dom',
     setupFiles: ['./src/test/setup.ts'],
-    exclude: ['**/node_modules/**', '**/e2e/**', 'supabase/**'],
+    // supabase/** holds Deno-runtime edge functions with their own Deno.test suites
+    // (test.ts, __tests__/*.test.ts) that cannot run under Vitest/Node — exclude the
+    // tree broadly, but carve out promptAssembly.test.ts, which is a pure Vitest spec
+    // for the Node-importable supabase/functions/generate-proposal-section/promptAssembly.ts.
+    exclude: [
+      '**/node_modules/**',
+      '**/e2e/**',
+      'supabase/migrations/**',
+      'supabase/tests/**',
+      'supabase/functions/!(generate-proposal-section)/**',
+      'supabase/functions/generate-proposal-section/!(promptAssembly.test).*',
+    ],
     globals: true,
     pool: 'forks',
     poolOptions: {
