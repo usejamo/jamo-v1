@@ -651,3 +651,12 @@ Phase 13 (Dashboard)   ─── Depends on Phase 1 (Supabase data)
 
 Plans:
 - [x] 999.1-01-PLAN.md — JSONB migration + ComplianceFlagDB type + persistFlags DB upsert at all 4 dispatch sites
+
+### Phase 999.2: Per-geography (regional) supersession status for regulatory_documents (BACKLOG)
+
+**Goal:** Make regulatory supersession express per-geography instead of globally. Today `regulatory_documents.status` is a single global field and the retrieval RPC always filters `status='active'`, so a document is either "current everywhere" or "dead everywhere" — the mechanism cannot model staggered regional adoption (e.g. ICH E6(R3) active in US/EU/UK while R2 remains active in Japan/PMDA). Current workaround: model divergent versions as independent `active` docs with disjoint `geography` arrays and no supersedes link, which loses lineage and the single-active-per-key guarantee. Real fix: a geography-scoped supersession status (status/effective scoped by region, or a geography-keyed supersession record) so the mechanism directly models regional timelines. Framed generally — the next staggered-adoption guideline hits the same rock. Deferred, not eliminated.
+**Requirements:** TBD
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with /gsd-review-backlog when ready)
