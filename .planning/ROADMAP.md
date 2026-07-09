@@ -587,6 +587,20 @@ Plans:
 
 ---
 
+### Phase 14.6: Regulatory Grounding Correctness + Ingest Hardening + Starter Corpus Seeder (INSERTED)
+
+**Goal:** Fix a live regulatory-grounding correctness bug, harden the ingest supersession contract, and add a one-command starter-corpus seeder — **in that priority order**. PRIMARY (b): the RAG tier-collapse in `fetchRagChunks` (flattens `regulatoryChunks`+`proposalChunks` into one array and drops `retrievalMeta`) causes proposal-history chunks to be mislabeled as `[REGULATORY CONTEXT]` and zero-regulatory-retrieval to be silently swallowed. The ROOT fix is keeping the two tiers separate through to `generate-proposal-section`; both symptoms are downstream of the collapse. Once `regulatoryCount` survives, make the ICH-GCP compliance assertion CONDITIONAL on `regulatoryCount>0` (today it asserts compliance unconditionally — contradictory input when ungrounded, and the assertion wins). SIBLING (a): `ingest_regulatory_document` must RAISE when `--supersedes` is passed but unresolved (currently a silent no-op via the `IF v_supersedes_id IS NOT NULL` fall-through) — raise condition is "supersedes passed AND unresolved", explicitly NOT "v_supersedes_id IS NULL" (which would break every non-superseding ingest, incl. all GLOBAL starter docs). THIRD: `scripts/seed-regulatory.ts` + `npm run seed:regulatory` over a manifest + `regulatory-docs/<document-key>/` folder convention, with topological supersedes ordering and a batch pre-validation pass before any embedding spend; E6 seeded R3-only scoped `{US,EU,UK}` (NOT GLOBAL, with a manifest comment explaining why), all other starter docs GLOBAL. The proposed default manifest is gated on clinical-domain review before locking. Authoritative spec: **14.6-BRIEF.md**.
+
+**Requirements covered:** see 14.6-BRIEF.md — RAG tier-separation fix (root); conditional compliance assertion; ingest supersedes-unresolved raise; starter-corpus seeder (manifest + folders + topo-order + pre-validation); E6 regional scoping
+
+**Depends on:** Phase 14.5 (RAG Retrieval Overhaul — schema, RPCs, retrieve-context, ported ingest CLI). Related: Backlog 999.2 (per-geography supersession) is the deferred general fix this phase deliberately works around, not a dependency.
+
+**Out of scope:** per-geography/regional supersession status (deferred to backlog 999.2); modality/recency ranking; auto-download of regulatory PDFs; locking the default manifest contents (requires clinical-domain review)
+
+**Plans:** Not planned yet
+
+---
+
 ### Phase 15: Client Onboarding & Provisioning
 
 **Goal:** Replace the interim demo signup with a sales-led, invite-only provisioning flow. Public signup stays permanently disabled; an admin (us) provisions each client org and invites the client's first admin by email via Supabase `auth.admin` invite — the invitee follows the link and sets their own password. That org admin can then invite their own teammates (roles: super admin / admin / user). Includes an org-creation flow, production SMTP/email config in Supabase (invites + password resets; `mailer_autoconfirm` off), and a lightweight internal admin surface (panel or script/edge function) to provision clients without manual DB edits. Server-bound identity integrity (invitee cannot self-assign org/role) is in scope; the broader edge-function JWT identity cleanup was split into Phase 14.3 (its prerequisite gate).
