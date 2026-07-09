@@ -24,7 +24,7 @@ const SECTION_NAMES: Record<string, string> = {
 
 const CRO_PROPOSAL_SYSTEM_PROMPT = `You are a senior proposal strategist at a leading Contract Research Organization (CRO) with 20+ years of experience writing winning proposals for pharmaceutical, biotechnology, and medical device sponsors. You have deep expertise across all clinical trial phases (Phase I–IV), therapeutic areas, and global regulatory environments (FDA, EMA, PMDA, NMPA, Health Canada, TGA, etc.).
 
-Your task is to generate a comprehensive, polished, sponsor-ready CRO proposal in response to the provided RFP materials, study details, and organizational context. The proposal must be persuasive, technically rigorous, compliant with ICH-GCP (E6 R2/R3), and tailored to the sponsor's specific needs.
+Your task is to generate a comprehensive, polished, sponsor-ready CRO proposal in response to the provided RFP materials, study details, and organizational context. The proposal must be persuasive, technically rigorous, and tailored to the sponsor's specific needs.
 
 ## WRITING STYLE & TONE
 
@@ -32,7 +32,7 @@ Your task is to generate a comprehensive, polished, sponsor-ready CRO proposal i
 - Sponsor-centric — frame everything in terms of value to the sponsor
 - Specific and quantified — use metrics, timelines, and concrete examples
 - Consultative — offer strategic recommendations beyond what was asked
-- Compliant — reference ICH-GCP, FDA/EMA guidance naturally
+- Grounded — reference applicable regulatory guidance only when it is provided in [REGULATORY CONTEXT]; never assert compliance that is not grounded there
 - Concise but thorough — every sentence earns its place
 - Confident but not arrogant — honest about complexities
 - Action-oriented — active voice, "we will" not "can be done"
@@ -58,6 +58,9 @@ Rules:
 - NEVER include preamble like "Here is the section:" or meta-commentary
 - NEVER wrap output in \`\`\`html code fences
 - Start the response directly with the first HTML tag`
+
+// Appended only when regulatoryCount > 0 — see gating at each builder's system-prompt assembly.
+const COMPLIANCE_CLAUSE = ' The proposal must be compliant with ICH-GCP (E6 R2/R3) and reference FDA/EMA guidance where grounded.'
 
 // ============================================================================
 // HELPERS
@@ -115,7 +118,9 @@ function placeholderPatternToSpan(label: string, id: string): string {
 export function buildSectionPrompt(params: {
   sectionId: string
   tone: string
-  ragChunks: Array<{ content: string; doc_type?: string; agency?: string }>
+  regulatoryChunks: Array<{ content: string; source: string; agency?: string; doc_type?: string }>
+  proposalChunks: Array<{ content: string; source: string; agency?: string; doc_type?: string }>
+  regulatoryCount: number
   anchor: string
   proposalInput: {
     studyInfo?: Record<string, string>
@@ -126,10 +131,10 @@ export function buildSectionPrompt(params: {
     sections: Array<{ name: string; role: string | null; description?: string | null }>
   }
 }): { system: string; userMessage: string } {
-  const { sectionId, tone, ragChunks, anchor, proposalInput } = params
+  const { sectionId, tone, regulatoryChunks, proposalChunks, regulatoryCount, anchor, proposalInput } = params
   const sectionName = SECTION_NAMES[sectionId] || sectionId
 
-  let system = CRO_PROPOSAL_SYSTEM_PROMPT
+  let system = CRO_PROPOSAL_SYSTEM_PROMPT + (regulatoryCount > 0 ? COMPLIANCE_CLAUSE : '')
 
   system += `\n\nIMPORTANT: Generate ONLY the "${sectionName}" section.\nTone for this section: ${tone}.\n\nCRITICAL RULE: When specific information is not available, use [PLACEHOLDER: description of what's needed] markers. NEVER invent specific numbers, dates, or names.`
 
@@ -137,8 +142,16 @@ export function buildSectionPrompt(params: {
     system += `\n\n## CONSISTENCY ANCHOR (summary of prior sections):\n${anchor}`
   }
 
-  if (ragChunks && ragChunks.length > 0) {
-    system += `\n\n[REGULATORY CONTEXT]\n${ragChunks.map((c) => c.content).join('\n---\n')}\n[/REGULATORY CONTEXT]`
+  const regSection = regulatoryChunks.length > 0
+    ? regulatoryChunks.map((c) => `[${c.source}] ${c.content}`).join('\n---\n')
+    : '(No relevant regulatory context found)'
+  const propSection = proposalChunks.length > 0
+    ? proposalChunks.map((c) => `[${c.source}] ${c.content}`).join('\n---\n')
+    : '(No relevant proposal history found)'
+  system += `\n\n[REGULATORY CONTEXT]\n${regSection}\n[/REGULATORY CONTEXT]`
+  system += `\n\n[PROPOSAL HISTORY]\n${propSection}\n[/PROPOSAL HISTORY]`
+  if (regulatoryCount === 0) {
+    system += `\n\n[NOTE] No regulatory grounding available for this section/geography — do not assert regulatory compliance; flag unresolved items with [PLACEHOLDER].`
   }
 
   if (params.templateContext?.sections?.length) {
@@ -201,7 +214,9 @@ export function buildSectionPromptV2(params: {
   sectionDescription: string | null
   sectionRole: string | null
   tone: string
-  ragChunks: Array<{ content: string; doc_type?: string; agency?: string }>
+  regulatoryChunks: Array<{ content: string; source: string; agency?: string; doc_type?: string }>
+  proposalChunks: Array<{ content: string; source: string; agency?: string; doc_type?: string }>
+  regulatoryCount: number
   consistencyAnchor?: string
   priorSections: Array<{ id: string; name: string; content: string }>
   proposalContext: {
@@ -210,7 +225,7 @@ export function buildSectionPromptV2(params: {
     services?: string[]
   }
 }): { system: string; userMessage: string } {
-  const { sectionName, sectionDescription, sectionRole, tone, ragChunks, consistencyAnchor, priorSections, proposalContext } = params
+  const { sectionName, sectionDescription, sectionRole, tone, regulatoryChunks, proposalChunks, regulatoryCount, consistencyAnchor, priorSections, proposalContext } = params
 
   // Role-based tone/structure hints (soft signal only — does NOT override content scope)
   const roleHints: Record<string, string> = {
@@ -218,11 +233,13 @@ export function buildSectionPromptV2(params: {
     cover_letter: 'Write as a formal business letter. Keep under 1 page. Reference the sponsor by name. Express genuine enthusiasm and commitment.',
     budget: 'Organize as a structured financial breakdown. Use tables. Include payment milestone assumptions. Align all line items with scope of work.',
     timeline: 'Include a visual Gantt-style description. Reference specific milestones, durations, and dependencies. All dates must be internally consistent.',
-    regulatory_strategy: 'Reference specific ICH-GCP guidelines (E6 R2/R3), FDA/EMA guidance, and regional considerations relevant to the therapeutic area.',
+    regulatory_strategy: regulatoryCount > 0
+      ? 'Reference specific ICH-GCP guidelines (E6 R2/R3) and FDA/EMA guidance only where grounded in the provided [REGULATORY CONTEXT].'
+      : 'No regulatory grounding is available for this section/geography. Do NOT reference or assert ICH-GCP, E6, or FDA/EMA compliance for this section. Flag any unresolved regulatory items with [PLACEHOLDER] per the CRITICAL RULES; never fabricate.',
     understanding: 'Demonstrate deep comprehension of the sponsor\'s study. Reference protocol specifics and therapeutic context. This is your credibility section.',
   }
 
-  let system = CRO_PROPOSAL_SYSTEM_PROMPT
+  let system = CRO_PROPOSAL_SYSTEM_PROMPT + (regulatoryCount > 0 ? COMPLIANCE_CLAUSE : '')
 
   system += `\n\nIMPORTANT: Generate ONLY the "${sectionName}" section.`
 
@@ -249,8 +266,18 @@ export function buildSectionPromptV2(params: {
     system += `\n\n[PRIOR SECTIONS — for consistency]\n${priorContext}\n[/PRIOR SECTIONS]`
   }
 
-  if (ragChunks && ragChunks.length > 0) {
-    system += `\n\n[REGULATORY CONTEXT]\n${ragChunks.map((c) => c.content).join('\n---\n')}\n[/REGULATORY CONTEXT]`
+  {
+    const regSection = regulatoryChunks.length > 0
+      ? regulatoryChunks.map((c) => `[${c.source}] ${c.content}`).join('\n---\n')
+      : '(No relevant regulatory context found)'
+    const propSection = proposalChunks.length > 0
+      ? proposalChunks.map((c) => `[${c.source}] ${c.content}`).join('\n---\n')
+      : '(No relevant proposal history found)'
+    system += `\n\n[REGULATORY CONTEXT]\n${regSection}\n[/REGULATORY CONTEXT]`
+    system += `\n\n[PROPOSAL HISTORY]\n${propSection}\n[/PROPOSAL HISTORY]`
+    if (regulatoryCount === 0) {
+      system += `\n\n[NOTE] No regulatory grounding available for this section/geography — do not assert regulatory compliance; flag unresolved items with [PLACEHOLDER].`
+    }
   }
 
   // Build user message
@@ -394,7 +421,9 @@ serve(async (req) => {
     const {
       proposalId,
       sectionId,
-      ragChunks,
+      regulatoryChunks,
+      proposalChunks,
+      regulatoryCount,
       tone,
       debug,
     } = body
@@ -446,7 +475,9 @@ serve(async (req) => {
           sectionDescription,
           sectionRole,
           tone: tone || 'formal',
-          ragChunks: ragChunks || [],
+          regulatoryChunks: regulatoryChunks || [],
+          proposalChunks: proposalChunks || [],
+          regulatoryCount: regulatoryCount ?? 0,
           consistencyAnchor,
           priorSections,
           proposalContext,
@@ -454,7 +485,9 @@ serve(async (req) => {
       : buildSectionPrompt({
           sectionId,
           tone: tone || 'formal',
-          ragChunks: ragChunks || [],
+          regulatoryChunks: regulatoryChunks || [],
+          proposalChunks: proposalChunks || [],
+          regulatoryCount: regulatoryCount ?? 0,
           anchor: consistencyAnchor || '',
           proposalInput: proposalContext,
           templateContext,
