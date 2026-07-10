@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: ready_to_plan
+status: unknown
 stopped_at: Completed 14.6-04-PLAN.md
-last_updated: "2026-07-09T20:34:22.757Z"
+last_updated: "2026-07-10T21:15:06.415Z"
 progress:
-  total_phases: 30
+  total_phases: 32
   completed_phases: 25
-  total_plans: 135
-  completed_plans: 133
-  percent: 83
+  total_plans: 142
+  completed_plans: 134
+  percent: 94
 ---
 
 ## Project Status
@@ -258,3 +258,5 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 
 - **Plan 01** (2026-06-11): Wave 0 Nyquist test stubs — 4 it.skip stub files created: enum-sync.test.ts (AC-3, 2 stubs), useResolvedItemsWriteOnTerminal.askThenFill.test.ts (AC-4/AC-9, 2 stubs), activeTaskShape.test.ts (D-01 shape invariant, 1 stub), AskUserCard.skip.test.tsx (AC-9 skip button, 3 stubs). No production code touched. Suite green (pre-existing SectionEditorBlock failures unrelated). Commits bb22d1b, cfff3a1.
 - **Plan 04** (2026-06-11): Client ask_user branch + defer affordance — onCtaClick ask_user branch (focus via _onSectionFocusChange, originating_snapshot in cta_payload, description in message text); two-step attribution fallback at propose_edit arrival (Map first, then activeTask?.originating_snapshot); AskUserCard onSkip defer button ("I don't have this yet") wired to discard path; AC-4 + AC-9-card-01/02/03 + AC-9-hook all green. Commits e214403, 0dcffdc, 272ff0f, dc75677.
+
+**Planned Phase:** 14.7 (proposal-history-scoping) — 7 plans — 2026-07-10T21:03:08.291Z
