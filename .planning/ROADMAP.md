@@ -607,6 +607,20 @@ Plans:
 
 ---
 
+### Phase 14.7: Proposal-History Scoping (INSERTED)
+
+**Goal:** Deploy-first confidentiality fix. Proposal-document chunks are org-scoped, not proposal-scoped — the proposal RPCs filter `WHERE org_id = org_id_filter` only and `chunks` has no `proposal_id` column, so at generation the `[PROPOSAL HISTORY]` tier returns top-K similar proposal chunks across the whole org. Documents uploaded for Proposal A can surface while generating Proposal B in the same org (a CRO serving competing sponsors → Sponsor A's confidential in-flight RFP bleeds into Sponsor B's draft). Blast radius is within-org only; cross-org isolation (org_id + RLS) is intact. Verified context: the current proposal's own doc content ALREADY reaches generation proposal-scoped via the assumptions channel (`extract-assumptions` → `proposal_assumptions.proposal_id` → `proposalContext.assumptions`); raw full-text reaches generation ONLY via the org-wide RAG proposal tier — so the tier's legitimate job is cross-proposal HISTORY, and the fix is to SCOPE it, not remove it. Scope `[PROPOSAL HISTORY]` = (current proposal's own chunks, ANY status) ∪ (OTHER proposals' chunks only where non-draft AND eligible). Draft is a hard floor: no other proposal's draft is ever retrievable — no toggle, override, or opt-in past it. Eligibility layered on top: per-proposal `reference_override` (true/false) else org master switches (won=on, submitted=off, lost=off by default). Add a real `proposal_id` column on `chunks` as the single source of truth (set at ingest in `extract-document`; one-time backfill via `metadata.document_id → proposal_documents.proposal_id`, fail-closed with an unresolvable-count report); NULL `proposal_id` is never retrievable on the proposal tier (fail-closed, not org-wide). Thread `current_proposal_id` client → `retrieve-context` → both proposal RPCs. Authoritative spec: **14.7-BRIEF.md**.
+
+**Requirements covered:** see 14.7-BRIEF.md — per-proposal retrieval scoping; draft-floor invariant (never-retrievable); status-gated cross-proposal history (master switches + per-proposal override); `chunks.proposal_id` schema + fail-closed backfill; proposalId threading through client/edge/RPC; settings UI for org master switches + per-proposal reference control.
+
+**Depends on:** Phase 14.6 (RAG tier separation — the `[PROPOSAL HISTORY]` tier and split payload this phase scopes).
+
+**Out of scope:** any draft opt-in mechanism (deliberately cut); any change to regulatory retrieval/tiering or the 14.6 work; any change to the assumptions channel (`proposal_assumptions`); ranking/threshold changes (that's backlog 999.3).
+
+**Plans:** not planned yet
+
+---
+
 ### Phase 15: Client Onboarding & Provisioning
 
 **Goal:** Replace the interim demo signup with a sales-led, invite-only provisioning flow. Public signup stays permanently disabled; an admin (us) provisions each client org and invites the client's first admin by email via Supabase `auth.admin` invite — the invitee follows the link and sets their own password. That org admin can then invite their own teammates (roles: super admin / admin / user). Includes an org-creation flow, production SMTP/email config in Supabase (invites + password resets; `mailer_autoconfirm` off), and a lightweight internal admin surface (panel or script/edge function) to provision clients without manual DB edits. Server-bound identity integrity (invitee cannot self-assign org/role) is in scope; the broader edge-function JWT identity cleanup was split into Phase 14.3 (its prerequisite gate).
