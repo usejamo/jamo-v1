@@ -15,4 +15,5 @@ export interface Proposal {
   description?: string
   geography?: string[]
   selected_template_id?: string | null
+  reference_override?: boolean | null
 }
