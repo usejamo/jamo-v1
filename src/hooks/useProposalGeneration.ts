@@ -197,6 +197,7 @@ export function buildRegulatoryQuery(opts: {
 
 export async function fetchRagChunks(
   orgId: string,
+  proposalId: string,
   sectionName: string,
   therapeuticArea: string,
   studyPhase?: string,
@@ -206,7 +207,7 @@ export async function fetchRagChunks(
   try {
     const query = buildRegulatoryQuery({ sectionName, studyPhase, therapeuticArea, indication })
     const { data, error } = await supabase.functions.invoke('retrieve-context', {
-      body: { orgId, query, therapeuticArea, studyPhase, geography },
+      body: { orgId, proposalId, query, therapeuticArea, studyPhase, geography },
     })
     if (error) {
       console.warn('[useProposalGeneration] retrieve-context error:', error)
@@ -478,6 +479,7 @@ export function useProposalGeneration(proposalId: string) {
         for (const section of sections) {
           const rag = await fetchRagChunks(
             profile?.org_id ?? '',
+            proposalId,
             section.name,
             enrichedContext.studyInfo.therapeuticArea,
             enrichedContext.studyInfo.studyPhase,
@@ -546,6 +548,7 @@ export function useProposalGeneration(proposalId: string) {
 
       const rag = await fetchRagChunks(
         profile?.org_id ?? '',
+        proposalId,
         section.name,
         proposalContext.studyInfo.therapeuticArea,
         proposalContext.studyInfo.studyPhase,

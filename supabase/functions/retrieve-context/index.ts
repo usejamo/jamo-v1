@@ -21,6 +21,7 @@ interface RetrieveRequest {
   therapeuticArea?: string
   studyPhase?: string       // NEW (14.5) — regulatory phase pre-filter
   geography?: string[]      // NEW (14.5) — regulatory geography pre-filter (GLOBAL always matches)
+  proposalId?: string       // NEW (14.7) — proposal-history scoping
   k_regulatory?: number   // optional — falls back to RETRIEVAL_K_REGULATORY
   k_proposal?: number     // optional — falls back to RETRIEVAL_K_PROPOSALS
 }
@@ -162,7 +163,7 @@ serve(async (req) => {
 
   try {
     // 1. Parse request
-    const { orgId, query, therapeuticArea, studyPhase, geography, k_regulatory, k_proposal } = await req.json() as RetrieveRequest
+    const { orgId, query, therapeuticArea, studyPhase, geography, proposalId, k_regulatory, k_proposal } = await req.json() as RetrieveRequest
 
     // Resolve effective K values — cap at 20 to prevent DoS via unbounded pgvector queries (T-14.1-04)
     const effectiveKRegulatory = Math.min(k_regulatory ?? RETRIEVAL_K_REGULATORY, 20)
@@ -281,6 +282,7 @@ serve(async (req) => {
       org_id_filter: effectiveOrgId,
       similarity_threshold: RETRIEVAL_SIMILARITY_THRESHOLD,
       match_count: effectiveKProposals * 2,
+      current_proposal_id: proposalId ?? null,
     })
 
     if (propVecErr) {
@@ -292,6 +294,7 @@ serve(async (req) => {
       query_text: query,
       org_id_filter: effectiveOrgId,
       match_count: effectiveKProposals * 2,
+      current_proposal_id: proposalId ?? null,
     })
 
     if (propFtsErr) {

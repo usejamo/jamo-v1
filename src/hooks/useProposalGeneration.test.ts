@@ -283,6 +283,7 @@ describe('fetchRagChunks', () => {
 
     const result = await fetchRagChunks(
       'org-1',
+      'proposal-1',
       'Study Design',
       'Oncology',
       'Phase 2',
@@ -292,6 +293,7 @@ describe('fetchRagChunks', () => {
     expect(invokeMock).toHaveBeenCalledWith('retrieve-context', {
       body: {
         orgId: 'org-1',
+        proposalId: 'proposal-1',
         query: 'Study Design — Phase 2 Oncology study of NSCLC',
         therapeuticArea: 'Oncology',
         studyPhase: 'Phase 2',
@@ -314,7 +316,7 @@ describe('fetchRagChunks', () => {
       error: new Error('connection failed'),
     })
 
-    const result = await fetchRagChunks('org-1', 'understanding', 'Oncology')
+    const result = await fetchRagChunks('org-1', 'proposal-1', 'understanding', 'Oncology')
     expect(result).toEqual({ regulatoryChunks: [], proposalChunks: [], regulatoryCount: 0 })
   })
 })

@@ -44,7 +44,7 @@ async function embedTexts(texts: string[], apiKey: string): Promise<number[][]> 
  */
 async function chunkAndEmbedProposal(
   supabase: ReturnType<typeof createClient>,
-  params: { documentId: string; orgId: string; source: string; text: string }
+  params: { documentId: string; orgId: string; source: string; text: string; proposalId: string | null }
 ): Promise<number> {
   try {
     const apiKey = Deno.env.get('OPENAI_API_KEY')
@@ -59,6 +59,7 @@ async function chunkAndEmbedProposal(
     const rows = chunks.map((c, idx) => ({
       org_id: params.orgId,
       doc_type: 'proposal',
+      proposal_id: params.proposalId,
       source: params.source,
       content: c.content,
       embedding: embeddings[idx],
@@ -245,6 +246,7 @@ serve(async (req) => {
       orgId: doc.org_id,
       source: doc.name || `document:${documentId}`,
       text: extractedText,
+      proposalId: doc.proposal_id ?? null,
     })
 
     // 11. Update proposal_documents with parse_status='complete' and doc_type
