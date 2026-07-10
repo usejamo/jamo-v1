@@ -64,8 +64,21 @@ Rules:
 - NEVER wrap output in \`\`\`html code fences
 - Start the response directly with the first HTML tag`
 
-// Appended only when regulatoryCount > 0 — see gating at each builder's system-prompt assembly.
+// Appended only when regulatory grounding is actually present — see gating at each builder's
+// system-prompt assembly. Gating derives from regulatoryChunks.length (not a client-supplied
+// count) so a caller cannot desync count>0 with an empty chunk array to force a false compliance
+// assertion (CR-02, hardens T-14.6-03).
 export const COMPLIANCE_CLAUSE = ' The proposal must be compliant with ICH-GCP (E6 R2/R3) and reference FDA/EMA guidance where grounded.'
+
+// Neutralize our structural prompt-block delimiters if they appear inside retrieved chunk
+// content/source. Adversarial chunk text (e.g. sponsor RFP history containing a literal
+// "[/PROPOSAL HISTORY]") must not be able to break out of its block and inject instructions
+// that override the compliance gating (CR-01, hardens T-14.6-02). Precise allowlist of our own
+// structural markers — does NOT touch [PLACEHOLDER: ...] or bracketed acronyms like [US].
+const BLOCK_DELIMITERS = /\[\s*\/?\s*(?:REGULATORY CONTEXT|PROPOSAL HISTORY|PRIOR SECTIONS|NOTE|TEMPLATE CONTEXT)\s*\]/gi
+export function sanitizeChunkText(s: string): string {
+  return String(s ?? '').replace(BLOCK_DELIMITERS, '')
+}
 
 /**
  * Build the system prompt and user message for a specific proposal section (v1).
@@ -86,10 +99,13 @@ export function buildSectionPrompt(params: {
     sections: Array<{ name: string; role: string | null; description?: string | null }>
   }
 }): { system: string; userMessage: string } {
-  const { sectionId, tone, regulatoryChunks, proposalChunks, regulatoryCount, anchor, proposalInput } = params
+  const { sectionId, tone, regulatoryChunks, proposalChunks, anchor, proposalInput } = params
   const sectionName = SECTION_NAMES[sectionId] || sectionId
 
-  let system = CRO_PROPOSAL_SYSTEM_PROMPT + (regulatoryCount > 0 ? COMPLIANCE_CLAUSE : '')
+  // Derive grounding from the actual chunk array, never a caller-supplied count (CR-02).
+  const groundedCount = regulatoryChunks.length
+
+  let system = CRO_PROPOSAL_SYSTEM_PROMPT + (groundedCount > 0 ? COMPLIANCE_CLAUSE : '')
 
   system += `\n\nIMPORTANT: Generate ONLY the "${sectionName}" section.\nTone for this section: ${tone}.\n\nCRITICAL RULE: When specific information is not available, use [PLACEHOLDER: description of what's needed] markers. NEVER invent specific numbers, dates, or names.`
 
@@ -98,14 +114,14 @@ export function buildSectionPrompt(params: {
   }
 
   const regSection = regulatoryChunks.length > 0
-    ? regulatoryChunks.map((c) => `[${c.source}] ${c.content}`).join('\n---\n')
+    ? regulatoryChunks.map((c) => `[${sanitizeChunkText(c.source)}] ${sanitizeChunkText(c.content)}`).join('\n---\n')
     : '(No relevant regulatory context found)'
   const propSection = proposalChunks.length > 0
-    ? proposalChunks.map((c) => `[${c.source}] ${c.content}`).join('\n---\n')
+    ? proposalChunks.map((c) => `[${sanitizeChunkText(c.source)}] ${sanitizeChunkText(c.content)}`).join('\n---\n')
     : '(No relevant proposal history found)'
   system += `\n\n[REGULATORY CONTEXT]\n${regSection}\n[/REGULATORY CONTEXT]`
   system += `\n\n[PROPOSAL HISTORY]\n${propSection}\n[/PROPOSAL HISTORY]`
-  if (regulatoryCount === 0) {
+  if (groundedCount === 0) {
     system += `\n\n[NOTE] No regulatory grounding available for this section/geography — do not assert regulatory compliance; flag unresolved items with [PLACEHOLDER].`
   }
 
@@ -180,7 +196,10 @@ export function buildSectionPromptV2(params: {
     services?: string[]
   }
 }): { system: string; userMessage: string } {
-  const { sectionName, sectionDescription, sectionRole, tone, regulatoryChunks, proposalChunks, regulatoryCount, consistencyAnchor, priorSections, proposalContext } = params
+  const { sectionName, sectionDescription, sectionRole, tone, regulatoryChunks, proposalChunks, consistencyAnchor, priorSections, proposalContext } = params
+
+  // Derive grounding from the actual chunk array, never a caller-supplied count (CR-02).
+  const groundedCount = regulatoryChunks.length
 
   // Role-based tone/structure hints (soft signal only — does NOT override content scope)
   const roleHints: Record<string, string> = {
@@ -188,13 +207,13 @@ export function buildSectionPromptV2(params: {
     cover_letter: 'Write as a formal business letter. Keep under 1 page. Reference the sponsor by name. Express genuine enthusiasm and commitment.',
     budget: 'Organize as a structured financial breakdown. Use tables. Include payment milestone assumptions. Align all line items with scope of work.',
     timeline: 'Include a visual Gantt-style description. Reference specific milestones, durations, and dependencies. All dates must be internally consistent.',
-    regulatory_strategy: regulatoryCount > 0
+    regulatory_strategy: groundedCount > 0
       ? 'Reference specific ICH-GCP guidelines (E6 R2/R3) and FDA/EMA guidance only where grounded in the provided [REGULATORY CONTEXT].'
       : 'No regulatory grounding is available for this section/geography. Do not reference or assert compliance with any named regulatory framework or guideline for this section. Flag any unresolved regulatory items with [PLACEHOLDER] per the CRITICAL RULES; never fabricate.',
     understanding: 'Demonstrate deep comprehension of the sponsor\'s study. Reference protocol specifics and therapeutic context. This is your credibility section.',
   }
 
-  let system = CRO_PROPOSAL_SYSTEM_PROMPT + (regulatoryCount > 0 ? COMPLIANCE_CLAUSE : '')
+  let system = CRO_PROPOSAL_SYSTEM_PROMPT + (groundedCount > 0 ? COMPLIANCE_CLAUSE : '')
 
   system += `\n\nIMPORTANT: Generate ONLY the "${sectionName}" section.`
 
@@ -223,14 +242,14 @@ export function buildSectionPromptV2(params: {
 
   {
     const regSection = regulatoryChunks.length > 0
-      ? regulatoryChunks.map((c) => `[${c.source}] ${c.content}`).join('\n---\n')
+      ? regulatoryChunks.map((c) => `[${sanitizeChunkText(c.source)}] ${sanitizeChunkText(c.content)}`).join('\n---\n')
       : '(No relevant regulatory context found)'
     const propSection = proposalChunks.length > 0
-      ? proposalChunks.map((c) => `[${c.source}] ${c.content}`).join('\n---\n')
+      ? proposalChunks.map((c) => `[${sanitizeChunkText(c.source)}] ${sanitizeChunkText(c.content)}`).join('\n---\n')
       : '(No relevant proposal history found)'
     system += `\n\n[REGULATORY CONTEXT]\n${regSection}\n[/REGULATORY CONTEXT]`
     system += `\n\n[PROPOSAL HISTORY]\n${propSection}\n[/PROPOSAL HISTORY]`
-    if (regulatoryCount === 0) {
+    if (groundedCount === 0) {
       system += `\n\n[NOTE] No regulatory grounding available for this section/geography — do not assert regulatory compliance; flag unresolved items with [PLACEHOLDER].`
     }
   }
