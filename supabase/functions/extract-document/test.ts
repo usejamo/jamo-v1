@@ -38,3 +38,22 @@ Deno.test("Document classification works", () => {
   assertEquals(classifyDocument("unknown.pdf", "inclusion criteria"), "protocol")
   assertEquals(classifyDocument("random.pdf", ""), "other")
 })
+
+// ============================================================================
+// REQ-2 (14.7-04): proposal_id written on every inserted proposal chunk at ingest
+// ============================================================================
+
+Deno.test({
+  name: 'extract-document: chunkAndEmbedProposal writes proposal_id = params.proposalId on every inserted chunk row (null-safe when the document has no proposal_id) — INTEGRATION, live-only, see 14.7-07',
+  ignore: true,
+  fn() {
+    // chunkAndEmbedProposal is not exported (calls OpenAI + Supabase directly) —
+    // requires OPENAI_API_KEY + a live Supabase project to exercise end-to-end.
+    // Static verification (this plan): the `rows` map includes
+    // `proposal_id: params.proposalId`, and the call site passes
+    // `proposalId: doc.proposal_id ?? null` (doc already fetched via select('*'),
+    // no new query). Live-verified in 14.7-07: upload+extract a doc to a known
+    // proposal → its chunks have proposal_id = that proposal; a doc with no
+    // proposal_id writes chunks with proposal_id null (does not throw).
+  },
+})
