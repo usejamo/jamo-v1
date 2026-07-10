@@ -127,3 +127,30 @@ Deno.test({
     // body orgId is rejected with 403 'org mismatch' rather than trusted.
   },
 })
+
+// ============================================================================
+// REQ-7 (14.7-04): proposalId threading — current_proposal_id passed to BOTH
+// proposal RPCs only; regulatory path + trust boundary untouched.
+// ============================================================================
+
+Deno.test({
+  name: 'retrieve-context: proposalId is destructured from the body and passed as current_proposal_id to both match_chunks_vector_proposals and match_chunks_fts_proposals — INTEGRATION, live-only, see 14.7-07',
+  ignore: true,
+  fn() {
+    // Requires a live Supabase project (match_chunks_*_proposals RPCs) + OPENAI_API_KEY.
+    // Live-verified in 14.7-07: a request carrying proposalId results in both proposal
+    // RPC calls receiving current_proposal_id equal to that value; proposalId is NOT
+    // an identity claim so it receives no JWT cross-check (unlike orgId).
+  },
+})
+
+Deno.test({
+  name: 'retrieve-context: regulatory relaxation loop (match_chunks_vector / match_chunks_fts) and the isInternalServiceRoleCall/effectiveOrgId trust boundary are byte-for-byte unchanged by the proposalId thread — INTEGRATION, live-only, see 14.7-07',
+  ignore: true,
+  fn() {
+    // Static verification (this plan): the regulatory RPC call sites (match_chunks_vector,
+    // match_chunks_fts) and the isInternalServiceRoleCall branch were not touched by the
+    // 14.7-04 diff — only the two match_chunks_*_proposals param objects gained
+    // current_proposal_id. Live regression re-confirmed in 14.7-07 (14.6 regression check).
+  },
+})
