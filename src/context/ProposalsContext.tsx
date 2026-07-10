@@ -22,6 +22,9 @@ function mapRow(row: Record<string, any>): Proposal {
     description: row.description ?? '',
     geography: row.geography ?? [],
     selected_template_id: row.selected_template_id ?? null,
+    // 14.7-05: reference_override column authored in Plan 01, live after Plan 06 deploy.
+    // ?? null keeps mapRow safe against the pre-deploy DB (column absent -> undefined -> null).
+    reference_override: row.reference_override ?? null,
   }
 }
 

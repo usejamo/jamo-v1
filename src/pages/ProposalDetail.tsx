@@ -39,6 +39,7 @@ interface MockDoc {
 }
 
 import { StatusSelector, STATUS_LABELS } from '../components/StatusSelector'
+import { ProposalReferenceControl } from '../components/ProposalReferenceControl'
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(value)
@@ -571,6 +572,12 @@ const isStreamingMode = genState.isGenerating
                         showToast(`Status updated to ${STATUS_LABELS[next]}`)
                       }}
                       variant="labeled"
+                    />
+                    <ProposalReferenceControl
+                      proposalId={proposal.id}
+                      status={proposal.status}
+                      value={proposal.reference_override ?? null}
+                      disabled={!(profile?.role === 'admin' || profile?.role === 'super_admin')}
                     />
                     <span className="text-xs text-gray-400">{proposal.id.toUpperCase()}</span>
                   </div>
