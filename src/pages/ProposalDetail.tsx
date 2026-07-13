@@ -245,7 +245,7 @@ function ExportDropdown({ getSections, proposalTitle, templateFilePath }: Export
 export default function ProposalDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const DRAFT_KEY = `draft-generated-${id}`
   const OVERRIDES_KEY = `draft-overrides-${id}`
   const [generating] = useState(false)
@@ -436,9 +436,13 @@ const isStreamingMode = genState.isGenerating
     if (searchParams.get('generate') === 'true' && proposal && !genState.isGenerating && genState.completedCount === 0) {
       const input = buildProposalInput()
       generateAll(input)
-      window.history.replaceState({}, '', window.location.pathname)
+      // Clear ?generate=true through the router (NOT window.history.replaceState, which
+      // does not update react-router's searchParams — leaving this guard permanently
+      // satisfied and letting dependency-identity changes re-fire the trigger). The
+      // hook's own re-entrancy guard is the primary defence; this is defence-in-depth.
+      setSearchParams({}, { replace: true })
     }
-  }, [proposal, searchParams, buildProposalInput, generateAll, genState.isGenerating, genState.completedCount])
+  }, [proposal, searchParams, setSearchParams, buildProposalInput, generateAll, genState.isGenerating, genState.completedCount])
 
   const handleSuggestionAccepted = useCallback((commandKey: string) => {
     const command = COMMAND_MAP[commandKey]

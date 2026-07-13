@@ -280,6 +280,14 @@ export function useProposalGeneration(proposalId: string) {
   const [state, dispatch] = useReducer(generationReducer, initialState)
   const { session, profile } = useAuth()
   const abortControllerRef = useRef<AbortController | null>(null)
+  // Synchronous re-entrancy guard. `state.isGenerating` only flips to true after
+  // two awaited round-trips inside generateAll (assumptions + sections fetch), so a
+  // second invocation during that async window (React StrictMode double-invoking the
+  // trigger effect in dev, or the effect's dependency identities changing in prod)
+  // would slip past a `!isGenerating` check and start a *second* concurrent loop —
+  // both streaming the first section into the same id and interleaving tokens. This
+  // ref is set BEFORE any await so the second call bails immediately.
+  const isGeneratingRef = useRef(false)
 
   // Hydrate all sections from DB on mount (builds nav, restores completed state)
   useEffect(() => {
@@ -437,6 +445,10 @@ export function useProposalGeneration(proposalId: string) {
       proposalContext: GenerateSectionPayloadV2['proposalContext'],
       debug?: boolean
     ) => {
+      // Re-entrancy guard (see isGeneratingRef declaration). Bail synchronously if a
+      // generation loop is already running for this hook instance.
+      if (isGeneratingRef.current) return
+      isGeneratingRef.current = true
       const isDebug = debug ?? localStorage.getItem('jamo_debug_mode') === 'true'
       const abortController = new AbortController()
       abortControllerRef.current = abortController
@@ -512,6 +524,9 @@ export function useProposalGeneration(proposalId: string) {
       } catch (err) {
         console.error('[useProposalGeneration] generateAll error:', err)
         dispatch({ type: 'GENERATION_COMPLETE' })
+      } finally {
+        // Release the guard so a later, deliberate re-generation is allowed.
+        isGeneratingRef.current = false
       }
     },
     [proposalId, session, profile, streamSection]
