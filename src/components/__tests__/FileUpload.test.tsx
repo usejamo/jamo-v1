@@ -150,15 +150,20 @@ describe('FileUpload component', () => {
     await waitFor(() => expect(onUploadComplete).toHaveBeenCalledWith('doc-123'))
   })
 
-  it('Test 9: Extraction error displays user-friendly message', async () => {
+  it('Test 9: retries extraction once, then displays a user-friendly error', async () => {
     const { FileUpload } = await import('../FileUpload')
+    // Both attempts fail: a transient edge WORKER_RESOURCE_LIMIT can kill the isolate,
+    // so the trigger is retried once (with a short backoff) before surfacing the error.
     mockInvoke.mockRejectedValue(new Error('Edge Function timeout'))
     render(<FileUpload proposalId="test-proposal" />)
     const dropzone = screen.getByText(/drag files here or click to browse/i).closest('div')
     const file = new File(['content'], 'test.pdf', { type: 'application/pdf' })
     fireEvent.drop(dropzone!, { dataTransfer: { files: [file] } })
-    await waitFor(() =>
-      expect(screen.getByText(/failed to start extraction/i)).toBeInTheDocument()
+    // The extract-document invoke is attempted twice before giving up.
+    await waitFor(() => expect(mockInvoke).toHaveBeenCalledTimes(2), { timeout: 4000 })
+    await waitFor(
+      () => expect(screen.getByText(/failed to start extraction/i)).toBeInTheDocument(),
+      { timeout: 4000 }
     )
   })
 })
