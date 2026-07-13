@@ -34,36 +34,31 @@ function countTokens(text: string): number {
 
 /**
  * Split text into overlapping windows of ≤CHUNK_MAX_TOKENS tokens.
- * Uses word-level splitting to avoid cutting mid-token.
+ *
+ * Encodes the segment ONCE and slices token ranges (O(n)). The previous
+ * word-growing implementation re-encoded a progressively longer window on every
+ * step — O(n²) BPE `encode` calls — which burned enough CPU on larger segments to
+ * trip the Supabase Edge isolate's CPU-time limit (WORKER_RESOURCE_LIMIT / HTTP
+ * 546), killing extraction. Slicing token ids and decoding each window is both
+ * far cheaper and exact on the ≤CHUNK_MAX_TOKENS bound.
  */
 function windowSegment(text: string, source: string, sectionRef: string | undefined): Chunk[] {
-  const words = text.split(/\s+/).filter(w => w.length > 0)
+  const enc = getEncoder()
+  const tokens = enc.encode(text)
   const chunks: Chunk[] = []
-  let start = 0
+  const step = CHUNK_MAX_TOKENS - OVERLAP_TOKENS // advance, retaining OVERLAP_TOKENS of overlap
 
-  while (start < words.length) {
-    // Grow window until we hit max tokens
-    let end = start + 1
-    let window = words.slice(start, end).join(' ')
-    while (end < words.length) {
-      const candidate = words.slice(start, end + 1).join(' ')
-      if (countTokens(candidate) > CHUNK_MAX_TOKENS) break
-      window = candidate
-      end++
-    }
-
-    const tokenCount = countTokens(window)
-    if (tokenCount > 0) {
-      chunks.push({ content: window, source, tokenCount, sectionRef })
-    }
-
-    if (end >= words.length) break
-
-    // Move start forward by (window size - overlap), calculated in words
-    // Approximate: find how many words correspond to OVERLAP_TOKENS
-    let overlapWords = Math.max(1, Math.floor((end - start) * (OVERLAP_TOKENS / CHUNK_MAX_TOKENS)))
-    start = end - overlapWords
-    if (start <= 0) start = end // safety: never loop forever
+  for (let start = 0; start < tokens.length; start += step) {
+    const windowTokens = tokens.slice(start, start + CHUNK_MAX_TOKENS)
+    if (windowTokens.length === 0) break
+    chunks.push({
+      content: enc.decode(windowTokens),
+      source,
+      tokenCount: windowTokens.length,
+      sectionRef,
+    })
+    // Last window reached — stop before emitting a tiny trailing overlap-only chunk.
+    if (start + CHUNK_MAX_TOKENS >= tokens.length) break
   }
 
   return chunks

@@ -36,6 +36,24 @@ describe('chunkDocument', () => {
     expect(chunks.length).toBe(1)
   })
 
+  it('windows a large segment into multiple overlapping ≤600-token chunks', () => {
+    // A single large section (no headings) of ~2000 distinct words forces windowSegment.
+    // With O(n) token-slice windowing this yields several ≤600-token chunks that overlap.
+    const words = Array.from({ length: 2000 }, (_, i) => `word${i}`)
+    const chunks = chunkDocument(words.join(' '), 'big.pdf')
+    expect(chunks.length).toBeGreaterThanOrEqual(2)
+    for (const c of chunks) {
+      expect(c.tokenCount).toBeLessThanOrEqual(600)
+      expect(c.tokenCount).toBeGreaterThan(0)
+    }
+    // Consecutive windows must overlap (share boundary words).
+    for (let i = 0; i + 1 < chunks.length; i++) {
+      const prev = new Set(chunks[i].content.split(/\s+/))
+      const next = chunks[i + 1].content.split(/\s+/)
+      expect(next.some((w) => prev.has(w))).toBe(true)
+    }
+  })
+
   it('returns typed Chunk objects with correct shape', () => {
     const text = '1. Background\n' + 'Some regulatory text. '.repeat(10)
     const chunks = chunkDocument(text, 'typed.pdf')
