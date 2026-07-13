@@ -724,3 +724,29 @@ Plans:
 
 Plans:
 - [ ] TBD (promote with /gsd-review-backlog when ready)
+
+### Phase 999.4: extract-document OOM (WORKER_RESOURCE_LIMIT) on heavier PDFs (BACKLOG)
+
+**Goal:** Uploading a heavier PDF no longer crashes the `extract-document` edge function. Today a large PDF returns HTTP **546 WORKER_RESOURCE_LIMIT** ("Function failed due to not having enough compute resources") after ~3.75s, leaving the document row stuck at `parse_status='extracting'` with 0 chunks. Pre-existing memory pressure — **not** a 14.7 regression (surfaced during 14.7 UAT; the only 14.7 change to this function adds one already-fetched `proposal_id` field per chunk row, which cannot cause an OOM). Smaller docs ingest fine (doc `694f8ad5…` → 5 chunks); doc `08358f62…` crashed.
+
+**Evidence:** File `supabase/functions/extract-document/index.ts` (deployed v8). Failure scales with document size → memory, not logic. Stuck doc `08358f62…` should be reset (`parse_status`).
+
+**Candidate directions (not the fix — investigate first):** raise the Supabase edge memory tier; shrink the embedding batch size held in memory; stream/chunk the parse instead of loading the whole PDF. Confirm root cause via `get_logs` before choosing.
+
+**Requirements:** TBD
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with /gsd-review-backlog when ready)
+
+### Phase 999.5: First-section placeholder-marking bug on new proposal generation (BACKLOG)
+
+**Goal:** On a **new** proposal generation, the **first** section's placeholders are marked correctly (they currently are not, and a console error appears). Long-standing bug; reproduces even with **no** document uploaded, so it is independent of the extract-document OOM (999.4).
+
+**Evidence / lead:** Likely files `src/hooks/useProposalGeneration.ts`, the `substitute_placeholders` path, and `buildContextPayload`. Strong suspect (per memory `chat-context-must-use-live-editor-content`): context must be built from the **live editor** `getContent()` rather than the stale `proposalSections` snapshot, or `substitute_placeholders` ids drift → "placeholder not found". First-section timing (editor not yet populated when the first section is processed) is the prime suspect. Capture the exact console error text as step 1.
+
+**Requirements:** TBD
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with /gsd-review-backlog when ready)
