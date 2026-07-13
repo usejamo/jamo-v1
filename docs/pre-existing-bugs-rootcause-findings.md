@@ -93,7 +93,7 @@ This investigation created a real prod proposal **"Debug Sponsor Inc" (`f4ddd9ab
 
 | Fix | Status | Commit / verification |
 |-----|--------|-----------------------|
-| 2A re-entrancy guard | ✅ done | `8f996aa` · vite build passes; live E2E blocked by 402 credits |
+| 2A re-entrancy guard | ✅ done + **live-verified** | `8f996aa` · see live verification below |
 | 2B clear param via router | ✅ done | `8f996aa` |
 | 2C per-loop AbortController | ✅ subsumed by 2A | only one loop/controller now exists |
 | 2D placeholder-format hardening | ✅ done (TDD) | `e7e347a` · 23/23 tests green (client + edge parity) |
@@ -108,6 +108,19 @@ This investigation created a real prod proposal **"Debug Sponsor Inc" (`f4ddd9ab
 
 ### The 546 root cause (found by live instrumentation) — RESOLVED
 Per-step timing written to a temp table (survives the isolate kill) showed the isolate dying **inside `chunkDocument`**, before any embed. `windowSegment` grew a word window one token at a time and **re-encoded the entire growing window with js-tiktoken every step — O(n²) BPE `encode` calls** — burning >2 s CPU and tripping the edge **CPU-time limit**. Not memory, not pdfjs, not size. Fix (`9a0f73b`): encode once, slice token-id ranges (O(n)), applied to both chunker copies. **Live-verified**: the doc that returned 546 three times in a row now returns **200**; `chunkDocument` ~0.7 s; full pipeline completes (5 chunks). Combined with 1A/1B, extraction is now both correct and resilient.
+
+### Issue 2 live verification (real app, credits restored)
+Drove a fresh new-proposal generation through the wizard in the running dev build (React StrictMode on — the exact dev repro condition). Result vs. the pre-fix run:
+
+| Check | Before | After |
+|-------|--------|-------|
+| Section 1 generation requests | 2 (concurrent, same `sectionId`) | **1** |
+| Section 1 content | interleaved / garbled | **coherent** |
+| Section 1 placeholder spans | 0 (raw `[Company Name]`) | **12 marked, 0 raw** |
+| Console errors/warnings | `AbortError` + 402/502 + 3× gotrue StrictMode lock | **0 / 0** |
+| Total requests | ~22 (~2.4/section, doubled) | ~2/section (single loop) |
+
+Test proposal deleted afterward.
 
 **Deploy status:** `extract-document` and `generate-proposal-section` **deployed to prod and verified** (`extract-document` smoke-tested to HTTP 200; the reaper migration is applied). Client bundle (2A/2B/2D-client/1C) still ships via the normal frontend deploy pipeline. Issue-2 live E2E (proposal generation) still needs an Anthropic-credit top-up to re-confirm.
 
