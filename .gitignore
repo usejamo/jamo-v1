@@ -40,5 +40,15 @@ supabase/.temp
 # Playwright test results
 test-results/
 
+# Playwright MCP page snapshots (accumulating debug dumps)
+.playwright-mcp/
+
+# Scratch / local working files (not part of any phase)
+fix_plan*.py
+snap*.yml
+snapshot-*.md
+CODEX-REVIEW.md
+*.node
+
 # Regulatory starter-corpus PDFs (operator-supplied; folder structure documented, not the binaries)
 regulatory-docs/**/*.pdf
