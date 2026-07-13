@@ -54,11 +54,15 @@ Exceptions:
 | Body | 14px (`text-sm`) | 500 (medium) | 1.5 |
 | Label | 12px (`text-xs`) | 500 (medium) | 1.4 |
 | Heading (card/section title) | 16px (`text-base`) | 600 (semibold) | 1.3 |
-| Display (page `<h1>`) | 24px (`text-2xl`) | 700 (bold) — pre-existing exception, see note | 1.2 |
+| Display (page `<h1>`) | 24px (`text-2xl`) | 600 (semibold) | 1.2 |
 
-Declared weights for this phase's NEW UI: **500 (medium)** for body/label/buttons/inputs, **600 (semibold)** for card headers, row titles, and emphasis text (matches `text-sm font-semibold text-gray-900` pattern on `TemplatesTab.tsx:719`).
+**Net-new phase-15 weight budget = exactly 2 weights: 500 (medium) + 600 (semibold).**
+- **500 (medium)** — body, labels, buttons, inputs.
+- **600 (semibold)** — card/section headers, row titles, emphasis text (matches `text-sm font-semibold text-gray-900` pattern on `TemplatesTab.tsx:719`), AND all four NEW page `<h1>`s.
 
-**Exception:** `font-bold` (700) is used ONLY for the top-level page `<h1>` (e.g. "Sign In to Jamo" in `Login.tsx:75`, "Settings" in `Settings.tsx:474`). This is a pre-existing convention inherited unchanged for the Admin panel h1 ("Platform Admin") and the accept-invite/forgot-password/reset-password page h1s — not a new deviation, and not counted against the 2-weight budget for this phase's net-new component work.
+Prominence for the new page `<h1>`s ("Platform Admin", "Set Your Password" on `/accept-invite`, the forgot-password page, and "Set New Password" on `/reset-password`) comes from the **24px display SIZE** (`text-2xl`), NOT from a heavier weight — they render at `text-2xl font-semibold text-gray-900`. This keeps every net-new surface on a true 2-weight system.
+
+**Pre-existing exception (NOT used by any new surface):** `font-bold` (700) appears only on the untouched Login h1 "Sign In to Jamo" (`Login.tsx:75`) and the untouched "Settings" h1 (`Settings.tsx:474`). These files are inherited as-is and are not restyled by this phase, so their 700 weight does not enter this phase's net-new weight budget. Do not introduce `font-bold` on any component built for this phase (including the Login page after its req-13 signup cleanup — its existing h1 weight is left untouched).
 
 ---
 
@@ -77,6 +81,22 @@ Accent reserved for: primary CTA buttons, active tab indicator, inline text link
 
 ---
 
+## Visual Hierarchy / Focal Point
+
+One focal-point statement per primary screen (guides where weight, contrast, and the single accent CTA land):
+
+| Screen | Focal point | Secondary |
+|--------|-------------|-----------|
+| `/admin` org list | The org **rows** are the focal point (semibold name, scannable list). | "Create Organization" is the single accent CTA, secondary to the list — top-right or above the list, not competing with rows. |
+| `/admin` pending-invites list | The invite **rows + status badges** are the focal point (status is what the admin scans for). | Per-row Resend/Revoke actions are quiet icon buttons, revealed as secondary. |
+| Settings → Team tab | The **member rows** are the focal point. | "Invite Teammate" (Card 1) is secondary — one accent CTA; role/deactivate row actions are tertiary quiet controls. |
+| `/accept-invite`, `/reset-password`, forgot-password | The **single centered form card** is the sole focal point (full-screen centered, nothing else on screen). | The one primary button (Set Password / Set New Password / Send Reset Link) is the only accent element. |
+| Login (post req-13 cleanup) | The **sign-in form** is the focal point. | "Forgot password?" is a quiet secondary text link below the password field. |
+
+**Accessibility for icon-only row actions:** Every 44px icon-only action button (Resend, Revoke, Deactivate, Reactivate, Change Role if rendered icon-only) MUST carry a descriptive `aria-label` (e.g. `aria-label="Resend invite to {email}"`, `aria-label="Revoke invite to {email}"`) — mirrors the existing `aria-label={\`Delete ${template.name}\`}` on `TemplatesTab.tsx:743`. A visible tooltip on hover/focus is recommended in addition to (never instead of) the `aria-label`.
+
+---
+
 ## Copywriting Contract
 
 | Element | Copy |
@@ -84,8 +104,8 @@ Accent reserved for: primary CTA buttons, active tab indicator, inline text link
 | Primary CTA — Admin: create org | "Create Organization" |
 | Primary CTA — Admin: invite first admin | "Send Invite" |
 | Primary CTA — Settings Team tab: invite teammate | "Invite Teammate" |
-| Secondary action — invite lifecycle | "Resend" (non-destructive, `text-jamo-600`) / "Revoke" (destructive, `text-red-600`) |
-| Secondary action — member management | "Change Role" (non-destructive) / "Deactivate" (destructive, `text-red-600`) / "Reactivate" (non-destructive, shown only for already-deactivated members) |
+| Row action — invite lifecycle (dense admin/pending-invites rows) | "Resend Invite" (non-destructive, `text-jamo-600`) / "Revoke Invite" (destructive, `text-red-600`) — the noun-carrying labels are canonical; the shorter "Resend"/"Revoke" forms are permitted only where a row is genuinely space-constrained, in which case the noun MUST live in the `aria-label` |
+| Row action — member management | "Change Role" (non-destructive) / "Deactivate" (destructive, `text-red-600`) / "Reactivate" (non-destructive, shown only for already-deactivated members) |
 | Accept-invite CTA | "Set Password" |
 | Forgot-password CTA | "Send Reset Link" |
 | Reset-password CTA | "Set New Password" |
@@ -122,32 +142,32 @@ Concrete component inventory per surface, mapped to existing patterns. Each new 
 
 ### 1. `/admin` route tree (D-10)
 - **Route gate:** New `SuperAdminRoute` component, same shape as `src/components/ProtectedRoute.tsx` (loading → `<div className="min-h-screen flex items-center justify-center"><div className="text-gray-500">Loading...</div></div>`; deny → `<Navigate to="/" replace />` for non-super_admin, not to `/login`). Nested inside the existing `<Route element={<ProtectedRoute />}>` in `App.tsx` so unauthenticated users still hit `/login` first, per RESEARCH Pattern 1.
-- **Page shell:** Reuse the `Layout`-wrapped page pattern (h1 `text-2xl font-bold text-gray-900` + subtitle `text-sm text-gray-500 mt-1`, matching `Settings.tsx:473-476`). Page title: "Platform Admin".
-- **Org list:** White card list, one row per org — `name` (font-semibold text-sm), `plan` badge (gray-100 pill, matches `Pre-built` pill style at `TemplatesTab.tsx:725`), `slug` (text-xs text-gray-400), "Invite Admin" action per org row.
+- **Page shell:** Reuse the `Layout`-wrapped page pattern (h1 `text-2xl font-semibold text-gray-900` + subtitle `text-sm text-gray-500 mt-1`). Page title: "Platform Admin". (Note: 24px size carries prominence; weight stays 600 per the Typography 2-weight budget.)
+- **Org list:** White card list, one row per org — `name` (font-semibold text-sm), `plan` badge (gray-100 pill, matches `Pre-built` pill style at `TemplatesTab.tsx:725`), `slug` (text-xs text-gray-400), "Invite Admin" action per org row. Rows are the focal point; "Create Organization" is the single secondary accent CTA.
 - **Create-org form:** Inline form or a simple modal — two fields: Name (text input, existing input style: `w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-jamo-200 focus:border-jamo-500 outline-none`, matches `Login.tsx:90`) + Plan (2-option pill toggle or `<select>`: trial/paid). Auto-slug preview shown read-only below Name field, updates live.
 - **Invite-first-admin form:** Single email input (same input style) + org context (pre-selected from the row that triggered it, shown read-only) + "Send Invite" button.
-- **Pending invites list:** Table/list rows: email, target org name, role, status badge (Pending/Accepted/Revoked per Color section), invited-at date, action icons (Resend, Revoke) at 44px touch targets, right-aligned — matches `TemplateRow` right-side action layout (`TemplatesTab.tsx:736-750`).
+- **Pending invites list:** Table/list rows: email, target org name, role, status badge (Pending/Accepted/Revoked per Color section), invited-at date, action icons (Resend Invite, Revoke Invite) at 44px touch targets with descriptive `aria-label`s, right-aligned — matches `TemplateRow` right-side action layout (`TemplatesTab.tsx:736-750`).
 
 ### 2. Settings "Team" tab (D-11)
 - **Tab registration:** Add `'Team'` to the `SUB_TABS` array and the `isOrgAdmin` visibility filter exactly like the existing `'Templates'`/`'Reference Library'` gating at `Settings.tsx:464-467` — Team tab visible only when `profile?.role === 'admin' || profile?.role === 'super_admin'`.
-- **Component file:** `src/components/settings/TeamTab.tsx`, directly modeled on `TemplatesTab.tsx`'s two-card structure: Card 1 = "Invite a teammate" (email input + role select `admin`/`user`, NEVER `super_admin` — role-capped per D-01/threat table), Card 2 = "Team members" list.
-- **Member row:** name/email (font-semibold text-sm) + role badge (jamo-50 pill for admin, gray-100 pill for user — mirrors the "Your template"/"Pre-built" pill distinction) + status (Active in green, Deactivated in gray) + action icons (Change Role, Deactivate/Reactivate) at 44px.
+- **Component file:** `src/components/settings/TeamTab.tsx`, directly modeled on `TemplatesTab.tsx`'s two-card structure: Card 1 = "Invite a teammate" (email input + role select `admin`/`user`, NEVER `super_admin` — role-capped per D-01/threat table), Card 2 = "Team members" list. Member rows are the focal point; the invite card is secondary.
+- **Member row:** name/email (font-semibold text-sm) + role badge (jamo-50 pill for admin, gray-100 pill for user — mirrors the "Your template"/"Pre-built" pill distinction) + status (Active in green, Deactivated in gray) + action icons (Change Role, Deactivate/Reactivate) at 44px with descriptive `aria-label`s.
 - **Pending invites sub-list:** Same row shape as the admin panel's pending-invites list (§1), scoped to the caller's own org only.
 
 ### 3. `/accept-invite` (invitee sets initial password)
-- **Layout:** Full-screen centered card, identical chrome to `Login.tsx:73-74` (`min-h-screen flex items-center justify-center bg-gray-50` → `bg-white rounded-xl shadow-lg p-8 max-w-md w-full`).
-- **Content:** h1 "Set Your Password" (text-2xl font-bold), one password input + one confirm-password input (both existing input style), "Set Password" button (existing primary-button style: `w-full bg-jamo-500 hover:bg-jamo-600 text-white font-medium py-2 rounded-lg`).
+- **Layout:** Full-screen centered card, identical chrome to `Login.tsx:73-74` (`min-h-screen flex items-center justify-center bg-gray-50` → `bg-white rounded-xl shadow-lg p-8 max-w-md w-full`). The card is the sole focal point.
+- **Content:** h1 "Set Your Password" at `text-2xl font-semibold text-gray-900` (size carries prominence, weight stays 600), one password input + one confirm-password input (both existing input style), "Set Password" button (existing primary-button style: `w-full bg-jamo-500 hover:bg-jamo-600 text-white font-medium py-2 rounded-lg`).
 - **Identified by ROUTE, not session state** (RESEARCH Pitfall 1/2) — this page must never branch on `onAuthStateChange` event type to decide it's an invite flow.
 - **Invalid/expired link:** Replace the form entirely with the error-state copy above + a plain-text note to contact their admin (no self-serve resend from this page — resend is admin/org-admin-initiated only, per D-06/D-08).
 
 ### 4. `/reset-password` + forgot-password request page
-- **Forgot-password page:** Same full-screen card chrome as Login. Single email input + "Send Reset Link" button. On submit, show a static confirmation state in-place (do not reveal whether the email exists — standard practice): "If an account exists for that email, a reset link is on its way."
-- **`/reset-password` page:** Identical shell to `/accept-invite` — one password input + confirm, "Set New Password" button, same invalid/expired error treatment.
+- **Forgot-password page:** Same full-screen card chrome as Login; h1 at `text-2xl font-semibold`. Single email input + "Send Reset Link" button. On submit, show a static confirmation state in-place (do not reveal whether the email exists — standard practice): "If an account exists for that email, a reset link is on its way."
+- **`/reset-password` page:** Identical shell to `/accept-invite` — h1 "Set New Password" at `text-2xl font-semibold`, one password input + confirm, "Set New Password" button, same invalid/expired error treatment.
 
 ### 5. Login page changes (SPEC req 13)
 - Remove `isSignUp` state, `signUp` destructure, the sign-up JSX block (`Login.tsx:112-146`, full-name + org selector), and the two hardcoded Test Org UUIDs.
 - Add a single "Forgot password?" text link (`text-sm text-jamo-600 hover:text-jamo-700`) below the password field, routing to `/forgot-password` — the ONLY addition to the login form's surface area.
-- No other visual change — h1 stays "Sign In to Jamo" (no more conditional sign-up copy), card chrome and input styles untouched.
+- No other visual change — h1 stays "Sign In to Jamo" (no more conditional sign-up copy). The existing h1 weight is left untouched (this file is not restyled); card chrome and input styles unchanged.
 
 ---
 
