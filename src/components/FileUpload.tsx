@@ -147,17 +147,33 @@ export function FileUpload({ proposalId, onUploadComplete }: FileUploadProps) {
         return updated
       })
 
-      // Trigger extraction (fire-and-forget — don't await)
-      supabase.functions.invoke('extract-document', {
-        body: { documentId: docData.id },
-      }).catch(err => {
-        console.error('Failed to trigger extraction:', err)
+      // Trigger extraction (fire-and-forget — don't await). Retry once: a transient
+      // edge WORKER_RESOURCE_LIMIT can kill the isolate mid-parse, and invoke()
+      // surfaces that as { error } rather than a throw — so we must inspect the
+      // result, not only .catch(). The extract insert is idempotent server-side, so a
+      // retry after a real failure re-processes safely. (Re-run relies on the
+      // server-side reorder that marks the doc usable right after text extraction.)
+      const uploadedDocId = docData.id
+      const uploadedFile = file
+      void (async () => {
+        for (let attempt = 0; attempt < 2; attempt++) {
+          try {
+            const { error } = await supabase.functions.invoke('extract-document', {
+              body: { documentId: uploadedDocId },
+            })
+            if (!error) return
+            console.error(`Failed to trigger extraction (attempt ${attempt + 1}):`, error)
+          } catch (err) {
+            console.error(`Extraction trigger threw (attempt ${attempt + 1}):`, err)
+          }
+          if (attempt === 0) await new Promise(resolve => setTimeout(resolve, 1500))
+        }
         setUploads(prev => prev.map(f =>
-          f.file === file
+          f.file === uploadedFile
             ? { ...f, status: 'error', error: 'Failed to start extraction' }
             : f
         ))
-      })
+      })()
 
       // Call onUploadComplete immediately (don't wait for extraction)
       if (onUploadComplete && docData.id) {

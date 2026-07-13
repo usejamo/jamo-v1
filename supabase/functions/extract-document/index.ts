@@ -55,17 +55,6 @@ async function chunkAndEmbedProposal(
     const chunks = chunkDocument(params.text, params.source)
     if (chunks.length === 0) return 0
 
-    const embeddings = await embedTexts(chunks.map((c) => c.content), apiKey)
-    const rows = chunks.map((c, idx) => ({
-      org_id: params.orgId,
-      doc_type: 'proposal',
-      proposal_id: params.proposalId,
-      source: params.source,
-      content: c.content,
-      embedding: embeddings[idx],
-      metadata: { document_id: params.documentId, tokenCount: c.tokenCount, sectionRef: c.sectionRef ?? null },
-    }))
-
     // Idempotency: remove any prior proposal chunks for this document before re-inserting.
     await supabase
       .from('chunks')
@@ -74,12 +63,32 @@ async function chunkAndEmbedProposal(
       .eq('doc_type', 'proposal')
       .eq('metadata->>document_id', params.documentId)
 
-    const { error } = await supabase.from('chunks').insert(rows)
-    if (error) {
-      console.error(`[extract-document] chunk insert failed: ${error.message}`)
-      return 0
+    // Embed + insert in batches. Previously we embedded EVERY chunk (holding all
+    // 1536-float vectors in memory), built a row array for the whole document, then
+    // did one big insert — peak memory scaled with document size. Interleaving keeps
+    // the working set to a single batch (<= EMBED_BATCH_SIZE), reducing the memory/CPU
+    // spike that contributes to WORKER_RESOURCE_LIMIT kills on larger documents.
+    let inserted = 0
+    for (let i = 0; i < chunks.length; i += EMBED_BATCH_SIZE) {
+      const batch = chunks.slice(i, i + EMBED_BATCH_SIZE)
+      const embeddings = await embedTexts(batch.map((c) => c.content), apiKey)
+      const rows = batch.map((c, idx) => ({
+        org_id: params.orgId,
+        doc_type: 'proposal',
+        proposal_id: params.proposalId,
+        source: params.source,
+        content: c.content,
+        embedding: embeddings[idx],
+        metadata: { document_id: params.documentId, tokenCount: c.tokenCount, sectionRef: c.sectionRef ?? null },
+      }))
+      const { error } = await supabase.from('chunks').insert(rows)
+      if (error) {
+        console.error(`[extract-document] chunk insert failed (batch @${i}): ${error.message}`)
+        return inserted
+      }
+      inserted += rows.length
     }
-    return rows.length
+    return inserted
   } catch (err) {
     console.error('[extract-document] chunk+embed failed (non-fatal):', err instanceof Error ? err.message : err)
     return 0
@@ -230,7 +239,10 @@ serve(async (req) => {
     // 8. Calculate word count
     const wordCount = extractedText.split(/\s+/).filter(w => w.length > 0).length
 
-    // 9. Insert into document_extracts
+    // 9. Insert into document_extracts (idempotent: clear any prior extract for this
+    //    document first, so a client retry after a transient failure re-processes
+    //    cleanly instead of accumulating duplicate extract rows).
+    await supabase.from('document_extracts').delete().eq('document_id', documentId)
     await supabase.from('document_extracts').insert({
       document_id: documentId,
       org_id: doc.org_id,
@@ -239,7 +251,25 @@ serve(async (req) => {
       word_count: wordCount
     })
 
-    // 10. Chunk + embed into public.chunks (doc_type='proposal') for RAG.
+    // 10. Mark the document usable NOW, BEFORE chunk+embed.
+    //     Root cause of stuck 'extracting' rows (e.g. doc 08358f62): the isolate was
+    //     killed by a transient WORKER_RESOURCE_LIMIT DURING the chunk+embed step,
+    //     after the extract was stored but before this status flip. An isolate kill
+    //     bypasses JS, so neither the success path nor the catch ran, stranding the
+    //     row at 'extracting' forever (no reaper existed). Embedding is already
+    //     best-effort (chunkAndEmbedProposal never throws / never gates extraction),
+    //     so flipping to 'complete' here makes the extracted text usable immediately
+    //     and a later embed kill merely leaves RAG chunks missing (recoverable), not
+    //     the whole document stuck.
+    await supabase
+      .from('proposal_documents')
+      .update({
+        parse_status: 'complete',
+        doc_type: docType
+      })
+      .eq('id', documentId)
+
+    // 11. Chunk + embed into public.chunks (doc_type='proposal') for RAG.
     //     Best-effort: never fails extraction (see chunkAndEmbedProposal).
     const chunksInserted = await chunkAndEmbedProposal(supabase, {
       documentId,
@@ -248,15 +278,6 @@ serve(async (req) => {
       text: extractedText,
       proposalId: doc.proposal_id ?? null,
     })
-
-    // 11. Update proposal_documents with parse_status='complete' and doc_type
-    await supabase
-      .from('proposal_documents')
-      .update({
-        parse_status: 'complete',
-        doc_type: docType
-      })
-      .eq('id', documentId)
 
     // 12. Return success response
     return new Response(JSON.stringify({
