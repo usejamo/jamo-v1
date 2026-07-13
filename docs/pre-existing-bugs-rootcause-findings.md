@@ -101,14 +101,15 @@ This investigation created a real prod proposal **"Debug Sponsor Inc" (`f4ddd9ab
 | 1E-lite batched embed+insert | ✅ done | `a424ad8` |
 | 1C client retry + idempotent extract | ✅ done | `a424ad8` + test `98fd087` · FileUpload 9/9 green |
 | 1B pg_cron reaper | ✅ done + **applied to prod** | `1ba5807` · job active `*/5`, reaper returns 0, 0 stuck |
-| 1D full decouple (separate embed fn) | ⏸ deferred | recommend against shipping an unverifiable new prod fn for a non-occurring failure mode |
+| **1E chunker O(n) — the actual 546 fix** | ✅ done + **deployed + live-verified** | `9a0f73b` · see below |
+| 1D full decouple (separate embed fn) | ⏸ not needed | superseded by the chunker fix — the CPU killer is gone |
 | Cleanup: reset doc 08358f62 | ✅ done | prod: `extracting` → `error` |
 | Cleanup: delete repro proposal f4ddd9ab | ✅ done | prod: deleted (cascade) |
 
-**Deploys still pending (edge functions run stale until deployed):**
-- `extract-document` — needed for 1A/1C/1E to take effect. **Smoke-testable now** (extraction/pdf.js needs no Anthropic credits; upload a small PDF → expect `complete`).
-- `generate-proposal-section` — 2D edge parity only (optional; the client already marks on load). Not smoke-testable now (needs Anthropic credits).
-- Client bundle (2A/2B/2D-client/1C) ships via the normal frontend deploy pipeline.
+### The 546 root cause (found by live instrumentation) — RESOLVED
+Per-step timing written to a temp table (survives the isolate kill) showed the isolate dying **inside `chunkDocument`**, before any embed. `windowSegment` grew a word window one token at a time and **re-encoded the entire growing window with js-tiktoken every step — O(n²) BPE `encode` calls** — burning >2 s CPU and tripping the edge **CPU-time limit**. Not memory, not pdfjs, not size. Fix (`9a0f73b`): encode once, slice token-id ranges (O(n)), applied to both chunker copies. **Live-verified**: the doc that returned 546 three times in a row now returns **200**; `chunkDocument` ~0.7 s; full pipeline completes (5 chunks). Combined with 1A/1B, extraction is now both correct and resilient.
+
+**Deploy status:** `extract-document` and `generate-proposal-section` **deployed to prod and verified** (`extract-document` smoke-tested to HTTP 200; the reaper migration is applied). Client bundle (2A/2B/2D-client/1C) still ships via the normal frontend deploy pipeline. Issue-2 live E2E (proposal generation) still needs an Anthropic-credit top-up to re-confirm.
 
 ## Recommended sequencing
 1. **Issue 2 → 2A** (tiny, removes an entire symptom cluster incl. the console error) — highest ROI.
