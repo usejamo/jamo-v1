@@ -615,15 +615,15 @@ Plans:
 
 **Depends on:** Phase 14.6 (RAG tier separation — the `[PROPOSAL HISTORY]` tier and split payload this phase scopes).
 
-**Plans:** 7 plans in 5 waves
+**Plans:** 6/7 plans complete
 
 Plans:
-- [ ] 14.7-01-PLAN.md — Schema + fail-closed backfill (chunks.proposal_id FK, proposals.reference_override, 3 org master-switch columns; backfill + audit table + count) [wave 1]
-- [ ] 14.7-02-PLAN.md — RPC eligibility rewrite (DROP+CREATE both proposal RPCs: current_proposal_id, draft-floor-first, fail-closed NULL + unknown-status) + live-verify SQL [wave 2]
-- [ ] 14.7-03-PLAN.md — Admin write-gating RPCs (set_org_learning_switches + set_reference_override, org-scoped, REVOKE anon/PUBLIC) [wave 2]
-- [ ] 14.7-04-PLAN.md — End-to-end threading (extract-document sets proposal_id; retrieve-context + fetchRagChunks thread current_proposal_id) [wave 3]
-- [ ] 14.7-05-PLAN.md — Settings UI (3 org toggles + per-proposal tri-state control, admin-gated, no draft include-path) [wave 3]
-- [ ] 14.7-06-PLAN.md — [BLOCKING] Live deploy: apply 4 migrations via Supabase MCP + deploy retrieve-context & extract-document [wave 4]
+- [x] 14.7-01-PLAN.md — Schema + fail-closed backfill (chunks.proposal_id FK, proposals.reference_override, 3 org master-switch columns; backfill + audit table + count) [wave 1]
+- [x] 14.7-02-PLAN.md — RPC eligibility rewrite (DROP+CREATE both proposal RPCs: current_proposal_id, draft-floor-first, fail-closed NULL + unknown-status) + live-verify SQL [wave 2]
+- [x] 14.7-03-PLAN.md — Admin write-gating RPCs (set_org_learning_switches + set_reference_override, org-scoped, REVOKE anon/PUBLIC) [wave 2]
+- [x] 14.7-04-PLAN.md — End-to-end threading (extract-document sets proposal_id; retrieve-context + fetchRagChunks thread current_proposal_id) [wave 3]
+- [x] 14.7-05-PLAN.md — Settings UI (3 org toggles + per-proposal tri-state control, admin-gated, no draft include-path) [wave 3]
+- [x] 14.7-06-PLAN.md — [BLOCKING] Live deploy: apply 4 migrations via Supabase MCP + deploy retrieve-context & extract-document [wave 4]
 - [ ] 14.7-07-PLAN.md — Live verification: 7 BRIEF cases + 3 fail-closed edge cases + write-gate + fresh-ingest + 14.6 regression [wave 5]
 
 **Out of scope:** any draft opt-in mechanism (deliberately cut); any change to regulatory retrieval/tiering or the 14.6 work; any change to the assumptions channel (`proposal_assumptions`); ranking/threshold changes (that's backlog 999.3).
