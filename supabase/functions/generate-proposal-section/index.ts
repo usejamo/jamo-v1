@@ -296,12 +296,27 @@ serve(async (req) => {
         controller.enqueue(chunk)
       },
       async flush() {
-        // Post-process: convert [PLACEHOLDER: ...] patterns to stable UUID-keyed spans
-        // IDs assigned once here; preserved through parseHTML on all subsequent loads
-        const processedText = fullText.replace(
-          /\[PLACEHOLDER:\s*([^\]]+)\]/g,
-          (_, raw) => placeholderPatternToSpan(raw, crypto.randomUUID())
-        )
+        // Post-process: convert placeholder patterns to stable UUID-keyed spans.
+        // IDs assigned once here; preserved through parseHTML on all subsequent loads.
+        // Kept in parity with src/lib/migratePlaceholders.ts (the client re-runs the
+        // same passes on load, so this is defence-in-depth for the persisted format):
+        //   1. [PLACEHOLDER: label]        — the instructed format
+        //   2. [MULTI WORD ALL CAPS]       — model omits the PLACEHOLDER: prefix
+        //   3. [Title Case Fill-in]        — bare capitalised fill-ins e.g. [Company Name];
+        //      letters/spaces only + 2+ words so acronyms ([US]) and refs ([Table 1]) are safe
+        const processedText = fullText
+          .replace(
+            /\[PLACEHOLDER:\s*([^\]]+)\]/g,
+            (_, raw) => placeholderPatternToSpan(raw, crypto.randomUUID())
+          )
+          .replace(
+            /\[([A-Z][A-Z0-9]*(?:\s+[A-Z][A-Z0-9]*){1,})\]/g,
+            (_, raw) => placeholderPatternToSpan(raw, crypto.randomUUID())
+          )
+          .replace(
+            /\[([A-Z][A-Za-z]*(?:\s+[A-Za-z]+){1,})\]/g,
+            (_, raw) => placeholderPatternToSpan(raw, crypto.randomUUID())
+          )
         const writeOp = isV2
           ? writeSectionById(supabase, sectionId, processedText)
           : writeSection(supabase, proposalId, sectionId, orgId, processedText)

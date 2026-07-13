@@ -84,6 +84,42 @@ describe('migratePlaceholders', () => {
     expect(output).not.toContain('[PLACEHOLDER:')
     expect(output).toContain('data-placeholder-id=')
   })
+
+  // 2D: bare title-case bracket placeholders. The model sometimes emits fill-ins
+  // like [Company Name] / [Name of CRO] instead of the instructed [PLACEHOLDER: ...]
+  // format. Those must still be marked, WITHOUT over-matching acronyms or references.
+  it('converts a bare title-case placeholder [Company Name] to a span', () => {
+    const output = migratePlaceholders('<p><strong>[Company Name]</strong> reviewed the RFP.</p>')
+    expect(output).not.toContain('[Company Name]')
+    expect(output).toContain('data-placeholder-label="Company Name"')
+    expect(output).toContain('>Company Name<')
+  })
+
+  it('converts a mixed-case multi-word placeholder [Name of CRO]', () => {
+    const output = migratePlaceholders('<p>[Name of CRO] will execute the study.</p>')
+    expect(output).not.toContain('[Name of CRO]')
+    expect(output).toContain('data-placeholder-label="Name of CRO"')
+  })
+
+  it('does NOT mark single-word acronyms like [US] or [EU]', () => {
+    const input = '<p>Sites in [US] and [EU] regions.</p>'
+    expect(migratePlaceholders(input)).toBe(input)
+  })
+
+  it('does NOT mark bracketed references containing digits like [Table 1]', () => {
+    const input = '<p>See [Table 1] for details.</p>'
+    expect(migratePlaceholders(input)).toBe(input)
+  })
+
+  it('does NOT mark lowercase-leading bracketed text like [see below]', () => {
+    const input = '<p>Refer to [see below] section.</p>'
+    expect(migratePlaceholders(input)).toBe(input)
+  })
+
+  it('is idempotent for bare title-case placeholders', () => {
+    const first = migratePlaceholders('<p>[Company Name] and [Sponsor Name]</p>')
+    expect(migratePlaceholders(first)).toBe(first)
+  })
 })
 
 // ---------------------------------------------------------------------------
