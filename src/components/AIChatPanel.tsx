@@ -50,6 +50,12 @@ const KNOWN_TOOL_CARD_TYPES = new Set<string>([
   'tool-substitute-placeholders',
 ])
 
+// Keyboard-shortcut hint label. The toggle handler binds Cmd/Ctrl+J on every
+// platform (see the keydown effect); only the displayed modifier differs — show the
+// ⌘ glyph on macOS and the literal "Ctrl+J" everywhere else.
+const SHORTCUT_LABEL =
+  typeof navigator !== 'undefined' && /Mac/i.test(navigator.userAgent) ? '⌘J' : 'Ctrl+J'
+
 // Phase 14.4 R7 — a substitute_placeholders result where nothing could be filled still
 // speaks (via the client-composed chat one-liner pushed alongside it, see handleSendMessage)
 // but must NOT render an empty aggregate card. Checked at the top-level message-render branch.
@@ -143,7 +149,7 @@ function Rail({ onExpand, processing, pendingActionsCount }: { onExpand: () => v
   return (
     <div
       onClick={onExpand}
-      title="Open jamo AI (⌘J)"
+      title={`Open jamo AI (${SHORTCUT_LABEL})`}
       className="flex flex-col items-center h-full pt-4 pb-3 gap-3 cursor-pointer hover:bg-black/[0.03] transition-colors"
     >
       <SpectrumSparkle onToggle={onExpand} pendingActionsCount={pendingActionsCount} />
@@ -890,7 +896,7 @@ export default function AIChatPanel({
                     </div>
                     <button
                       onClick={() => setExpanded(false)}
-                      title="Collapse (⌘J)"
+                      title={`Collapse (${SHORTCUT_LABEL})`}
                       className="w-6 h-6 p-0 flex items-center justify-center rounded-md text-gray-400 hover:text-gray-700 hover:bg-black/5 transition-colors"
                     >
                       <PanelCloseIcon />
@@ -1400,33 +1406,6 @@ export default function AIChatPanel({
                   <div ref={bottomRef} />
                 </div>
 
-                {/* Quick chips */}
-                <div className="px-3 pb-2 flex flex-wrap gap-1.5 shrink-0">
-                  {activeSectionKey && (
-                    <button
-                      onClick={() => handleSendMessage('Explain this section')}
-                      disabled={isStreaming}
-                      className="text-xs text-gray-600 bg-white/70 hover:bg-white border border-gray-200 hover:border-gray-300 px-2.5 py-1 rounded-full transition-colors disabled:opacity-40"
-                    >
-                      Explain this section
-                    </button>
-                  )}
-                  <button
-                    onClick={() => handleSendMessage('What gaps should I address?')}
-                    disabled={isStreaming}
-                    className="text-xs text-gray-600 bg-white/70 hover:bg-white border border-gray-200 hover:border-gray-300 px-2.5 py-1 rounded-full transition-colors disabled:opacity-40"
-                  >
-                    Review gaps
-                  </button>
-                  <button
-                    onClick={() => handleSendMessage('How can I strengthen this proposal?')}
-                    disabled={isStreaming}
-                    className="text-xs text-gray-600 bg-white/70 hover:bg-white border border-gray-200 hover:border-gray-300 px-2.5 py-1 rounded-full transition-colors disabled:opacity-40"
-                  >
-                    Strengthen proposal
-                  </button>
-                </div>
-
                 {/* Input */}
                 <div className="px-3 pb-3 shrink-0">
                   <div className="flex items-center gap-2 bg-white/70 border border-gray-200 rounded-xl px-3 py-2 focus-within:border-gray-400 focus-within:bg-white transition-all">
@@ -1449,7 +1428,7 @@ export default function AIChatPanel({
                       </svg>
                     </button>
                   </div>
-                  <p className="text-center text-[10px] text-gray-300 mt-1.5">⌘J to toggle panel</p>
+                  <p className="text-center text-[10px] text-gray-300 mt-1.5">{SHORTCUT_LABEL} to toggle panel</p>
                 </div>
               </motion.div>
             )}

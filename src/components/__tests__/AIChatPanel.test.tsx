@@ -133,7 +133,8 @@ describe('AIChatPanel', () => {
     // The badge renders in Rail (collapsed state). Collapse the panel first.
     renderWithWorkspace(<AIChatPanel {...defaultProps} />)
     // Click the collapse button to put panel into Rail view
-    const collapseBtn = screen.getByTitle('Collapse (⌘J)')
+    // Title carries a platform-aware shortcut hint (⌘J on macOS, Ctrl+J elsewhere).
+    const collapseBtn = screen.getByTitle(/^Collapse \(/)
     fireEvent.click(collapseBtn)
     // Rail renders with SpectrumSparkle — no badge initially (pendingActions starts empty)
     expect(screen.queryByText('3')).toBeNull()
@@ -214,16 +215,6 @@ describe('AIChatPanel', () => {
     }, { timeout: 3000 })
   })
 
-  it('shows explain chip when activeSectionKey is set', () => {
-    renderWithWorkspace(<AIChatPanel {...defaultProps} activeSectionKey="understanding" />)
-    expect(screen.getByText('Explain this section')).toBeTruthy()
-  })
-
-  it('hides explain chip when no section targeted', () => {
-    renderWithWorkspace(<AIChatPanel {...defaultProps} activeSectionKey={null} />)
-    expect(screen.queryByText('Explain this section')).toBeNull()
-  })
-
   it('persists messages to proposal_chats on send', async () => {
     // Mock the stream to resolve immediately
     const mockStream = new ReadableStream({
@@ -256,12 +247,4 @@ describe('AIChatPanel', () => {
     }, { timeout: 3000 })
   })
 
-  it('displays citations in explain response', () => {
-    renderWithWorkspace(<AIChatPanel {...defaultProps} />)
-    // Panel is expanded by default — messages area is visible
-    const panelArea = screen.getByPlaceholderText('Ask jamo to edit...')
-    expect(panelArea).toBeTruthy()
-    const reviewGapsBtn = screen.getByText('Review gaps')
-    expect(reviewGapsBtn).toBeTruthy()
-  })
 })
