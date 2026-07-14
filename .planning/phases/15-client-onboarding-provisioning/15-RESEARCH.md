@@ -438,17 +438,19 @@ await admin.from('invites').update({ status: 'accepted' }).eq('id', invite.id)
 | A2 | `otp_expiry` (config.toml default 3600s = 1 hour) applies to invite links the same way it applies to OTP/magiclink — SPEC says "Supabase defaults" are acceptable, but a 1-hour invite-link expiry may be too short for a sales-led onboarding flow where the invitee may not check email immediately | Don't Hand-Roll table | If 1 hour is too short in practice, the "resend" feature (req 8) is the designed mitigation — not a blocker, but the planner/human should confirm 1 hour is acceptable or explicitly raise `otp_expiry` |
 | A3 | The `orgs_super_admin` RLS policy (`FOR ALL` with only a `USING` clause, no explicit `WITH CHECK`) implicitly applies `USING` as `WITH CHECK` for INSERT per standard Postgres RLS semantics, meaning a super_admin's own authenticated client COULD insert directly into `organizations` without going through an edge function | Architectural Responsibility Map | Low risk — D-08 mandates the edge-function path anyway for auditability, so this is documentation-only; if wrong, it just means the RLS is even MORE permissive than assumed, not less (no security downgrade) |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Exact `invites.status` enum values**
    - What we know: CONTEXT.md leaves this to Claude's discretion; `pending`/`accepted`/`revoked` are required by the decisions above, `expired` is optional.
    - What's unclear: Whether an `expired` status is worth adding given Supabase's own link expiry already makes an unaccepted invite non-functional after `otp_expiry` — a separate app-level `expired` status would need a cron/check to set it, since Postgres won't do this automatically.
    - Recommendation: Skip `expired` for v1 unless the admin UI specifically wants to visually distinguish "still within expiry window" from "past expiry, needs resend" — a computed value (`created_at + otp_expiry < now()`) can approximate this without a stored status.
+   - **RESOLVED:** Adopted in planning — Plan 15-01 implements `status IN ('pending','accepted','revoked')` with NO stored `expired` status (Supabase link expiry + resend covers it). No cron introduced.
 
 2. **Whether the org-admin "Team" invite path needs its own edge function or can share `admin-invite-first-admin`'s function with a parameter**
    - What we know: Pattern 2 in this document recommends splitting by authorization shape (same-org vs cross-org), which argues for separate functions per D-08's "operation-specific" preference.
    - What's unclear: Whether code duplication between `admin-invite-first-admin` and `team-invite` (both ultimately call the same `invites` insert + `inviteUserByEmail` sequence) is worth factoring into a shared non-HTTP helper module (like `_shared/auth.ts`) vs. two small standalone functions.
    - Recommendation: Extract a shared `_shared/invites.ts` helper for the "insert pending invite + call inviteUserByEmail + compensate on failure" sequence (Code Examples above), called by both edge functions with different authorization pre-checks. Keeps D-08's "operation-specific" boundary while avoiding duplicated D-03 sequencing logic.
+   - **RESOLVED:** Adopted in planning — Plan 15-04 creates the shared `supabase/functions/_shared/invites.ts` helper; separate operation-specific functions (`admin-invite-first-admin`, `team-invite`) both call it with their own authorization pre-checks. D-08 boundary preserved, D-03 sequencing not duplicated.
 
 ## Environment Availability
 

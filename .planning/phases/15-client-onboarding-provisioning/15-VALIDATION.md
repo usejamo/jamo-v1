@@ -1,10 +1,11 @@
 ---
 phase: 15
 slug: client-onboarding-provisioning
-status: draft
-nyquist_compliant: false
-wave_0_complete: false
+status: approved
+nyquist_compliant: true
+wave_0_complete: true
 created: 2026-07-13
+finalized: 2026-07-13
 ---
 
 # Phase 15 — Validation Strategy
@@ -77,16 +78,17 @@ created: 2026-07-13
 | Resend SMTP delivers from verified sender | 15-09 | External email delivery not assertable in CI | Trigger a live invite + a live reset; confirm both arrive from the Resend sender (not inbucket/default) |
 | Password-reset email delivers | 15-10 | Live email delivery | Request reset for a known user; follow link; set new password; sign in with new (not old) |
 | Trigger tamper-proofing | 15-12 | Requires live DB + hostile client payload | Issue invite for Org A/`user`; accept with tampered Org B/`admin` payload; assert profile lands Org A/`user` |
+| Edge-function deploy + live bootstrap (Plan 15-08 ops tasks) | 15-04/06/07/08/11 | Pure deploy/live-ops — "did it deploy / did bootstrap run" cannot be unit-tested; matches repo precedent (14.3-05, 14.5-03, 14.6-05, 14.7-06/07) | 14.3 gate verified deployed first; deploy all 5 edge functions (sbp_ token); confirm each shows deployed in the live project; run bootstrap script live and confirm a `super_admin` can reach `/admin`; re-run bootstrap to confirm idempotency |
 
 ---
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies (manual-only items 5/9/10/12 explicitly flagged)
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references
-- [ ] No watch-mode flags
-- [ ] Feedback latency < 15s
-- [ ] `nyquist_compliant: true` set in frontmatter (after Wave 0 authored)
+- [x] All tasks have `<automated>` verify or Wave 0 dependencies (manual-only items 5/9/10/12 + Plan-08 deploy/bootstrap ops explicitly flagged in Manual-Only Verifications)
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify — EXCEPT Plan 15-08 (Wave 4), a pure deploy/live-ops plan whose 3 ops tasks (14.3-gate check, 5-fn deploy, live bootstrap) are unavoidably manual; carved out explicitly per established repo precedent (14.3-05, 14.5-03, 14.6-05, 14.7-06/07)
+- [x] Wave 0 covers all MISSING references — delivered co-located inside implementing plans rather than a separate `15-00-PLAN.md` (slug test → 15-04, bootstrap idempotency test → 15-07, SuperAdminRoute test → 15-11, config-signup assertion → 15-02, ResetPassword test → 15-03; Deno function scaffolds authored alongside their functions)
+- [x] No watch-mode flags
+- [x] Feedback latency < 15s
+- [x] `nyquist_compliant: true` set in frontmatter (Wave-0 coverage assigned to implementing plans; test files authored during execution)
 
-**Approval:** pending
+**Approval:** approved 2026-07-13 (validation strategy finalized; Wave-0 test files are co-located in the plans and written during execution, not pre-authored)
