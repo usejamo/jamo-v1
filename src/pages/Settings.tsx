@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { TemplatesTab } from '../components/settings/TemplatesTab'
 import { ReferenceLibraryTab } from '../components/settings/ReferenceLibraryTab'
+import { TeamTab } from '../components/settings/TeamTab'
 import { SalesforceConnection } from '../components/SalesforceConnection'
 
 // ── Shared constants ──────────────────────────────────────────────────────────
@@ -123,7 +124,7 @@ const NOTIF_GROUPS: { group: string; items: { key: NotifKey; label: string; sub:
 
 // ── Sub-tabs ──────────────────────────────────────────────────────────────────
 
-const SUB_TABS = ['Profile', 'Integrations', 'General', 'Notifications', 'Templates', 'Reference Library'] as const
+const SUB_TABS = ['Profile', 'Integrations', 'General', 'Notifications', 'Templates', 'Reference Library', 'Team'] as const
 type SubTab = (typeof SUB_TABS)[number]
 
 // ── Primitives ────────────────────────────────────────────────────────────────
@@ -463,7 +464,7 @@ export default function Settings() {
 
   const isOrgAdmin = profile?.role === 'admin' || profile?.role === 'super_admin'
   const visibleTabs = SUB_TABS.filter(tab =>
-    (tab !== 'Templates' && tab !== 'Reference Library') || isOrgAdmin
+    (tab !== 'Templates' && tab !== 'Reference Library' && tab !== 'Team') || isOrgAdmin
   )
 
   return (
@@ -524,6 +525,9 @@ export default function Settings() {
 
       {/* Reference Library (admin only) */}
       {activeTab === 'Reference Library' && <ReferenceLibraryTab />}
+
+      {/* Team (admin only) */}
+      {activeTab === 'Team' && <TeamTab />}
 
     </div>
   )
