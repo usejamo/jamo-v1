@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 15-03-PLAN.md
-last_updated: "2026-07-14T01:27:00.429Z"
+stopped_at: Completed 15-04-PLAN.md
+last_updated: "2026-07-14T01:34:36.864Z"
 progress:
   total_phases: 34
   completed_phases: 25
   total_plans: 153
-  completed_plans: 143
-  percent: 93
+  completed_plans: 144
+  percent: 94
 ---
 
 ## Project Status
@@ -27,11 +27,11 @@ progress:
 
 ## Next Action
 
-Phase 15 (Client Onboarding & Provisioning): Wave 1 complete (15-01, 15-02, 15-03). Next: 15-04-PLAN.md — shared invite helper + admin-create-org + admin-invite-first-admin + slug (Wave 2).
+Phase 15 (Client Onboarding & Provisioning): Wave 1 complete (15-01, 15-02, 15-03). Wave 2 plan 15-04 complete (shared invite helper + admin-create-org + admin-invite-first-admin + slug). Next: remaining Phase 15 plans per 15-PLAN.md wave order (edge functions built here are NOT yet deployed — deploy wave is plan 08).
 
 ## Last Session
 
-**Stopped at:** Completed 15-03-PLAN.md
+**Stopped at:** Completed 15-04-PLAN.md
 **Session date:** 2026-07-14
 
 ## Roadmap Evolution
@@ -53,6 +53,8 @@ Phase 15 (Client Onboarding & Provisioning): Wave 1 complete (15-01, 15-02, 15-0
 
 ## Active Decisions
 
+- **baseSlug duplicated, not imported (15-04):** `src/lib/slug.ts`'s `baseSlug` (unit-tested there) is byte-duplicated inside `admin-create-org/index.ts` because the Deno edge runtime cannot resolve `src/lib/` imports at deploy time — same convention as `chunker.ts`/`ingest-regulatory.ts` (Phase 4/14.6). Keep both copies in sync manually if the logic changes.
+- **super_admin assertion + role server-binding (15-04, D-08/D-10/T-15-12/T-15-13):** `admin-create-org` and `admin-invite-first-admin` both assert `super_admin` via a `user_profiles` lookup keyed by the JWT-verified `userId` (never implied by reaching the endpoint or read from the body). `admin-invite-first-admin` hardcodes `role: 'admin'` server-side and never destructures `role` from the request body at all — an attacker-supplied `role` field is simply never read, not merely overridden.
 - **Production redirect domain (15-02):** `additional_redirect_urls` in `config.toml` uses `https://app.usejamo.com` for the three auth-flow routes (`/accept-invite`, `/forgot-password`, `/reset-password`) — matches the existing `ALLOWED_SETTINGS_ORIGINS` convention found in `12-REVIEW.md`'s Salesforce OAuth code; no other authoritative prod domain constant exists in the repo. If the real production domain differs, both `config.toml` and the hosted dashboard's Redirect URLs allow-list must be corrected during the deferred human checkpoint.
 - **Auth config test convention (15-02):** static `fs.readFileSync` assertion test for `config.toml` lives at `src/__tests__/config-signup-disabled.test.ts` (no Supabase CLI/runtime dependency, <1s runtime) — establishes the pattern for future config.toml regression guards.
 - **invites table has no 'expired' status (15-01):** expiry is computed from the Supabase invite-link TTL at read time, not stored as a row state.
@@ -163,6 +165,8 @@ Phase 15 (Client Onboarding & Provisioning): Wave 1 complete (15-01, 15-02, 15-0
 
 - **Plan 01** (2026-07-14): DB foundation for provisioning — `invites` table (email/org_id/role/invited_by/status/timestamps) with RLS (same-org SELECT, same-org admin/super_admin INSERT, no super_admin bypass per D-08); `user_profiles.is_active` column; new `profiles_admin_update_same_org` RLS UPDATE policy; `handle_new_user` trigger body rewritten to bind org/role exclusively from the `invites` table by email (RAISE EXCEPTION + rollback on no pending invite, D-05), closing the req-12 client-metadata tamper vector. req-12 tamper-proofing manual verification checklist authored (`supabase/migrations/verify/15-12-tamper.sql`). Migration file committed but **live apply deferred to orchestrator** (Task 2 BLOCKING — `supabase db push` diverged in this project; must apply via Supabase MCP `apply_migration`). Commits cb83d5b, 20afd87.
 - **Plan 02** (2026-07-14): Auth lockdown + Resend SMTP config — both `enable_signup = true` occurrences ([auth], [auth.email]) flipped to `false` in committed `config.toml` (closes req-1 local/prod divergence); `[auth.email.smtp]` uncommented and pointed at Resend (`smtp.resend.com:465`, `pass = "env(RESEND_SMTP_PASSWORD)"`, no literal secret); `/accept-invite`, `/forgot-password`, `/reset-password` added to `additional_redirect_urls` for local + `https://app.usejamo.com`; `auth.rate_limit.email_sent` raised 2 -> 100. New static Vitest guard `src/__tests__/config-signup-disabled.test.ts` (5 assertions) prevents regression. Task 3 (checkpoint:human-action — Resend account/DNS verification, hosted-dashboard SMTP/redirect-allowlist/rate-limit config) **deferred by explicit user instruction**; full step-by-step checklist recorded in `15-02-SUMMARY.md`'s "PENDING HUMAN CHECKPOINT" section. Live email delivery (must-have truth #4) remains unverified until that checkpoint is completed. Commits 8b42757, d5a9d8f.
+- **Plan 03** (2026-07-14): Invite-acceptance + password-reset auth pages — `AcceptInvite.tsx`, `ForgotPassword.tsx`, `ResetPassword.tsx` added per Login.tsx card-chrome convention (route-identified, not `onAuthStateChange` event-typed). Commits 1d2bccb, 695acfc, 688f7e7.
+- **Plan 04** (2026-07-14): Cross-org super_admin provisioning backend — `_shared/invites.ts` (`createInvite`/`revokeInvite`) implements the D-01/D-02/D-03 sequence (INSERT pending invite row committed first → `auth.admin.inviteUserByEmail` → compensate-revoke on failure), reused by `team-invite` (plan 06). `admin-create-org` (req 3): super_admin-gated from the verified JWT, `plan IN ('trial','paid')` validated, slug uniqueness resolved via insert-catch-`23505`-retry bounded to 6 attempts (T-15-15/T-15-16), never a pre-check race. `admin-invite-first-admin` (req 4): super_admin-gated, `targetOrgId` may differ from caller's own org (the cross-org point), `role` hardcoded `'admin'` server-side and never destructured from the body (T-15-13). `src/lib/slug.ts` `baseSlug` unit-tested (7 Vitest cases); duplicated (not imported) inside the edge function per the Deno/src-import boundary convention. Deno unavailable locally — both edge functions' `test.ts` use the grep-acceptance contingency (matching 14.3). No deploy attempted (deploy wave is plan 08). Commits 3e8a333, a3543cf, 8d84be5.
 
 ### Phase 01: Supabase Foundation
 
