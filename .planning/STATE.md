@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 15-04-PLAN.md
-last_updated: "2026-07-14T01:34:36.864Z"
+stopped_at: Completed 15-07-PLAN.md
+last_updated: "2026-07-14T01:40:05.316Z"
 progress:
   total_phases: 34
   completed_phases: 25
   total_plans: 153
-  completed_plans: 144
-  percent: 94
+  completed_plans: 145
+  percent: 95
 ---
 
 ## Project Status
@@ -27,11 +27,11 @@ progress:
 
 ## Next Action
 
-Phase 15 (Client Onboarding & Provisioning): Wave 1 complete (15-01, 15-02, 15-03). Wave 2 plan 15-04 complete (shared invite helper + admin-create-org + admin-invite-first-admin + slug). Next: remaining Phase 15 plans per 15-PLAN.md wave order (edge functions built here are NOT yet deployed — deploy wave is plan 08).
+Phase 15 (Client Onboarding & Provisioning): Wave 1 complete (15-01, 15-02, 15-03). Wave 2 plan 15-04 complete (shared invite helper + admin-create-org + admin-invite-first-admin + slug). Wave 2 plan 15-07 complete (idempotent bootstrap-super-admin script + test + npm entry, req 15-11 — NOT yet run live; live run + verification deferred to plan 15-08 per orchestrator's live-ops boundary). Next: remaining Phase 15 plans per 15-PLAN.md wave order (edge functions built here are NOT yet deployed — deploy wave is plan 08).
 
 ## Last Session
 
-**Stopped at:** Completed 15-04-PLAN.md
+**Stopped at:** Completed 15-07-PLAN.md
 **Session date:** 2026-07-14
 
 ## Roadmap Evolution

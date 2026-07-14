@@ -652,7 +652,7 @@ Plans:
 - [x] 15-04-PLAN.md — shared invite helper + admin-create-org + admin-invite-first-admin + slug (W2)
 - [ ] 15-05-PLAN.md — admin-invites-lifecycle (list/resend/revoke) (W3)
 - [ ] 15-06-PLAN.md — team-invite + team-manage (same-org, role-capped, deactivate) (W3)
-- [ ] 15-07-PLAN.md — idempotent super_admin bootstrap script (W2)
+- [x] 15-07-PLAN.md — idempotent super_admin bootstrap script (W2)
 - [ ] 15-08-PLAN.md — [BLOCKING] deploy 5 edge fns + verify 14.3 gate + run bootstrap live (W4)
 - [ ] 15-09-PLAN.md — /admin panel UI (org list, create-org, invite, pending invites) (W5)
 - [ ] 15-10-PLAN.md — Settings Team tab (invite, member mgmt, own-org invites) (W5)
