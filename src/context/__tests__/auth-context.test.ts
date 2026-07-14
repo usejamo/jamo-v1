@@ -9,7 +9,6 @@ vi.mock('../../lib/supabase', () => ({
       }),
       signInWithPassword: vi.fn().mockResolvedValue({ data: { session: null }, error: null }),
       signOut: vi.fn().mockResolvedValue({ error: null }),
-      signUp: vi.fn().mockResolvedValue({ data: { session: null }, error: null }),
     },
     from: vi.fn().mockReturnValue({
       select: vi.fn().mockReturnThis(),
@@ -49,21 +48,6 @@ describe('auth-context', () => {
 
     // Call it to verify mock works
     const result = await supabase.auth.signOut()
-    expect(result).toHaveProperty('error')
-  })
-
-  it('exports signUp method that calls supabase.auth.signUp', async () => {
-    const { supabase } = await import('../../lib/supabase')
-
-    // Verify signUp exists on supabase.auth
-    expect(typeof supabase.auth.signUp).toBe('function')
-
-    // Call it to verify mock works
-    const result = await supabase.auth.signUp({
-      email: 'test@example.com',
-      password: 'password123'
-    })
-    expect(result).toHaveProperty('data')
     expect(result).toHaveProperty('error')
   })
 })
