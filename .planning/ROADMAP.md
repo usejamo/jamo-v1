@@ -643,7 +643,20 @@ Plans:
 **SPEC:** 15-SPEC.md (13 requirements, ambiguity 0.13)
 **Context:** 15-CONTEXT.md
 
-**Plans:** Not planned yet
+**Plans:** 11 plans in 5 waves
+
+Plans:
+- [ ] 15-01-PLAN.md — invites table + hardened handle_new_user trigger + is_active/RLS + apply (W1)
+- [ ] 15-02-PLAN.md — disable signup + Resend SMTP + redirect allow-list (+ human setup) (W1)
+- [ ] 15-03-PLAN.md — auth pages: accept-invite, forgot/reset password (W1)
+- [ ] 15-04-PLAN.md — shared invite helper + admin-create-org + admin-invite-first-admin + slug (W2)
+- [ ] 15-05-PLAN.md — admin-invites-lifecycle (list/resend/revoke) (W2)
+- [ ] 15-06-PLAN.md — team-invite + team-manage (same-org, role-capped, deactivate) (W2)
+- [ ] 15-07-PLAN.md — idempotent super_admin bootstrap script (W2)
+- [ ] 15-08-PLAN.md — [BLOCKING] deploy 5 edge fns + verify 14.3 gate + run bootstrap live (W3)
+- [ ] 15-09-PLAN.md — /admin panel UI (org list, create-org, invite, pending invites) (W4)
+- [ ] 15-10-PLAN.md — Settings Team tab (invite, member mgmt, own-org invites) (W4)
+- [ ] 15-11-PLAN.md — SuperAdminRoute + route wiring + dead-code removal (W5)
 
 ---
 
