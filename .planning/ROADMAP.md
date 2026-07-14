@@ -655,7 +655,7 @@ Plans:
 - [x] 15-07-PLAN.md — idempotent super_admin bootstrap script (W2)
 - [ ] 15-08-PLAN.md — [BLOCKING] deploy 5 edge fns + verify 14.3 gate + run bootstrap live (W4)
 - [x] 15-09-PLAN.md — /admin panel UI (org list, create-org, invite, pending invites) (W5) — human-verify checkpoint left open, not yet routed (route wiring is 15-11)
-- [ ] 15-10-PLAN.md — Settings Team tab (invite, member mgmt, own-org invites) (W5)
+- [x] 15-10-PLAN.md — Settings Team tab (invite, member mgmt, own-org invites) (W5) — human-verify checkpoint left open, blocked on 15-08 deploy
 - [ ] 15-11-PLAN.md — SuperAdminRoute + route wiring + dead-code removal (W6)
 
 ---
