@@ -13,7 +13,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-type ManageAction = 'change_role' | 'deactivate' | 'reactivate'
+type ManageAction = 'change_role' | 'deactivate' | 'reactivate' | 'list_members'
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
@@ -48,6 +48,29 @@ Deno.serve(async (req) => {
       targetUserId?: string
       role?: string
     }
+
+    // list_members: TeamTab's member list — user_profiles has no email
+    // column (auth.users owns it), so this same-org, admin-gated read joins
+    // each profile to its auth user via the service-role client. No
+    // targetUserId is involved; scoped entirely to callerOrgId (T-15-34).
+    if (action === 'list_members') {
+      const { data: members, error: listErr } = await admin
+        .from('user_profiles')
+        .select('user_id, full_name, role, is_active, created_at')
+        .eq('org_id', callerOrgId)
+        .order('created_at', { ascending: true })
+      if (listErr) return jsonError(500, listErr.message, corsHeaders)
+      const withEmail = await Promise.all(
+        (members ?? []).map(async (m: { user_id: string; full_name: string | null; role: string; is_active: boolean; created_at: string }) => {
+          const { data: userRes } = await admin.auth.admin.getUserById(m.user_id)
+          return { ...m, email: userRes?.user?.email ?? null }
+        })
+      )
+      return new Response(JSON.stringify({ members: withEmail }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
     if (!targetUserId || typeof targetUserId !== 'string') {
       return jsonError(400, 'targetUserId is required', corsHeaders)
     }
