@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 15-01-PLAN.md
-last_updated: "2026-07-14T01:15:06.985Z"
+stopped_at: Completed 15-02-PLAN.md
+last_updated: "2026-07-14T01:23:32.482Z"
 progress:
   total_phases: 34
   completed_phases: 25
   total_plans: 153
-  completed_plans: 141
-  percent: 92
+  completed_plans: 142
+  percent: 93
 ---
 
 ## Project Status
@@ -31,7 +31,7 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 
 ## Last Session
 
-**Stopped at:** Completed 15-01-PLAN.md
+**Stopped at:** Completed 15-02-PLAN.md
 **Session date:** 2026-07-09
 
 ## Roadmap Evolution
@@ -53,6 +53,8 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 
 ## Active Decisions
 
+- **Production redirect domain (15-02):** `additional_redirect_urls` in `config.toml` uses `https://app.usejamo.com` for the three auth-flow routes (`/accept-invite`, `/forgot-password`, `/reset-password`) — matches the existing `ALLOWED_SETTINGS_ORIGINS` convention found in `12-REVIEW.md`'s Salesforce OAuth code; no other authoritative prod domain constant exists in the repo. If the real production domain differs, both `config.toml` and the hosted dashboard's Redirect URLs allow-list must be corrected during the deferred human checkpoint.
+- **Auth config test convention (15-02):** static `fs.readFileSync` assertion test for `config.toml` lives at `src/__tests__/config-signup-disabled.test.ts` (no Supabase CLI/runtime dependency, <1s runtime) — establishes the pattern for future config.toml regression guards.
 - **invites table has no 'expired' status (15-01):** expiry is computed from the Supabase invite-link TTL at read time, not stored as a row state.
 - **No super_admin RLS bypass on invites/user_profiles (15-01, D-08):** the only cross-org RLS bypass in the schema remains `orgs_super_admin` on `organizations`; cross-org admin operations route through service-role edge functions in later Phase 15 plans, never a second bypass policy.
 - **Live migration apply deferred to orchestrator (15-01):** this executor wrote and committed `supabase/migrations/20260713000002_invites_and_trigger_hardening.sql` but did NOT run it live — `supabase db push` is diverged/unusable in this project; the orchestrator must apply it via Supabase MCP `apply_migration` before any downstream Phase 15 plan executes. Task 2 is `[BLOCKING]` per the plan.
@@ -160,6 +162,7 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 ### Phase 15: Client Onboarding & Provisioning
 
 - **Plan 01** (2026-07-14): DB foundation for provisioning — `invites` table (email/org_id/role/invited_by/status/timestamps) with RLS (same-org SELECT, same-org admin/super_admin INSERT, no super_admin bypass per D-08); `user_profiles.is_active` column; new `profiles_admin_update_same_org` RLS UPDATE policy; `handle_new_user` trigger body rewritten to bind org/role exclusively from the `invites` table by email (RAISE EXCEPTION + rollback on no pending invite, D-05), closing the req-12 client-metadata tamper vector. req-12 tamper-proofing manual verification checklist authored (`supabase/migrations/verify/15-12-tamper.sql`). Migration file committed but **live apply deferred to orchestrator** (Task 2 BLOCKING — `supabase db push` diverged in this project; must apply via Supabase MCP `apply_migration`). Commits cb83d5b, 20afd87.
+- **Plan 02** (2026-07-14): Auth lockdown + Resend SMTP config — both `enable_signup = true` occurrences ([auth], [auth.email]) flipped to `false` in committed `config.toml` (closes req-1 local/prod divergence); `[auth.email.smtp]` uncommented and pointed at Resend (`smtp.resend.com:465`, `pass = "env(RESEND_SMTP_PASSWORD)"`, no literal secret); `/accept-invite`, `/forgot-password`, `/reset-password` added to `additional_redirect_urls` for local + `https://app.usejamo.com`; `auth.rate_limit.email_sent` raised 2 -> 100. New static Vitest guard `src/__tests__/config-signup-disabled.test.ts` (5 assertions) prevents regression. Task 3 (checkpoint:human-action — Resend account/DNS verification, hosted-dashboard SMTP/redirect-allowlist/rate-limit config) **deferred by explicit user instruction**; full step-by-step checklist recorded in `15-02-SUMMARY.md`'s "PENDING HUMAN CHECKPOINT" section. Live email delivery (must-have truth #4) remains unverified until that checkpoint is completed. Commits 8b42757, d5a9d8f.
 
 ### Phase 01: Supabase Foundation
 
