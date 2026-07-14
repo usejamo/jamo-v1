@@ -4,6 +4,14 @@ import { useAuth } from '../../context/AuthContext'
 
 // ── Icons (inline-SVG-function convention, matches TemplatesTab.tsx:4-38 — no icon library) ──
 
+function IconMail({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="4" width="20" height="16" rx="2" /><path d="m22 7-10 5L2 7" />
+    </svg>
+  )
+}
+
 function IconBan({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
@@ -43,6 +51,16 @@ interface Member {
   is_active: boolean
 }
 
+type InviteStatus = 'pending' | 'accepted' | 'revoked'
+
+interface PendingInvite {
+  id: string
+  email: string
+  role: string
+  status: InviteStatus
+  created_at: string
+}
+
 function displayName(member: Member): string {
   return member.full_name || member.email || 'Unnamed teammate'
 }
@@ -58,6 +76,28 @@ function RoleBadge({ role }: { role: string }) {
       }`}
     >
       {role}
+    </span>
+  )
+}
+
+function InviteStatusBadge({ status }: { status: InviteStatus }) {
+  if (status === 'pending') {
+    return (
+      <span className="text-xs font-normal text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full shrink-0">
+        Pending
+      </span>
+    )
+  }
+  if (status === 'accepted') {
+    return (
+      <span className="text-xs font-normal text-green-600 bg-green-50 px-2 py-0.5 rounded-full shrink-0">
+        Accepted
+      </span>
+    )
+  }
+  return (
+    <span className="text-xs font-normal text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full shrink-0">
+      Revoked
     </span>
   )
 }
@@ -111,6 +151,55 @@ function DeactivateDialog({
   )
 }
 
+// ── Revoke invite confirmation dialog (verbatim DeleteDialog shape) ──────────
+
+function RevokeInviteDialog({
+  email,
+  onConfirm,
+  onCancel,
+  submitting,
+}: {
+  email: string
+  onConfirm: () => void
+  onCancel: () => void
+  submitting: boolean
+}) {
+  const cancelRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    cancelRef.current?.focus()
+  }, [])
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onCancel}>
+      <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
+        <h2 className="text-base font-semibold text-gray-900 mb-2">Revoke invite?</h2>
+        <p className="text-sm text-gray-600 mb-6">
+          {email} will no longer be able to accept using this link.
+        </p>
+        <div className="flex items-center justify-end gap-3">
+          <button
+            ref={cancelRef}
+            type="button"
+            onClick={onCancel}
+            className="text-sm font-medium text-gray-700 border border-gray-200 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={submitting}
+            className="text-sm font-medium text-white bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
+          >
+            {submitting ? 'Revoking…' : 'Revoke'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── TeamTab ──────────────────────────────────────────────────────────────────
 
 export function TeamTab() {
@@ -132,6 +221,14 @@ export function TeamTab() {
   const [reactivatingId, setReactivatingId] = useState<string | null>(null)
   const [memberActionError, setMemberActionError] = useState<string | null>(null)
 
+  // Pending invites sub-list (own org only)
+  const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([])
+  const [invitesLoading, setInvitesLoading] = useState(true)
+  const [invitesError, setInvitesError] = useState<string | null>(null)
+  const [resendingId, setResendingId] = useState<string | null>(null)
+  const [revokeTarget, setRevokeTarget] = useState<PendingInvite | null>(null)
+  const [revokingId, setRevokingId] = useState<string | null>(null)
+
   async function fetchMembers() {
     setMembersLoading(true)
     setMembersError(null)
@@ -146,8 +243,27 @@ export function TeamTab() {
     setMembersLoading(false)
   }
 
+  async function fetchPendingInvites() {
+    setInvitesLoading(true)
+    setInvitesError(null)
+    // invites_select_own_org RLS scopes this to the caller's own org — no
+    // service-role client, so another org's invites can never load here.
+    const { data, error } = await supabase
+      .from('invites')
+      .select('id, email, role, status, created_at')
+      .neq('status', 'accepted')
+      .order('created_at', { ascending: false })
+    if (error) {
+      setInvitesError('Failed to load pending invites. Please refresh and try again.')
+    } else if (data) {
+      setPendingInvites(data as PendingInvite[])
+    }
+    setInvitesLoading(false)
+  }
+
   useEffect(() => {
     fetchMembers()
+    fetchPendingInvites()
   }, [])
 
   async function handleInvite(e: React.FormEvent) {
@@ -171,6 +287,7 @@ export function TeamTab() {
     setInviteEmail('')
     setInviteRole('user')
     setInviting(false)
+    await fetchPendingInvites()
   }
 
   async function handleChangeRole(member: Member) {
@@ -218,6 +335,38 @@ export function TeamTab() {
       await fetchMembers()
     }
     setReactivatingId(null)
+  }
+
+  async function handleResend(invite: PendingInvite) {
+    setResendingId(invite.id)
+    setInvitesError(null)
+    const { error } = await supabase.functions.invoke('team-invite', {
+      body: { action: 'resend', inviteId: invite.id },
+    })
+    if (error) {
+      setInvitesError("Couldn't resend the invite. Please try again.")
+    } else {
+      await fetchPendingInvites()
+    }
+    setResendingId(null)
+  }
+
+  async function handleRevokeConfirm() {
+    if (!revokeTarget) return
+    const target = revokeTarget
+    setRevokingId(target.id)
+    setInvitesError(null)
+    setRevokeTarget(null)
+
+    const { error } = await supabase.functions.invoke('team-invite', {
+      body: { action: 'revoke', inviteId: target.id },
+    })
+    if (error) {
+      setInvitesError("Couldn't revoke the invite. Please try again.")
+    } else {
+      await fetchPendingInvites()
+    }
+    setRevokingId(null)
   }
 
   return (
@@ -367,6 +516,92 @@ export function TeamTab() {
           </div>
         )}
       </div>
+
+      {/* ── Pending invites (own org only) ── */}
+      <div className="bg-white rounded-xl border border-gray-200 p-6">
+        <h2 className="text-base font-semibold text-gray-900 mb-4">Pending Invites</h2>
+
+        {invitesError && (
+          <div role="alert" className="mb-4 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2">
+            {invitesError}
+          </div>
+        )}
+
+        {invitesLoading ? (
+          <p className="text-sm text-gray-400 italic">Loading invites…</p>
+        ) : pendingInvites.length === 0 ? (
+          <div className="text-center py-6">
+            <p className="text-sm font-semibold text-gray-900">No pending invites</p>
+            <p className="text-sm text-gray-500 mt-1">Invites you send will appear here until they're accepted.</p>
+          </div>
+        ) : (
+          <div>
+            {pendingInvites.map(invite => (
+              <div key={invite.id} className="border-b border-gray-100 last:border-b-0">
+                <div className="flex items-center justify-between py-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-semibold text-gray-900 truncate">{invite.email}</p>
+                      <InviteStatusBadge status={invite.status} />
+                      <RoleBadge role={invite.role} />
+                    </div>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      Invited {new Date(invite.created_at).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0 ml-4">
+                    {invite.status === 'pending' && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => handleResend(invite)}
+                          aria-label={`Resend invite to ${invite.email}`}
+                          disabled={resendingId === invite.id}
+                          className="flex items-center justify-center text-gray-400 hover:text-jamo-600 transition-colors disabled:opacity-50"
+                          style={{ width: 44, height: 44 }}
+                          title="Resend Invite"
+                        >
+                          <IconMail className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setRevokeTarget(invite)}
+                          aria-label={`Revoke invite to ${invite.email}`}
+                          disabled={revokingId === invite.id}
+                          className="flex items-center justify-center text-gray-400 hover:text-red-600 transition-colors disabled:opacity-50"
+                          style={{ width: 44, height: 44 }}
+                          title="Revoke Invite"
+                        >
+                          <IconBan className="w-4 h-4" />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── Dialogs ── */}
+      {deactivateTarget && (
+        <DeactivateDialog
+          memberName={displayName(deactivateTarget)}
+          onConfirm={handleDeactivateConfirm}
+          onCancel={() => setDeactivateTarget(null)}
+          submitting={deactivatingId === deactivateTarget.user_id}
+        />
+      )}
+
+      {revokeTarget && (
+        <RevokeInviteDialog
+          email={revokeTarget.email}
+          onConfirm={handleRevokeConfirm}
+          onCancel={() => setRevokeTarget(null)}
+          submitting={revokingId === revokeTarget.id}
+        />
+      )}
 
     </div>
   )

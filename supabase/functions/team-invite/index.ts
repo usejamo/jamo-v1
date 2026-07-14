@@ -6,7 +6,7 @@
 // super_admin (T-15-21) or invite into another org (T-15-22).
 import { createClient } from 'supabase'
 import { getAuthedUserAndOrg, jsonError } from '../_shared/auth.ts'
-import { createInvite } from '../_shared/invites.ts'
+import { createInvite, revokeInvite, findAuthUserIdByEmail } from '../_shared/invites.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -41,11 +41,66 @@ Deno.serve(async (req) => {
       return jsonError(403, 'admin required', corsHeaders)
     }
 
-    const { email, role, org_id: requestOrgId } = (await req.json()) as {
+    const { email, role, org_id: requestOrgId, action, inviteId } = (await req.json()) as {
       email?: string
       role?: string
       org_id?: string
+      action?: 'resend' | 'revoke'
+      inviteId?: string
     }
+
+    // Own-org pending-invites sub-list (req 8, plan 10): resend/revoke are
+    // scoped to invites the caller's own org owns — mirrors
+    // admin-invites-lifecycle's resend(=revoke-then-reissue)/revoke shape,
+    // but same-org only (T-15-34) instead of super_admin cross-org.
+    if (action === 'resend' || action === 'revoke') {
+      if (!inviteId || typeof inviteId !== 'string') {
+        return jsonError(400, 'inviteId is required', corsHeaders)
+      }
+      const { data: existingInvite, error: loadErr } = await admin
+        .from('invites')
+        .select('id, email, org_id, role, status')
+        .eq('id', inviteId)
+        .single()
+      if (loadErr || !existingInvite) {
+        return jsonError(404, 'invite not found', corsHeaders)
+      }
+      if (existingInvite.org_id !== callerOrgId) {
+        return jsonError(403, 'org mismatch', corsHeaders)
+      }
+      if (existingInvite.role === 'super_admin') {
+        // T-15-33 defense in depth: team scope never touches a super_admin
+        // invite even if one somehow shares the caller's org.
+        return jsonError(403, 'cannot manage super_admin invite', corsHeaders)
+      }
+
+      const authUserId = await findAuthUserIdByEmail(admin, existingInvite.email)
+      await revokeInvite(admin, inviteId, authUserId, corsHeaders)
+
+      if (action === 'revoke') {
+        return new Response(JSON.stringify({ ok: true }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+
+      // resend = revoke-then-reissue (Pitfall 4), never a second
+      // invite-email admin call on the still-pending email.
+      const { invite: reissuedInvite } = await createInvite(
+        admin,
+        {
+          email: existingInvite.email,
+          orgId: existingInvite.org_id,
+          role: existingInvite.role,
+          invitedBy: userId,
+          siteUrl: Deno.env.get('SITE_URL') ?? '',
+        },
+        corsHeaders
+      )
+      return new Response(JSON.stringify({ invite: reissuedInvite }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
     if (!email || typeof email !== 'string') {
       return jsonError(400, 'email is required', corsHeaders)
     }

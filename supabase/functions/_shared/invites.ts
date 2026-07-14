@@ -99,3 +99,30 @@ export async function revokeInvite(
     }
   }
 }
+
+/**
+ * Best-effort auth.users lookup by email — no email-filter query param exists
+ * on the GoTrue admin listUsers API in supabase-js v2, so this paginates and
+ * matches client-side. Capped at 25 pages of 200 (5,000 users) so a lookup
+ * can never loop unbounded. Shared by admin-invites-lifecycle (cross-org) and
+ * team-invite (same-org resend/revoke, plan 10) so the pagination cap lives
+ * in exactly one place.
+ */
+export async function findAuthUserIdByEmail(
+  // deno-lint-ignore no-explicit-any
+  admin: any,
+  email: string
+): Promise<string | undefined> {
+  const lowerEmail = email.toLowerCase()
+  const perPage = 200
+  for (let page = 1; page <= 25; page++) {
+    const { data, error } = await admin.auth.admin.listUsers({ page, perPage })
+    if (error || !data?.users?.length) break
+    const match = data.users.find(
+      (u: { id: string; email?: string }) => u.email?.toLowerCase() === lowerEmail
+    )
+    if (match) return match.id
+    if (data.users.length < perPage) break // last page reached
+  }
+  return undefined
+}
