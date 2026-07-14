@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 15-07-PLAN.md
-last_updated: "2026-07-14T01:40:05.316Z"
+stopped_at: Completed 15-05-PLAN.md
+last_updated: "2026-07-14T01:45:38.923Z"
 progress:
   total_phases: 34
   completed_phases: 25
   total_plans: 153
-  completed_plans: 145
+  completed_plans: 146
   percent: 95
 ---
 
@@ -27,11 +27,11 @@ progress:
 
 ## Next Action
 
-Phase 15 (Client Onboarding & Provisioning): Wave 1 complete (15-01, 15-02, 15-03). Wave 2 plan 15-04 complete (shared invite helper + admin-create-org + admin-invite-first-admin + slug). Wave 2 plan 15-07 complete (idempotent bootstrap-super-admin script + test + npm entry, req 15-11 — NOT yet run live; live run + verification deferred to plan 15-08 per orchestrator's live-ops boundary). Next: remaining Phase 15 plans per 15-PLAN.md wave order (edge functions built here are NOT yet deployed — deploy wave is plan 08).
+Phase 15 (Client Onboarding & Provisioning): Wave 1 complete (15-01, 15-02, 15-03). Wave 2 plan 15-04 complete (shared invite helper + admin-create-org + admin-invite-first-admin + slug). Wave 2 plan 15-07 complete (idempotent bootstrap-super-admin script + test + npm entry, req 15-11 — NOT yet run live; live run + verification deferred to plan 15-08 per orchestrator's live-ops boundary). Wave 3 plan 15-05 complete (admin-invites-lifecycle: list/resend/revoke, req 15-08 — resend is revoke-then-reissue per Pitfall 4; NOT yet deployed). Next: remaining Phase 15 plans per 15-PLAN.md wave order (edge functions built here are NOT yet deployed — deploy wave is plan 08).
 
 ## Last Session
 
-**Stopped at:** Completed 15-07-PLAN.md
+**Stopped at:** Completed 15-05-PLAN.md
 **Session date:** 2026-07-14
 
 ## Roadmap Evolution
@@ -53,6 +53,7 @@ Phase 15 (Client Onboarding & Provisioning): Wave 1 complete (15-01, 15-02, 15-0
 
 ## Active Decisions
 
+- **Invite-lifecycle resend = revoke-then-reissue, auth-user-by-email via paginated lookup (15-05):** `admin-invites-lifecycle` (list/resend/revoke) resolves an invite's existing auth user by paginating `admin.auth.admin.listUsers` (200/page, capped at 25 pages/5,000 users) since supabase-js v2's GoTrue admin API has no email-filter query param; a still-pending invite legitimately yields no match (`undefined`, handled by `revokeInvite`'s optional `authUserId`). Resend reuses `_shared/invites.ts`'s `revokeInvite` + `createInvite` in sequence (revoke-then-reissue, Pitfall 4) rather than a second `inviteUserByEmail` call on a still-pending email — comments in `index.ts` deliberately avoid the literal string `inviteUserByEmail` so the plan's own acceptance grep (`grep -c "inviteUserByEmail"` must be 0) isn't tripped by documentation prose; the sole call site remains inside `_shared/invites.ts`.
 - **baseSlug duplicated, not imported (15-04):** `src/lib/slug.ts`'s `baseSlug` (unit-tested there) is byte-duplicated inside `admin-create-org/index.ts` because the Deno edge runtime cannot resolve `src/lib/` imports at deploy time — same convention as `chunker.ts`/`ingest-regulatory.ts` (Phase 4/14.6). Keep both copies in sync manually if the logic changes.
 - **super_admin assertion + role server-binding (15-04, D-08/D-10/T-15-12/T-15-13):** `admin-create-org` and `admin-invite-first-admin` both assert `super_admin` via a `user_profiles` lookup keyed by the JWT-verified `userId` (never implied by reaching the endpoint or read from the body). `admin-invite-first-admin` hardcodes `role: 'admin'` server-side and never destructures `role` from the request body at all — an attacker-supplied `role` field is simply never read, not merely overridden.
 - **Production redirect domain (15-02):** `additional_redirect_urls` in `config.toml` uses `https://app.usejamo.com` for the three auth-flow routes (`/accept-invite`, `/forgot-password`, `/reset-password`) — matches the existing `ALLOWED_SETTINGS_ORIGINS` convention found in `12-REVIEW.md`'s Salesforce OAuth code; no other authoritative prod domain constant exists in the repo. If the real production domain differs, both `config.toml` and the hosted dashboard's Redirect URLs allow-list must be corrected during the deferred human checkpoint.
