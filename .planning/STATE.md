@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: ready_to_plan
-stopped_at: Completed 14.6-04-PLAN.md
-last_updated: "2026-07-10T21:15:06.415Z"
+status: unknown
+stopped_at: Completed 15-01-PLAN.md
+last_updated: "2026-07-14T01:15:06.985Z"
 progress:
-  total_phases: 32
-  completed_phases: 26
-  total_plans: 142
-  completed_plans: 134
-  percent: 81
+  total_phases: 34
+  completed_phases: 25
+  total_plans: 153
+  completed_plans: 141
+  percent: 92
 ---
 
 ## Project Status
@@ -31,7 +31,7 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 
 ## Last Session
 
-**Stopped at:** Completed 14.6-04-PLAN.md
+**Stopped at:** Completed 15-01-PLAN.md
 **Session date:** 2026-07-09
 
 ## Roadmap Evolution
@@ -53,6 +53,9 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 
 ## Active Decisions
 
+- **invites table has no 'expired' status (15-01):** expiry is computed from the Supabase invite-link TTL at read time, not stored as a row state.
+- **No super_admin RLS bypass on invites/user_profiles (15-01, D-08):** the only cross-org RLS bypass in the schema remains `orgs_super_admin` on `organizations`; cross-org admin operations route through service-role edge functions in later Phase 15 plans, never a second bypass policy.
+- **Live migration apply deferred to orchestrator (15-01):** this executor wrote and committed `supabase/migrations/20260713000002_invites_and_trigger_hardening.sql` but did NOT run it live — `supabase db push` is diverged/unusable in this project; the orchestrator must apply it via Supabase MCP `apply_migration` before any downstream Phase 15 plan executes. Task 2 is `[BLOCKING]` per the plan.
 - **Shared JWT-auth helper (14.3-01):** `_shared/auth.ts` exports `getAuthedUserAndOrg` which THROWS Response objects on failure (missing Authorization header, invalid/expired JWT, or null org_id) rather than returning null/undefined — consumers wrap the call in try/catch and, when the caught value is `instanceof Response`, return it directly. org_id is never in the JWT; it is always resolved via a service-role `user_profiles` lookup keyed by the verified `user.id`. `isInternalServiceRoleCall` compares the bearer token to `SUPABASE_SERVICE_ROLE_KEY` so retrieve-context's internal caller (chat-with-jamo/rag.ts) can be preserved in Wave 2 without blanket-requiring `auth.getUser()`.
 - **chat-with-jamo identity hoist (14.3-02):** Body `user_id`/`org_id` are not destructured at all (not merely unused) — removes any chance of a stray body-identity reference compiling silently. One user-scoped supabase client (anon key + caller's Authorization header) is built immediately after `getAuthedUserAndOrg` and reused for every `chat_sessions` read/write in the handler, replacing both the old headerless-anon read client and the old separately-built late write client.
 - **retrieve-context branch on caller shape (14.3-03):** `isInternalServiceRoleCall(req)` is checked FIRST, before any `getAuthedUserAndOrg` call — the internal service-role caller (`chat-with-jamo/rag.ts`) is preserved exactly (body `orgId` trusted, zero behavioral change), avoiding Pitfall 1 (blanket `auth.getUser()` would 401 the service-role caller and RAG would silently return empty). User calls (`useProposalGeneration.ts`) derive `effectiveOrgId` from the JWT via `getAuthedUserAndOrg`; a body `orgId` present and differing from the JWT org is rejected with 403 'org mismatch' rather than silently overridden. `effectiveOrgId` (never raw body `orgId`) feeds `org_id_filter` on all 4 RPCs (vector+FTS, regulatory+proposal), closing the cross-tenant RAG chunk exfiltration path (T-14.3-09). Full internal-preserved + user-mismatch-403 behavior is live-verified in 14.3-05 (Deno unavailable in this dev environment; grep-based acceptance used per plan contingency, matching plans 01/02).
@@ -153,6 +156,10 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 ---
 
 ## Completed Plans
+
+### Phase 15: Client Onboarding & Provisioning
+
+- **Plan 01** (2026-07-14): DB foundation for provisioning — `invites` table (email/org_id/role/invited_by/status/timestamps) with RLS (same-org SELECT, same-org admin/super_admin INSERT, no super_admin bypass per D-08); `user_profiles.is_active` column; new `profiles_admin_update_same_org` RLS UPDATE policy; `handle_new_user` trigger body rewritten to bind org/role exclusively from the `invites` table by email (RAISE EXCEPTION + rollback on no pending invite, D-05), closing the req-12 client-metadata tamper vector. req-12 tamper-proofing manual verification checklist authored (`supabase/migrations/verify/15-12-tamper.sql`). Migration file committed but **live apply deferred to orchestrator** (Task 2 BLOCKING — `supabase db push` diverged in this project; must apply via Supabase MCP `apply_migration`). Commits cb83d5b, 20afd87.
 
 ### Phase 01: Supabase Foundation
 
@@ -259,4 +266,4 @@ Phase 08: Section Workspace & Rich Text Editor. TipTap v2 replaces ProposalDraft
 - **Plan 01** (2026-06-11): Wave 0 Nyquist test stubs — 4 it.skip stub files created: enum-sync.test.ts (AC-3, 2 stubs), useResolvedItemsWriteOnTerminal.askThenFill.test.ts (AC-4/AC-9, 2 stubs), activeTaskShape.test.ts (D-01 shape invariant, 1 stub), AskUserCard.skip.test.tsx (AC-9 skip button, 3 stubs). No production code touched. Suite green (pre-existing SectionEditorBlock failures unrelated). Commits bb22d1b, cfff3a1.
 - **Plan 04** (2026-06-11): Client ask_user branch + defer affordance — onCtaClick ask_user branch (focus via _onSectionFocusChange, originating_snapshot in cta_payload, description in message text); two-step attribution fallback at propose_edit arrival (Map first, then activeTask?.originating_snapshot); AskUserCard onSkip defer button ("I don't have this yet") wired to discard path; AC-4 + AC-9-card-01/02/03 + AC-9-hook all green. Commits e214403, 0dcffdc, 272ff0f, dc75677.
 
-**Planned Phase:** 14.7 (proposal-history-scoping) — 7 plans — 2026-07-10T21:03:08.291Z
+**Planned Phase:** 15 (client-onboarding-provisioning) — 11 plans — 2026-07-14T00:30:39.224Z

@@ -646,7 +646,7 @@ Plans:
 **Plans:** 11 plans in 6 waves
 
 Plans:
-- [ ] 15-01-PLAN.md — invites table + hardened handle_new_user trigger + is_active/RLS + apply (W1)
+- [x] 15-01-PLAN.md — invites table + hardened handle_new_user trigger + is_active/RLS + apply (W1) (live apply deferred to orchestrator — see 15-01-SUMMARY.md)
 - [ ] 15-02-PLAN.md — disable signup + Resend SMTP + redirect allow-list (+ human setup) (W1)
 - [ ] 15-03-PLAN.md — auth pages: accept-invite, forgot/reset password (W1)
 - [ ] 15-04-PLAN.md — shared invite helper + admin-create-org + admin-invite-first-admin + slug (W2)
