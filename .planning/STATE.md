@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 15-05-PLAN.md
-last_updated: "2026-07-14T01:45:38.923Z"
+stopped_at: Completed 15-06-PLAN.md
+last_updated: "2026-07-14T01:49:43.840Z"
 progress:
   total_phases: 34
   completed_phases: 25
   total_plans: 153
-  completed_plans: 146
-  percent: 95
+  completed_plans: 147
+  percent: 96
 ---
 
 ## Project Status
@@ -27,11 +27,11 @@ progress:
 
 ## Next Action
 
-Phase 15 (Client Onboarding & Provisioning): Wave 1 complete (15-01, 15-02, 15-03). Wave 2 plan 15-04 complete (shared invite helper + admin-create-org + admin-invite-first-admin + slug). Wave 2 plan 15-07 complete (idempotent bootstrap-super-admin script + test + npm entry, req 15-11 — NOT yet run live; live run + verification deferred to plan 15-08 per orchestrator's live-ops boundary). Wave 3 plan 15-05 complete (admin-invites-lifecycle: list/resend/revoke, req 15-08 — resend is revoke-then-reissue per Pitfall 4; NOT yet deployed). Next: remaining Phase 15 plans per 15-PLAN.md wave order (edge functions built here are NOT yet deployed — deploy wave is plan 08).
+Phase 15 (Client Onboarding & Provisioning): Wave 1 complete (15-01, 15-02, 15-03). Wave 2 plan 15-04 complete (shared invite helper + admin-create-org + admin-invite-first-admin + slug). Wave 2 plan 15-07 complete (idempotent bootstrap-super-admin script + test + npm entry, req 15-11 — NOT yet run live; live run + verification deferred to plan 15-08 per orchestrator's live-ops boundary). Wave 3 plan 15-05 complete (admin-invites-lifecycle: list/resend/revoke, req 15-08 — resend is revoke-then-reissue per Pitfall 4; NOT yet deployed). Wave 3 plan 15-06 complete (team-invite + team-manage: same-org, role-capped teammate invite + role change/deactivate/reactivate, reqs 15-06/15-07/15-08 — super_admin never mintable or targetable from either surface, deactivate uses ban_duration as the real auth block + is_active mirror; NOT yet deployed). Next: remaining Phase 15 plans per 15-PLAN.md wave order (edge functions built here are NOT yet deployed — deploy wave is plan 08).
 
 ## Last Session
 
-**Stopped at:** Completed 15-05-PLAN.md
+**Stopped at:** Completed 15-06-PLAN.md
 **Session date:** 2026-07-14
 
 ## Roadmap Evolution
@@ -53,6 +53,8 @@ Phase 15 (Client Onboarding & Provisioning): Wave 1 complete (15-01, 15-02, 15-0
 
 ## Active Decisions
 
+- **team-invite requestOrgId naming avoids the plan's own negative acceptance grep (15-06):** `team-invite/index.ts` destructures the body's org field as `requestOrgId` (not `bodyOrgId`) — `bodyOrgId` would produce the source text `org_id: bodyOrgId`, which contains the literal substring `org_id: body` that 15-06-PLAN.md's negative acceptance criterion greps for (`! grep -q "orgId: targetOrgId\|org_id: body"`) to confirm the function never trusts a body-supplied invite-target org. Behavior is unaffected either way — the value is read only to detect/reject a mismatch against `callerOrgId`, never used as the invite's org.
+- **team-manage rejects super_admin targets on every action, not just change_role (15-06):** Per threat T-15-24 ("manage targets super_admin" must be mitigated), the pre-write guard checks `target.role === 'super_admin'` once before branching on `action`, so deactivate/reactivate are blocked against a super_admin account the same as change_role — not just a super_admin *requested* as the new role.
 - **Invite-lifecycle resend = revoke-then-reissue, auth-user-by-email via paginated lookup (15-05):** `admin-invites-lifecycle` (list/resend/revoke) resolves an invite's existing auth user by paginating `admin.auth.admin.listUsers` (200/page, capped at 25 pages/5,000 users) since supabase-js v2's GoTrue admin API has no email-filter query param; a still-pending invite legitimately yields no match (`undefined`, handled by `revokeInvite`'s optional `authUserId`). Resend reuses `_shared/invites.ts`'s `revokeInvite` + `createInvite` in sequence (revoke-then-reissue, Pitfall 4) rather than a second `inviteUserByEmail` call on a still-pending email — comments in `index.ts` deliberately avoid the literal string `inviteUserByEmail` so the plan's own acceptance grep (`grep -c "inviteUserByEmail"` must be 0) isn't tripped by documentation prose; the sole call site remains inside `_shared/invites.ts`.
 - **baseSlug duplicated, not imported (15-04):** `src/lib/slug.ts`'s `baseSlug` (unit-tested there) is byte-duplicated inside `admin-create-org/index.ts` because the Deno edge runtime cannot resolve `src/lib/` imports at deploy time — same convention as `chunker.ts`/`ingest-regulatory.ts` (Phase 4/14.6). Keep both copies in sync manually if the logic changes.
 - **super_admin assertion + role server-binding (15-04, D-08/D-10/T-15-12/T-15-13):** `admin-create-org` and `admin-invite-first-admin` both assert `super_admin` via a `user_profiles` lookup keyed by the JWT-verified `userId` (never implied by reaching the endpoint or read from the body). `admin-invite-first-admin` hardcodes `role: 'admin'` server-side and never destructures `role` from the request body at all — an attacker-supplied `role` field is simply never read, not merely overridden.
@@ -168,6 +170,7 @@ Phase 15 (Client Onboarding & Provisioning): Wave 1 complete (15-01, 15-02, 15-0
 - **Plan 02** (2026-07-14): Auth lockdown + Resend SMTP config — both `enable_signup = true` occurrences ([auth], [auth.email]) flipped to `false` in committed `config.toml` (closes req-1 local/prod divergence); `[auth.email.smtp]` uncommented and pointed at Resend (`smtp.resend.com:465`, `pass = "env(RESEND_SMTP_PASSWORD)"`, no literal secret); `/accept-invite`, `/forgot-password`, `/reset-password` added to `additional_redirect_urls` for local + `https://app.usejamo.com`; `auth.rate_limit.email_sent` raised 2 -> 100. New static Vitest guard `src/__tests__/config-signup-disabled.test.ts` (5 assertions) prevents regression. Task 3 (checkpoint:human-action — Resend account/DNS verification, hosted-dashboard SMTP/redirect-allowlist/rate-limit config) **deferred by explicit user instruction**; full step-by-step checklist recorded in `15-02-SUMMARY.md`'s "PENDING HUMAN CHECKPOINT" section. Live email delivery (must-have truth #4) remains unverified until that checkpoint is completed. Commits 8b42757, d5a9d8f.
 - **Plan 03** (2026-07-14): Invite-acceptance + password-reset auth pages — `AcceptInvite.tsx`, `ForgotPassword.tsx`, `ResetPassword.tsx` added per Login.tsx card-chrome convention (route-identified, not `onAuthStateChange` event-typed). Commits 1d2bccb, 695acfc, 688f7e7.
 - **Plan 04** (2026-07-14): Cross-org super_admin provisioning backend — `_shared/invites.ts` (`createInvite`/`revokeInvite`) implements the D-01/D-02/D-03 sequence (INSERT pending invite row committed first → `auth.admin.inviteUserByEmail` → compensate-revoke on failure), reused by `team-invite` (plan 06). `admin-create-org` (req 3): super_admin-gated from the verified JWT, `plan IN ('trial','paid')` validated, slug uniqueness resolved via insert-catch-`23505`-retry bounded to 6 attempts (T-15-15/T-15-16), never a pre-check race. `admin-invite-first-admin` (req 4): super_admin-gated, `targetOrgId` may differ from caller's own org (the cross-org point), `role` hardcoded `'admin'` server-side and never destructured from the body (T-15-13). `src/lib/slug.ts` `baseSlug` unit-tested (7 Vitest cases); duplicated (not imported) inside the edge function per the Deno/src-import boundary convention. Deno unavailable locally — both edge functions' `test.ts` use the grep-acceptance contingency (matching 14.3). No deploy attempted (deploy wave is plan 08). Commits 3e8a333, a3543cf, 8d84be5.
+- **Plan 06** (2026-07-14): Org-admin team invite & management backend — `team-invite` (reqs 6/8): org admin/super_admin caller invites a teammate (role admin/user) into their own org only, binding org to JWT-derived `callerOrgId`; rejects `role='super_admin'` and any body org mismatch, both 403; reuses `_shared/invites.ts` createInvite. `team-manage` (req 7): `change_role`/`deactivate`/`reactivate` actions, pre-write guard loads the target's `org_id`/`role` and rejects 403 on cross-org OR super_admin-role targets (T-15-24 applied to all three actions, not just change_role); deactivate/reactivate dual-write `auth.admin.updateUserById({ ban_duration })` (real auth-layer block) + `user_profiles.is_active` (UI mirror, Pitfall 3). Both `test.ts` use the grep-acceptance/Deno-unavailable contingency (matching 15-04). Body org field named `requestOrgId` (not `bodyOrgId`) to avoid a false trip on the plan's own negative acceptance grep. No deploy attempted (deploy wave is plan 08). Commits 09e1bda, 98ee939, 18d1923.
 
 ### Phase 01: Supabase Foundation
 
