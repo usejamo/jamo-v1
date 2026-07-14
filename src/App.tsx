@@ -5,6 +5,10 @@ import ProposalsList from './pages/ProposalsList'
 import ProposalDetail from './pages/ProposalDetail'
 import Settings from './pages/Settings'
 import Login from './pages/Login'
+import AcceptInvite from './pages/AcceptInvite'
+import ForgotPassword from './pages/ForgotPassword'
+import ResetPassword from './pages/ResetPassword'
+import AdminPanel from './pages/admin/AdminPanel'
 import { AuthProvider } from './context/AuthContext'
 import { ArchivedProvider } from './context/ArchivedContext'
 import { ProposalsProvider } from './context/ProposalsContext'
@@ -12,6 +16,7 @@ import { DeletedProvider } from './context/DeletedContext'
 import { ProposalModalProvider, useProposalModal } from './context/ProposalModalContext'
 import { SidebarProvider } from './context/SidebarContext'
 import { ProtectedRoute } from './components/ProtectedRoute'
+import { SuperAdminRoute } from './components/SuperAdminRoute'
 import ProposalEditorModal from './components/ProposalEditorModal'
 
 function GlobalToast() {
@@ -34,8 +39,11 @@ export default function App() {
               <ProposalModalProvider>
                 <BrowserRouter>
                   <Routes>
-                    {/* Public route */}
+                    {/* Public routes */}
                     <Route path="/login" element={<Login />} />
+                    <Route path="/accept-invite" element={<AcceptInvite />} />
+                    <Route path="/forgot-password" element={<ForgotPassword />} />
+                    <Route path="/reset-password" element={<ResetPassword />} />
 
                     {/* Protected routes */}
                     <Route element={<ProtectedRoute />}>
@@ -44,6 +52,11 @@ export default function App() {
                         <Route path="/proposals" element={<ProposalsList />} />
                         <Route path="/proposals/:id" element={<ProposalDetail />} />
                         <Route path="/settings" element={<Settings />} />
+                      </Route>
+
+                      {/* Super-admin-only routes */}
+                      <Route element={<SuperAdminRoute />}>
+                        <Route path="/admin" element={<AdminPanel />} />
                       </Route>
                     </Route>
                   </Routes>
