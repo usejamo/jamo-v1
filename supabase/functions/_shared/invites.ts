@@ -40,6 +40,19 @@ export async function createInvite(
 ): Promise<{ invite: Record<string, unknown> }> {
   const lowerEmail = email.toLowerCase()
 
+  // Fail loudly, and BEFORE inserting anything, if SITE_URL isn't an absolute URL.
+  // An empty/relative siteUrl silently produced redirectTo='/accept-invite', which
+  // GoTrue discards — falling back to site_url and dropping the invitee on the
+  // dashboard with a live session and no password, never showing the set-password
+  // step. That failed silently on every invite. Validate before step 1 so a
+  // misconfigured deploy can't leave a phantom pending row behind either.
+  let redirectTo: string
+  try {
+    redirectTo = new URL('/accept-invite', new URL(siteUrl)).toString()
+  } catch {
+    throw jsonError(500, 'SITE_URL is not configured as an absolute URL', corsHeaders)
+  }
+
   // D-03 step 1: insert + commit the pending invite row FIRST.
   const { data: invite, error: inviteErr } = await admin
     .from('invites')
@@ -59,7 +72,7 @@ export async function createInvite(
   // D-03 step 2: auth.admin call — the handle_new_user trigger fires here and
   // finds the row committed in step 1 above.
   const { error: inviteEmailErr } = await admin.auth.admin.inviteUserByEmail(lowerEmail, {
-    redirectTo: `${siteUrl}/accept-invite`,
+    redirectTo,
   })
   if (inviteEmailErr) {
     // Compensate: revoke the pending row so it never lingers as a phantom
