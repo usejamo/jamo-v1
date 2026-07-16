@@ -49,6 +49,16 @@ export default function AcceptInvite() {
         return
       }
 
+      // Mark the invite 'accepted' so it clears from the admin's Pending Invites
+      // list. The invitee has no RLS write on invites, so a service-role edge
+      // function performs the own-invite-scoped update. Non-blocking: a failure
+      // here must not trap the user on this page — worst case the invite stays
+      // pending, which is the pre-existing behavior.
+      const { error: acceptError } = await supabase.functions.invoke('accept-invite')
+      if (acceptError) {
+        console.error('Failed to mark invite accepted:', acceptError)
+      }
+
       navigate('/')
     } catch (err) {
       setError('An unexpected error occurred')
