@@ -20,14 +20,6 @@ function IconBan({ className }: { className?: string }) {
   )
 }
 
-function IconShield({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-    </svg>
-  )
-}
-
 function IconUserCheck({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
@@ -38,7 +30,10 @@ function IconUserCheck({ className }: { className?: string }) {
 
 // ── Role/status data ─────────────────────────────────────────────────────────
 
-const INVITE_ROLE_OPTIONS: { value: 'admin' | 'user'; label: string }[] = [
+// Roles an org admin can assign — shared by the invite form and the member
+// role dropdown so new roles only need to be added in one place. super_admin is
+// intentionally excluded: team-invite / team-manage reject it (platform staff only).
+const ASSIGNABLE_ROLE_OPTIONS: { value: 'admin' | 'user'; label: string }[] = [
   { value: 'user', label: 'User' },
   { value: 'admin', label: 'Admin' },
 ]
@@ -290,8 +285,8 @@ export function TeamTab() {
     await fetchPendingInvites()
   }
 
-  async function handleChangeRole(member: Member) {
-    const nextRole: 'admin' | 'user' = member.role === 'admin' ? 'user' : 'admin'
+  async function handleChangeRole(member: Member, nextRole: string) {
+    if (nextRole === member.role) return
     setChangingRoleId(member.user_id)
     setMemberActionError(null)
     const { error } = await supabase.functions.invoke('team-manage', {
@@ -406,7 +401,7 @@ export function TeamTab() {
               className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-jamo-200 focus:border-jamo-500 outline-none bg-white"
               disabled={inviting}
             >
-              {INVITE_ROLE_OPTIONS.map(opt => (
+              {ASSIGNABLE_ROLE_OPTIONS.map(opt => (
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
               ))}
             </select>
@@ -471,17 +466,22 @@ export function TeamTab() {
                         <span className="text-sm text-gray-500">Deactivated</span>
                       )}
 
-                      <button
-                        type="button"
-                        onClick={() => handleChangeRole(member)}
-                        aria-label={`Change role for ${name}`}
-                        disabled={changingRoleId === member.user_id}
-                        className="flex items-center justify-center text-gray-400 hover:text-jamo-600 transition-colors disabled:opacity-50"
-                        style={{ width: 44, height: 44 }}
-                        title="Change Role"
-                      >
-                        <IconShield className="w-4 h-4" />
-                      </button>
+                      {member.role === 'super_admin' ? (
+                        <span className="text-xs text-gray-400 shrink-0">Super Admin</span>
+                      ) : (
+                        <select
+                          value={member.role}
+                          onChange={e => handleChangeRole(member, e.target.value)}
+                          aria-label={`Change role for ${name}`}
+                          disabled={changingRoleId === member.user_id || isSelf}
+                          title={isSelf ? "You can't change your own role" : 'Change role'}
+                          className="text-sm border border-gray-200 rounded-lg px-2 py-1.5 bg-white text-gray-700 focus:ring-2 focus:ring-jamo-200 focus:border-jamo-500 outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {ASSIGNABLE_ROLE_OPTIONS.map(opt => (
+                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                          ))}
+                        </select>
+                      )}
 
                       {member.is_active ? (
                         <button
