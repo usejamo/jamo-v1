@@ -13,19 +13,27 @@ export default function ForgotPassword() {
     setError(null)
     setLoading(true)
 
-    try {
-      await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
-      })
-    } catch (err) {
-      // Intentionally ignored — the confirmation copy never reveals whether the
-      // request succeeded or the email exists (no user enumeration).
-    } finally {
-      // Always show the static confirmation, regardless of whether the email
-      // exists or the request errored — do not reveal account existence.
-      setSubmitted(true)
+    const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    })
+
+    // Rate limiting reveals nothing about whether the account exists (it applies
+    // either way), so surfacing it leaks no information. Swallowing it made a real
+    // failure — no email ever sent — look identical to success.
+    if (resetError?.status === 429) {
+      setError('Too many requests. Please wait a minute and try again.')
       setLoading(false)
+      return
     }
+    if (resetError) {
+      // Any other failure still shows the neutral copy below, but must not be silent.
+      console.error('resetPasswordForEmail failed:', resetError.status, resetError.message)
+    }
+
+    // Otherwise always show the static confirmation, regardless of whether the
+    // email exists — do not reveal account existence.
+    setSubmitted(true)
+    setLoading(false)
   }
 
   return (
