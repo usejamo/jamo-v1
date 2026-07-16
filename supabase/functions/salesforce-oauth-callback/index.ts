@@ -12,17 +12,25 @@ serve(async (req) => {
   const consumerKey = Deno.env.get('SALESFORCE_CONSUMER_KEY')
   const consumerSecret = Deno.env.get('SALESFORCE_CONSUMER_SECRET')
 
-  // CR-02: Validate SETTINGS_URL origin against allowlist — prevent open-redirect via misconfigured env
+  // CR-02: Validate SETTINGS_URL origin against allowlist — prevent open-redirect via misconfigured env.
+  //
+  // SETTINGS_REDIRECT_URL is REQUIRED — there is deliberately no default. It was previously
+  // defaulted to 'http://localhost:5173/settings?tab=Integrations', and because that origin is
+  // allowlisted for dev, the fallback passed the allowlist check and the warning never fired:
+  // production silently redirected real users to localhost. Same failure class as the unset
+  // SITE_URL that skipped the set-password step on every invite (see _shared/invites.ts).
+  // Fail loudly instead of redirecting somewhere wrong.
   const ALLOWED_SETTINGS_ORIGINS = ['https://app.usejamo.com', 'http://localhost:5173']
-  const rawSettingsUrl = Deno.env.get('SETTINGS_REDIRECT_URL') ?? 'http://localhost:5173/settings?tab=Integrations'
+  const rawSettingsUrl = Deno.env.get('SETTINGS_REDIRECT_URL')
   let parsedSettingsOrigin: string | null = null
-  try { parsedSettingsOrigin = new URL(rawSettingsUrl).origin } catch { /* ignore */ }
-  const SETTINGS_URL = parsedSettingsOrigin && ALLOWED_SETTINGS_ORIGINS.includes(parsedSettingsOrigin)
-    ? rawSettingsUrl
-    : 'http://localhost:5173/settings?tab=Integrations'
+  try { parsedSettingsOrigin = rawSettingsUrl ? new URL(rawSettingsUrl).origin : null } catch { /* ignore */ }
   if (!parsedSettingsOrigin || !ALLOWED_SETTINGS_ORIGINS.includes(parsedSettingsOrigin)) {
-    console.warn(`SETTINGS_REDIRECT_URL origin "${parsedSettingsOrigin}" not in allowlist — using localhost fallback`)
+    console.error(
+      `SETTINGS_REDIRECT_URL is missing or its origin ${JSON.stringify(parsedSettingsOrigin)} is not allowlisted — refusing to redirect`
+    )
+    return new Response('SETTINGS_REDIRECT_URL is not configured', { status: 500 })
   }
+  const SETTINGS_URL = rawSettingsUrl as string
 
   if (!consumerKey || !consumerSecret) {
     return new Response(null, {
