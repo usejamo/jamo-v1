@@ -243,10 +243,14 @@ export function TeamTab() {
     setInvitesError(null)
     // invites_select_own_org RLS scopes this to the caller's own org — no
     // service-role client, so another org's invites can never load here.
+    //
+    // Only 'pending' belongs in this card. The previous `.neq('status','accepted')`
+    // also matched 'revoked', so a revoked invite lingered here forever with a
+    // "Revoked" badge and no actions — it read as an invite that wouldn't go away.
     const { data, error } = await supabase
       .from('invites')
       .select('id, email, role, status, created_at')
-      .neq('status', 'accepted')
+      .eq('status', 'pending')
       .order('created_at', { ascending: false })
     if (error) {
       setInvitesError('Failed to load pending invites. Please refresh and try again.')
