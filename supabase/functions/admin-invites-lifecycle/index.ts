@@ -140,7 +140,7 @@ Deno.serve(async (req) => {
           orgId: invite.org_id,
           role: invite.role,
           invitedBy: userId,
-          siteUrl: Deno.env.get('SITE_URL') ?? '',
+          siteUrl: Deno.env.get('SITE_URL'),
         },
         corsHeaders
       )

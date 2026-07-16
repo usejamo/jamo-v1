@@ -15,7 +15,9 @@ export interface CreateInviteParams {
   orgId: string
   role: 'super_admin' | 'admin' | 'user'
   invitedBy: string
-  siteUrl: string
+  /** Absolute base URL (SITE_URL). Accepts undefined so callers don't paper over a
+   *  missing env with `?? ''` — createInvite validates and throws instead. */
+  siteUrl: string | undefined
 }
 
 /**
@@ -48,6 +50,7 @@ export async function createInvite(
   // misconfigured deploy can't leave a phantom pending row behind either.
   let redirectTo: string
   try {
+    if (!siteUrl) throw new Error('SITE_URL is empty')
     redirectTo = new URL('/accept-invite', new URL(siteUrl)).toString()
   } catch {
     throw jsonError(500, 'SITE_URL is not configured as an absolute URL', corsHeaders)

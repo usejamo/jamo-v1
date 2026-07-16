@@ -92,7 +92,7 @@ Deno.serve(async (req) => {
           orgId: existingInvite.org_id,
           role: existingInvite.role,
           invitedBy: userId,
-          siteUrl: Deno.env.get('SITE_URL') ?? '',
+          siteUrl: Deno.env.get('SITE_URL'),
         },
         corsHeaders
       )
@@ -129,7 +129,7 @@ Deno.serve(async (req) => {
         orgId: callerOrgId,
         role,
         invitedBy: userId,
-        siteUrl: Deno.env.get('SITE_URL') ?? '',
+        siteUrl: Deno.env.get('SITE_URL'),
       },
       corsHeaders
     )

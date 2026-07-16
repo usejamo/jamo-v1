@@ -169,7 +169,13 @@ Deno.serve(async (req) => {
       ragContext.ragBlock,
     ].filter(Boolean).join("\n\n")
 
-    const anthropic = new Anthropic({ apiKey: Deno.env.get("ANTHROPIC_API_KEY") ?? "" })
+    // Fail with a clear message rather than handing the SDK an empty key, which
+    // surfaces as an opaque upstream 401 that looks like a credential problem.
+    const anthropicApiKey = Deno.env.get("ANTHROPIC_API_KEY")
+    if (!anthropicApiKey) {
+      throw new Error("ANTHROPIC_API_KEY is not configured")
+    }
+    const anthropic = new Anthropic({ apiKey: anthropicApiKey })
 
     // (User-scoped `supabase` client for session reads/writes was built above,
     // immediately after JWT identity derivation — reused here for all writes.)

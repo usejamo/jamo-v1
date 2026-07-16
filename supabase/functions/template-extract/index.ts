@@ -193,9 +193,11 @@ serve(async (req) => {
     return new Response('ok', { headers: CORS_HEADERS })
   }
 
+  // `!` matches the convention used at the other ~25 call sites in this repo;
+  // `?? ''` here just made a missing secret look like a valid-but-empty config.
   const supabase = createClient(
-    Deno.env.get('SUPABASE_URL') ?? '',
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+    Deno.env.get('SUPABASE_URL')!,
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     { auth: { persistSession: false } }
   )
 
@@ -275,8 +277,12 @@ serve(async (req) => {
       sections = parseSectionsFromText(fullText)
     }
 
-    // 6. LLM role classification via Claude Haiku
-    const anthropicApiKey = Deno.env.get('ANTHROPIC_API_KEY') ?? ''
+    // 6. LLM role classification via Claude Haiku — intentionally OPTIONAL. When the
+    // key is absent, classification is skipped and roleMap stays empty rather than
+    // failing the whole extract. This is NOT the SITE_URL bug class: the absence is
+    // handled explicitly on the next line, not silently coerced into a bad value.
+    // (`?? ''` dropped — undefined is equally falsy here and reads less like a default.)
+    const anthropicApiKey = Deno.env.get('ANTHROPIC_API_KEY')
     const roleMap = anthropicApiKey && sections.length > 0
       ? await classifyRoles(sections, anthropicApiKey)
       : {}

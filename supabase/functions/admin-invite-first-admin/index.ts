@@ -61,7 +61,7 @@ Deno.serve(async (req) => {
         orgId: targetOrgId,
         role: 'admin',
         invitedBy: userId,
-        siteUrl: Deno.env.get('SITE_URL') ?? '',
+        siteUrl: Deno.env.get('SITE_URL'),
       },
       corsHeaders
     )

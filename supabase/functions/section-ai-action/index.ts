@@ -75,8 +75,18 @@ Deno.serve(async (req) => {
       })
     }
 
+    // Clear 500 rather than handing the SDK an empty key, which surfaces as an
+    // opaque upstream 401 that looks like a credential problem.
+    const anthropicApiKey = Deno.env.get('ANTHROPIC_API_KEY')
+    if (!anthropicApiKey) {
+      return new Response(JSON.stringify({ error: 'ANTHROPIC_API_KEY is not configured' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
     const anthropic = new Anthropic({
-      apiKey: Deno.env.get('ANTHROPIC_API_KEY') ?? '',
+      apiKey: anthropicApiKey,
     })
 
     const prompt = buildPrompt(action, section_key, existing_content ?? '', user_instructions)
