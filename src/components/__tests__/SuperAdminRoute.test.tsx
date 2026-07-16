@@ -66,4 +66,32 @@ describe('SuperAdminRoute', () => {
     expect(screen.getByText('Home Page')).toBeInTheDocument()
     expect(screen.queryByText('Admin Panel')).not.toBeInTheDocument()
   })
+
+  // Race hardening: a session has landed but its profile fetch hasn't completed.
+  // Must wait, not redirect — otherwise a legitimate super_admin is bounced.
+  it('shows Loading (no redirect) when a session exists but the profile has not loaded yet', async () => {
+    mockUseAuth.mockReturnValue({ session: { user: {} }, profile: null, profileLoaded: false, loading: false })
+    await renderGuarded()
+
+    expect(screen.getByText(/loading/i)).toBeInTheDocument()
+    expect(screen.queryByText('Admin Panel')).not.toBeInTheDocument()
+    expect(screen.queryByText('Home Page')).not.toBeInTheDocument()
+  })
+
+  // Bounded: once the fetch has completed and the profile is genuinely null,
+  // it must redirect rather than spin forever.
+  it('redirects to / when the profile fetch completed but returned null', async () => {
+    mockUseAuth.mockReturnValue({ session: { user: {} }, profile: null, profileLoaded: true, loading: false })
+    await renderGuarded()
+
+    expect(screen.getByText('Home Page')).toBeInTheDocument()
+    expect(screen.queryByText('Admin Panel')).not.toBeInTheDocument()
+  })
+
+  it('renders the Outlet when a session exists and the loaded profile is super_admin', async () => {
+    mockUseAuth.mockReturnValue({ session: { user: {} }, profile: { role: 'super_admin' }, profileLoaded: true, loading: false })
+    await renderGuarded()
+
+    expect(screen.getByText('Admin Panel')).toBeInTheDocument()
+  })
 })

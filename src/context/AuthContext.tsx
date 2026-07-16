@@ -10,6 +10,7 @@ interface AuthContextValue {
   session: Session | null
   user: User | null
   profile: UserProfile | null
+  profileLoaded: boolean
   loading: boolean
   signIn: (email: string, password: string) => Promise<{ data: any; error: any }>
   signOut: () => Promise<{ error: any }>
@@ -21,6 +22,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<UserProfile | null>(null)
+  // True once a profile fetch has completed for the current session (even if it
+  // returned null). Lets role gates distinguish "still loading" from "no profile".
+  const [profileLoaded, setProfileLoaded] = useState(false)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -45,6 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         loadProfile(session.user.id)
       } else {
         setProfile(null)
+        setProfileLoaded(false)
         setLoading(false)
       }
     })
@@ -53,12 +58,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   async function loadProfile(userId: string) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('user_profiles')
       .select('*')
       .eq('user_id', userId)
       .single()
+    if (error) {
+      // Previously swallowed — surface it so a failed profile read isn't silent.
+      console.error('Failed to load user profile:', error.message)
+    }
     setProfile(data)
+    setProfileLoaded(true)
     setLoading(false)
   }
 
@@ -73,7 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ session, user, profile, loading, signIn, signOut }}>
+    <AuthContext.Provider value={{ session, user, profile, profileLoaded, loading, signIn, signOut }}>
       {children}
     </AuthContext.Provider>
   )
