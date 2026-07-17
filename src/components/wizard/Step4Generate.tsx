@@ -64,11 +64,11 @@ function TemplateSelector({
         className={cardClass}
       >
         <div className="flex items-start justify-between gap-2">
-          <span className="text-sm font-semibold text-gray-900">{t.name}</span>
+          <span className="text-sm font-semibold text-gray-900 flex-1 min-w-0 break-words">{t.name}</span>
           {t.source === 'prebuilt' ? (
-            <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full whitespace-nowrap">Pre-built</span>
+            <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full whitespace-nowrap shrink-0">Pre-built</span>
           ) : (
-            <span className="text-xs text-jamo-600 bg-jamo-50 px-2 py-0.5 rounded-full whitespace-nowrap">Your template</span>
+            <span className="text-xs text-jamo-600 bg-jamo-50 px-2 py-0.5 rounded-full whitespace-nowrap shrink-0">Your template</span>
           )}
         </div>
         {t.description && (
@@ -163,6 +163,7 @@ function ContextSummary({
 export function Step4Generate({ state, dispatch, onGenerate }: Step4GenerateProps) {
   const [templates, setTemplates] = useState<Template[]>([])
   const [loading, setLoading] = useState(true)
+  const [sections, setSections] = useState<{ id: string; name: string; position: number }[]>([])
 
   useEffect(() => {
     supabase
@@ -187,6 +188,19 @@ export function Step4Generate({ state, dispatch, onGenerate }: Step4GenerateProp
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Load the selected template's sections for the preview list
+  useEffect(() => {
+    if (!state.selectedTemplateId) { setSections([]); return }
+    let cancelled = false
+    supabase
+      .from('template_sections')
+      .select('id, name, position')
+      .eq('template_id', state.selectedTemplateId)
+      .order('position', { ascending: true })
+      .then(({ data }) => { if (!cancelled && data) setSections(data as typeof sections) })
+    return () => { cancelled = true }
+  }, [state.selectedTemplateId])
+
   return (
     <div className="space-y-5" data-testid="step-generate">
       <div>
@@ -205,6 +219,21 @@ export function Step4Generate({ state, dispatch, onGenerate }: Step4GenerateProp
           onSelect={(id) => dispatch({ type: 'SET_TEMPLATE', templateId: id })}
         />
       </div>
+
+      {state.selectedTemplateId && sections.length > 0 && (
+        <div className="rounded-lg bg-gray-50 px-4 py-3" data-testid="template-sections-preview">
+          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
+            Sections in this template
+          </p>
+          <ol className="space-y-1">
+            {sections.map((s) => (
+              <li key={s.id} className="text-sm text-gray-700">
+                {s.position}. {s.name}
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
 
       <ContextSummary state={state} templates={templates} />
 
