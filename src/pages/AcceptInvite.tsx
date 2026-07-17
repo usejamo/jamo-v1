@@ -7,6 +7,7 @@ import { supabase } from '../lib/supabase'
 // session the instant they're clicked, before a password is set — this route forces the
 // set-password step regardless of which auth event fired. See 15-RESEARCH.md Pitfall 1/2.
 export default function AcceptInvite() {
+  const [fullName, setFullName] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -33,6 +34,11 @@ export default function AcceptInvite() {
     e.preventDefault()
     setError(null)
 
+    if (!fullName.trim()) {
+      setError('Please enter your name')
+      return
+    }
+
     if (password !== confirmPassword) {
       setError('Passwords do not match')
       return
@@ -54,7 +60,9 @@ export default function AcceptInvite() {
       // function performs the own-invite-scoped update. Non-blocking: a failure
       // here must not trap the user on this page — worst case the invite stays
       // pending, which is the pre-existing behavior.
-      const { error: acceptError } = await supabase.functions.invoke('accept-invite')
+      const { error: acceptError } = await supabase.functions.invoke('accept-invite', {
+        body: { full_name: fullName.trim() },
+      })
       if (acceptError) {
         console.error('Failed to mark invite accepted:', acceptError)
       }
@@ -83,6 +91,22 @@ export default function AcceptInvite() {
             <h1 className="text-2xl font-semibold text-gray-900 mb-6">Set Your Password</h1>
 
             <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label htmlFor="fullName" className="block text-sm font-medium text-gray-700 mb-1">
+                  Full name
+                </label>
+                <input
+                  id="fullName"
+                  type="text"
+                  required
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-jamo-200 focus:border-jamo-500 outline-none"
+                  placeholder="Your full name"
+                  disabled={loading}
+                />
+              </div>
+
               <div>
                 <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
                   Password
