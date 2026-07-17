@@ -59,7 +59,7 @@ Deno.serve(async (req) => {
 
     // Best-effort profile name write — never fail the accept over a missing/failed name.
     // userId comes from the verified JWT (getAuthedUserAndOrg), never the body.
-    const fullName = (full_name ?? '').trim()
+    const fullName = typeof full_name === 'string' ? full_name.trim() : ''
     if (fullName) {
       const { error: nameErr } = await admin
         .from('user_profiles')
