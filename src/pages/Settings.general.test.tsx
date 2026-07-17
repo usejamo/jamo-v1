@@ -22,7 +22,9 @@ describe('Settings → General tab', () => {
     render(<Settings />)
     fireEvent.click(screen.getByRole('button', { name: 'General' }))
 
-    expect(await screen.findByDisplayValue('Acme CRO')).toBeInTheDocument()
+    const companyInput = await screen.findByDisplayValue('Acme CRO')
+    expect(companyInput).toBeInTheDocument()
+    expect(companyInput).toBeDisabled()
     expect(screen.queryByText('Default Currency')).not.toBeInTheDocument()
     expect(screen.queryByText('Tax / VAT ID')).not.toBeInTheDocument()
     expect(screen.queryByText('Timezone')).not.toBeInTheDocument()

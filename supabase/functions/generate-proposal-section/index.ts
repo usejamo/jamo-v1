@@ -225,11 +225,14 @@ serve(async (req) => {
     // Inject the CRO/org name so the model fills it instead of emitting a [CRO Name]
     // placeholder. Best-effort: a failed/missing read leaves croName undefined, and the
     // prompt falls back to [PLACEHOLDER: CRO name] — exactly today's behavior.
-    const { data: org } = await supabase
+    const { data: org, error: orgErr } = await supabase
       .from('organizations')
       .select('name')
       .eq('id', orgId)
-      .single()
+      .maybeSingle()
+    if (orgErr) {
+      console.error('generate-proposal-section: failed to load org name', orgErr.message)
+    }
     const croName: string | undefined = org?.name ?? undefined
 
     // Build prompts

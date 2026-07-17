@@ -286,17 +286,26 @@ function GeneralTab() {
       setOrgLoading(false)
       return
     }
-    supabase
-      .from('organizations')
-      .select('name')
-      .eq('id', profile.org_id)
-      .single()
-      .then(({ data, error }) => {
+    const orgId = profile.org_id
+    void (async () => {
+      try {
+        const { data, error } = await supabase
+          .from('organizations')
+          .select('name')
+          .eq('id', orgId)
+          .single()
         if (cancelled) return
         if (error || !data) setOrgError(true)
         else setOrgName(data.name)
-        setOrgLoading(false)
-      })
+      } catch {
+        // A true promise rejection (not the usual {data,error}) would otherwise
+        // leave the field stuck on "Loading…". Fail into the error state instead.
+        if (cancelled) return
+        setOrgError(true)
+      } finally {
+        if (!cancelled) setOrgLoading(false)
+      }
+    })()
     return () => {
       cancelled = true
     }
