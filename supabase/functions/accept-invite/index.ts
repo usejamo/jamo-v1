@@ -34,6 +34,8 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     )
 
+    const { full_name } = (await req.json().catch(() => ({}))) as { full_name?: string }
+
     // The invitee's email lives on auth.users, not user_profiles — resolve it
     // from the verified user id (never from the request body).
     const { data: userRes, error: userErr } = await admin.auth.admin.getUserById(userId)
@@ -53,6 +55,19 @@ Deno.serve(async (req) => {
       .eq('status', 'pending')
     if (updateErr) {
       return jsonError(400, updateErr.message, corsHeaders)
+    }
+
+    // Best-effort profile name write — never fail the accept over a missing/failed name.
+    // userId comes from the verified JWT (getAuthedUserAndOrg), never the body.
+    const fullName = (full_name ?? '').trim()
+    if (fullName) {
+      const { error: nameErr } = await admin
+        .from('user_profiles')
+        .update({ full_name: fullName })
+        .eq('user_id', userId)
+      if (nameErr) {
+        console.error('accept-invite: failed to set full_name', nameErr.message)
+      }
     }
 
     return new Response(JSON.stringify({ ok: true }), {
