@@ -52,7 +52,8 @@ describe('AcceptInvite', () => {
     await screen.findByLabelText('Password')
     fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'secret123' } })
     fireEvent.change(screen.getByLabelText(/confirm password/i), { target: { value: 'secret123' } })
-    fireEvent.click(screen.getByRole('button', { name: /set password/i }))
+    const form = screen.getByLabelText('Password').closest('form') as HTMLFormElement
+    fireEvent.submit(form)
 
     await screen.findByText(/enter your name/i)
     expect(updateUser).not.toHaveBeenCalled()
