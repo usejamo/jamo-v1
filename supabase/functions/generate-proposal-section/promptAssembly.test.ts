@@ -157,6 +157,34 @@ describe('CR-02 — trusted-count bypass hardening', () => {
   })
 })
 
+describe('buildSectionPromptV2 — proposing organization (CRO) name', () => {
+  const base = {
+    sectionId: 'cover_letter',
+    sectionName: 'Cover Letter',
+    sectionDescription: null,
+    sectionRole: 'cover_letter',
+    tone: 'formal',
+    regulatoryChunks: [],
+    proposalChunks: [],
+    regulatoryCount: 0,
+    priorSections: [],
+    proposalContext: {},
+  }
+
+  it('includes the CRO name block in the user message when croName is provided', () => {
+    const { userMessage } = buildSectionPromptV2({ ...base, croName: 'Brain Brawl Clinical Research' })
+    expect(userMessage).toContain('## PROPOSING ORGANIZATION (CRO)')
+    expect(userMessage).toContain('**Organization Name:** Brain Brawl Clinical Research')
+    expect(userMessage).not.toContain('[PLACEHOLDER: CRO name]')
+  })
+
+  it('falls back to a placeholder when croName is absent', () => {
+    const { userMessage } = buildSectionPromptV2({ ...base })
+    expect(userMessage).toContain('## PROPOSING ORGANIZATION (CRO)')
+    expect(userMessage).toContain('[PLACEHOLDER: CRO name]')
+  })
+})
+
 // CR-01: adversarial chunk content containing our block delimiters must not break out of its block.
 describe('CR-01 — block-delimiter injection hardening', () => {
   it('sanitizeChunkText strips structural delimiters but leaves [PLACEHOLDER:] and acronyms', () => {

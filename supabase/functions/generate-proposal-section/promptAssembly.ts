@@ -195,8 +195,9 @@ export function buildSectionPromptV2(params: {
     assumptions?: Array<{ category: string; value: string; confidence: string }>
     services?: string[]
   }
+  croName?: string
 }): { system: string; userMessage: string } {
-  const { sectionName, sectionDescription, sectionRole, tone, regulatoryChunks, proposalChunks, consistencyAnchor, priorSections, proposalContext } = params
+  const { sectionName, sectionDescription, sectionRole, tone, regulatoryChunks, proposalChunks, consistencyAnchor, priorSections, proposalContext, croName } = params
 
   // Derive grounding from the actual chunk array, never a caller-supplied count (CR-02).
   const groundedCount = regulatoryChunks.length
@@ -260,6 +261,7 @@ export function buildSectionPromptV2(params: {
   const services = proposalContext?.services || []
 
   const sections: string[] = []
+  sections.push(`## PROPOSING ORGANIZATION (CRO)\n\n**Organization Name:** ${croName || '[PLACEHOLDER: CRO name]'}`)
   sections.push(`## SPONSOR & RFP INFORMATION\n\n**Sponsor Name:** ${studyInfo.sponsorName || '[PLACEHOLDER: Sponsor name]'}\n**Therapeutic Area:** ${studyInfo.therapeuticArea || '[PLACEHOLDER: Therapeutic area]'}\n**Indication:** ${studyInfo.indication || '[PLACEHOLDER: Indication]'}\n**Proposal Due Date:** ${studyInfo.dueDate || '[Not provided]'}`)
   sections.push(`## STUDY DETAILS\n\n**Study Phase:** ${studyInfo.studyPhase || '[PLACEHOLDER: Study phase]'}\n**Regions/Countries:** ${studyInfo.countries || '[Not provided]'}`)
 
