@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { supabase } from '../lib/supabase'
 import { TemplatesTab } from '../components/settings/TemplatesTab'
 import { ReferenceLibraryTab } from '../components/settings/ReferenceLibraryTab'
 import { TeamTab } from '../components/settings/TeamTab'
@@ -11,26 +12,6 @@ import { SalesforceConnection } from '../components/SalesforceConnection'
 const INPUT_CLASS =
   'w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white ' +
   'focus:outline-none focus:ring-2 focus:ring-jamo-200 focus:border-jamo-400 transition-colors'
-
-const CURRENCIES = ['USD', 'EUR', 'GBP', 'JPY', 'CHF', 'CAD', 'AUD', 'SGD', 'CNY', 'INR']
-
-const TIMEZONES = [
-  'America/New_York (ET)',
-  'America/Chicago (CT)',
-  'America/Denver (MT)',
-  'America/Los_Angeles (PT)',
-  'America/Anchorage (AKT)',
-  'Pacific/Honolulu (HT)',
-  'Europe/London (GMT/BST)',
-  'Europe/Paris (CET)',
-  'Europe/Berlin (CET)',
-  'Europe/Zurich (CET)',
-  'Asia/Dubai (GST)',
-  'Asia/Tokyo (JST)',
-  'Asia/Shanghai (CST)',
-  'Asia/Singapore (SGT)',
-  'Australia/Sydney (AEST)',
-]
 
 // ── Integration data ──────────────────────────────────────────────────────────
 
@@ -294,28 +275,41 @@ function ProfileTab() {
 // ── General tab ───────────────────────────────────────────────────────────────
 
 function GeneralTab() {
-  const [form, setForm] = useState({
-    companyName: 'Jamo Clinical Research',
-    hqLocation: 'Boston, MA, USA',
-    currency: 'USD',
-    timezone: 'America/New_York (ET)',
-    taxId: 'US-47-1234567',
-  })
-  const [saved, setSaved] = useState(false)
+  const { profile } = useAuth()
+  const [orgName, setOrgName] = useState<string | null>(null)
+  const [orgLoading, setOrgLoading] = useState(true)
+  const [orgError, setOrgError] = useState(false)
 
-  function set(field: keyof typeof form, value: string) {
-    setForm(prev => ({ ...prev, [field]: value }))
-  }
+  useEffect(() => {
+    let cancelled = false
+    if (!profile?.org_id) {
+      setOrgLoading(false)
+      return
+    }
+    supabase
+      .from('organizations')
+      .select('name')
+      .eq('id', profile.org_id)
+      .single()
+      .then(({ data, error }) => {
+        if (cancelled) return
+        if (error || !data) setOrgError(true)
+        else setOrgName(data.name)
+        setOrgLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [profile?.org_id])
 
-  function handleSave() {
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
-  }
+  const companyValue = orgLoading
+    ? 'Loading…'
+    : orgError
+      ? "Couldn't load organization name"
+      : orgName ?? ''
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100">
-
-      {/* Organization */}
       <div className="p-6">
         <SectionLabel>Organization</SectionLabel>
         <div className="space-y-4 max-w-lg">
@@ -323,75 +317,26 @@ function GeneralTab() {
             <label className="block text-xs font-medium text-gray-500 mb-1.5">Company Name</label>
             <input
               type="text"
-              className={INPUT_CLASS}
-              value={form.companyName}
-              onChange={e => set('companyName', e.target.value)}
+              className={`${INPUT_CLASS} bg-gray-50 text-gray-600 cursor-not-allowed`}
+              value={companyValue}
+              readOnly
+              disabled
             />
+            <p className="text-xs text-gray-400 mt-1">
+              Set when your organization was created. Contact your Jamo admin to change it.
+            </p>
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1.5">HQ Location</label>
             <input
               type="text"
-              className={INPUT_CLASS}
-              value={form.hqLocation}
-              onChange={e => set('hqLocation', e.target.value)}
-              placeholder="City, State, Country"
+              className={`${INPUT_CLASS} bg-gray-50 text-gray-400 cursor-not-allowed`}
+              placeholder="Coming soon"
+              disabled
             />
           </div>
         </div>
       </div>
-
-      {/* Localization */}
-      <div className="p-6">
-        <SectionLabel>Localization</SectionLabel>
-        <div className="grid grid-cols-2 gap-4 max-w-lg">
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1.5">Default Currency</label>
-            <select
-              className={INPUT_CLASS}
-              value={form.currency}
-              onChange={e => set('currency', e.target.value)}
-            >
-              {CURRENCIES.map(c => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1.5">Timezone</label>
-            <select
-              className={INPUT_CLASS}
-              value={form.timezone}
-              onChange={e => set('timezone', e.target.value)}
-            >
-              {TIMEZONES.map(tz => (
-                <option key={tz} value={tz}>{tz}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-      </div>
-
-      {/* Finance */}
-      <div className="p-6">
-        <SectionLabel>Finance</SectionLabel>
-        <div className="max-w-lg">
-          <label className="block text-xs font-medium text-gray-500 mb-1.5">Tax / VAT ID</label>
-          <input
-            type="text"
-            className={INPUT_CLASS}
-            value={form.taxId}
-            onChange={e => set('taxId', e.target.value)}
-            placeholder="e.g. US-47-1234567"
-          />
-        </div>
-      </div>
-
-      {/* Footer */}
-      <div className="px-6 py-4 flex items-center justify-end bg-gray-50 rounded-b-xl">
-        <SaveButton onSave={handleSave} saved={saved} />
-      </div>
-
     </div>
   )
 }
