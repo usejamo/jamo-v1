@@ -6,6 +6,7 @@ const invoke = vi.fn().mockResolvedValue({ error: null })
 const updateUser = vi.fn().mockResolvedValue({ error: null })
 const getSession = vi.fn().mockResolvedValue({ data: { session: { user: { id: 'u1' } } } })
 const navigate = vi.fn()
+const refreshProfile = vi.fn().mockResolvedValue(undefined)
 
 vi.mock('../lib/supabase', () => ({
   supabase: {
@@ -20,6 +21,9 @@ vi.mock('react-router-dom', async () => {
     useNavigate: () => navigate,
   }
 })
+vi.mock('../context/AuthContext', () => ({
+  useAuth: () => ({ refreshProfile }),
+}))
 
 describe('AcceptInvite', () => {
   beforeEach(() => vi.clearAllMocks())
@@ -40,6 +44,7 @@ describe('AcceptInvite', () => {
     await waitFor(() => expect(updateUser).toHaveBeenCalledWith({ password: 'secret123' }))
     expect(invoke).toHaveBeenCalledWith('accept-invite', { body: { full_name: 'Ada Lovelace' } })
     await waitFor(() => expect(navigate).toHaveBeenCalledWith('/'))
+    expect(refreshProfile).toHaveBeenCalled()
   })
 
   it('blocks submit and shows an error when the name is empty', async () => {
@@ -57,5 +62,25 @@ describe('AcceptInvite', () => {
 
     await screen.findByText(/enter your name/i)
     expect(updateUser).not.toHaveBeenCalled()
+    expect(invoke).not.toHaveBeenCalled()
+  })
+
+  it('blocks submit for a whitespace-only name', async () => {
+    const { default: AcceptInvite } = await import('./AcceptInvite')
+    render(
+      <MemoryRouter>
+        <AcceptInvite />
+      </MemoryRouter>
+    )
+    const name = await screen.findByLabelText(/full name/i)
+    fireEvent.change(name, { target: { value: '   ' } })
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'secret123' } })
+    fireEvent.change(screen.getByLabelText(/confirm password/i), { target: { value: 'secret123' } })
+    const form = screen.getByLabelText('Password').closest('form') as HTMLFormElement
+    fireEvent.submit(form)
+
+    await screen.findByText(/enter your name/i)
+    expect(updateUser).not.toHaveBeenCalled()
+    expect(invoke).not.toHaveBeenCalled()
   })
 })

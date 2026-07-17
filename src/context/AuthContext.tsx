@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import type { Session, User } from '@supabase/supabase-js'
 import type { ReactNode } from 'react'
 import { supabase } from '../lib/supabase'
@@ -12,6 +12,7 @@ interface AuthContextValue {
   profile: UserProfile | null
   profileLoaded: boolean
   loading: boolean
+  refreshProfile: () => Promise<void>
   signIn: (email: string, password: string) => Promise<{ data: any; error: any }>
   signOut: () => Promise<{ error: any }>
 }
@@ -26,6 +27,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // returned null). Lets role gates distinguish "still loading" from "no profile".
   const [profileLoaded, setProfileLoaded] = useState(false)
   const [loading, setLoading] = useState(true)
+  // Monotonic guard: only the most recent loadProfile call may write state, so a
+  // slow/stale read can't clobber a fresher one (e.g. the full_name written during
+  // invite acceptance racing the USER_UPDATED reload).
+  const loadSeqRef = useRef(0)
 
   useEffect(() => {
     // Initial session check
@@ -58,11 +63,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   async function loadProfile(userId: string) {
+    const seq = ++loadSeqRef.current
     const { data, error } = await supabase
       .from('user_profiles')
       .select('*')
       .eq('user_id', userId)
       .single()
+    // A newer load started while this one was in flight — drop the stale result.
+    if (seq !== loadSeqRef.current) return
     if (error) {
       // Previously swallowed — surface it so a failed profile read isn't silent.
       console.error('Failed to load user profile:', error.message)
@@ -70,6 +78,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setProfile(data)
     setProfileLoaded(true)
     setLoading(false)
+  }
+
+  // Re-fetch the current user's profile on demand — used after a server-side write
+  // to user_profiles (e.g. setting full_name at invite acceptance) so the cached
+  // profile reflects it without waiting for the next auth event.
+  async function refreshProfile() {
+    const { data: { user: currentUser } } = await supabase.auth.getUser()
+    if (currentUser) await loadProfile(currentUser.id)
   }
 
   async function signIn(email: string, password: string) {
@@ -83,7 +99,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ session, user, profile, profileLoaded, loading, signIn, signOut }}>
+    <AuthContext.Provider value={{ session, user, profile, profileLoaded, loading, refreshProfile, signIn, signOut }}>
       {children}
     </AuthContext.Provider>
   )

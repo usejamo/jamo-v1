@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../context/AuthContext'
 
 // This page is identified purely by its ROUTE (/accept-invite), never by inspecting
 // auth state or onAuthStateChange event type. Invite links (implicit flow) establish a
@@ -15,6 +16,7 @@ export default function AcceptInvite() {
   const [checkingSession, setCheckingSession] = useState(true)
   const [hasSession, setHasSession] = useState(false)
   const navigate = useNavigate()
+  const { refreshProfile } = useAuth()
 
   useEffect(() => {
     let cancelled = false
@@ -66,6 +68,11 @@ export default function AcceptInvite() {
       if (acceptError) {
         console.error('Failed to mark invite accepted:', acceptError)
       }
+
+      // accept-invite wrote our full_name server-side after the profile was first
+      // loaded, so refresh the cached profile before navigating — otherwise the app
+      // shows the name as "Not set" until the next auth event.
+      await refreshProfile()
 
       navigate('/')
     } catch (err) {
