@@ -103,7 +103,7 @@ function getInitialState(): WizardState {
     const stored = sessionStorage.getItem(SESSION_KEY)
     if (stored) {
       const parsed = JSON.parse(stored) as WizardState
-      if (parsed.stateVersion === 7) return parsed
+      if (parsed.stateVersion === 8) return parsed
     }
   } catch {
     // ignore
@@ -150,7 +150,7 @@ export function ProposalCreationWizard() {
       status: 'draft',
       value: 0,
       geography: studyInfo.regions,
-      description: JSON.stringify({ services: studyInfo.services }),
+      description: JSON.stringify({ services: studyInfo.services, investigationalProduct: studyInfo.investigationalProduct }),
     }).then((id) => {
       dispatch({ type: 'SET_PROPOSAL_ID', id })
     }).catch((err) => {
@@ -212,7 +212,7 @@ export function ProposalCreationWizard() {
           status: 'draft',
           value: 0,
           geography: studyInfo.regions,
-          description: JSON.stringify({ services: studyInfo.services }),
+          description: JSON.stringify({ services: studyInfo.services, investigationalProduct: studyInfo.investigationalProduct }),
         })
       }
 

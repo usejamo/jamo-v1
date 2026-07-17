@@ -263,7 +263,7 @@ export function buildSectionPromptV2(params: {
   const sections: string[] = []
   sections.push(`## PROPOSING ORGANIZATION (CRO)\n\n**Organization Name:** ${croName || '[PLACEHOLDER: CRO name]'}`)
   sections.push(`## SPONSOR & RFP INFORMATION\n\n**Sponsor Name:** ${studyInfo.sponsorName || '[PLACEHOLDER: Sponsor name]'}\n**Therapeutic Area:** ${studyInfo.therapeuticArea || '[PLACEHOLDER: Therapeutic area]'}\n**Indication:** ${studyInfo.indication || '[PLACEHOLDER: Indication]'}\n**Proposal Due Date:** ${studyInfo.dueDate || '[Not provided]'}`)
-  sections.push(`## STUDY DETAILS\n\n**Study Phase:** ${studyInfo.studyPhase || '[PLACEHOLDER: Study phase]'}\n**Regions/Countries:** ${studyInfo.countries || '[Not provided]'}`)
+  sections.push(`## STUDY DETAILS\n\n**Study Phase:** ${studyInfo.studyPhase || '[PLACEHOLDER: Study phase]'}\n**Regions/Countries:** ${studyInfo.countries || '[Not provided]'}\n**Investigational Product:** ${studyInfo.investigationalProduct || '[PLACEHOLDER: Investigational product name]'}`)
 
   if (assumptions.length > 0) {
     const assumptionsList = assumptions.map((a: any) => `- [${a.category}] ${a.value || a.content}`).join('\n')

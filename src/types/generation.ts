@@ -59,6 +59,7 @@ export interface GenerateSectionPayloadV2 {
       sponsorName: string
       therapeuticArea: string
       indication: string
+      investigationalProduct: string
       studyPhase: string
       countries: string[]
       dueDate: string

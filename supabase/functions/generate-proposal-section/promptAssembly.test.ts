@@ -185,6 +185,37 @@ describe('buildSectionPromptV2 — proposing organization (CRO) name', () => {
   })
 })
 
+describe('buildSectionPromptV2 — investigational product name', () => {
+  const base = {
+    sectionId: 'understanding',
+    sectionName: 'Understanding of the Study',
+    sectionDescription: null,
+    sectionRole: 'understanding',
+    tone: 'formal',
+    regulatoryChunks: [],
+    proposalChunks: [],
+    regulatoryCount: 0,
+    priorSections: [],
+    proposalContext: {},
+  }
+
+  it('includes the investigational product in STUDY DETAILS when provided', () => {
+    const { userMessage } = buildSectionPromptV2({
+      ...base,
+      proposalContext: { studyInfo: { investigationalProduct: 'JAM-042' } },
+    })
+    expect(userMessage).toContain('## STUDY DETAILS')
+    expect(userMessage).toContain('**Investigational Product:** JAM-042')
+    expect(userMessage).not.toContain('[PLACEHOLDER: Investigational product name]')
+  })
+
+  it('falls back to a placeholder when the investigational product is absent', () => {
+    const { userMessage } = buildSectionPromptV2({ ...base })
+    expect(userMessage).toContain('## STUDY DETAILS')
+    expect(userMessage).toContain('**Investigational Product:** [PLACEHOLDER: Investigational product name]')
+  })
+})
+
 // CR-01: adversarial chunk content containing our block delimiters must not break out of its block.
 describe('CR-01 — block-delimiter injection hardening', () => {
   it('sanitizeChunkText strips structural delimiters but leaves [PLACEHOLDER:] and acronyms', () => {

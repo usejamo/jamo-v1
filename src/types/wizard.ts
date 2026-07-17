@@ -9,6 +9,7 @@ export interface StudyInfo {
   sponsorName: string
   therapeuticArea: string
   indication: string
+  investigationalProduct: string  // optional; per-proposal, feeds generation
   studyPhase: string
   regions: string[]
   dueDate: string
@@ -46,7 +47,7 @@ export interface WizardState {
   extractionStatus: ExtractionStatus
   documentCount: number
   selectedTemplateId: string | null  // null = no template selected (D-02)
-  stateVersion: 7
+  stateVersion: 8
 }
 
 export type WizardAction =
@@ -74,6 +75,7 @@ export const DEFAULT_WIZARD_STATE: WizardState = {
     sponsorName: '',
     therapeuticArea: '',
     indication: '',
+    investigationalProduct: '',
     studyPhase: '',
     regions: [],
     dueDate: '',
@@ -86,7 +88,7 @@ export const DEFAULT_WIZARD_STATE: WizardState = {
   extractionStatus: 'idle',
   documentCount: 0,
   selectedTemplateId: null,
-  stateVersion: 7,
+  stateVersion: 8,
 }
 
 export const WIZARD_STEPS = ['Study Info', 'Document Upload', 'Assumption Review', 'Template & Generate'] as const
