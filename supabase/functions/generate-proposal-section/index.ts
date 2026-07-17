@@ -222,6 +222,16 @@ serve(async (req) => {
 
     const orgId: string = profile!.org_id
 
+    // Inject the CRO/org name so the model fills it instead of emitting a [CRO Name]
+    // placeholder. Best-effort: a failed/missing read leaves croName undefined, and the
+    // prompt falls back to [PLACEHOLDER: CRO name] — exactly today's behavior.
+    const { data: org } = await supabase
+      .from('organizations')
+      .select('name')
+      .eq('id', orgId)
+      .single()
+    const croName: string | undefined = org?.name ?? undefined
+
     // Build prompts
     const { system: baseSystem, userMessage } = isV2
       ? buildSectionPromptV2({
@@ -236,6 +246,7 @@ serve(async (req) => {
           consistencyAnchor,
           priorSections,
           proposalContext,
+          croName,
         })
       : buildSectionPrompt({
           sectionId,
