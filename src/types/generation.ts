@@ -60,6 +60,7 @@ export interface GenerateSectionPayloadV2 {
       therapeuticArea: string
       indication: string
       investigationalProduct: string
+      investigationalProductUndisclosed: boolean
       studyPhase: string
       countries: string[]
       dueDate: string

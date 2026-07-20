@@ -143,7 +143,7 @@ describe('ProposalCreationWizard', () => {
       missingFields: [],
       extractionStatus: 'idle',
       selectedTemplateId: null,
-      stateVersion: 8,
+      stateVersion: 9,
     }))
     render(<ProposalCreationWizard />)
     // Should start on step 3 (hydrated) — skip button not visible, step-generate visible
@@ -187,7 +187,7 @@ describe('ProposalCreationWizard', () => {
       missingFields: [],
       extractionStatus: 'idle',
       selectedTemplateId: null,
-      stateVersion: 8,
+      stateVersion: 9,
     }))
     render(<ProposalCreationWizard />)
     // Step3AssumptionReview has data-testid="step-assumption-review"
@@ -217,7 +217,7 @@ describe('ProposalCreationWizard', () => {
       missingFields: [],
       extractionStatus: 'idle',
       selectedTemplateId: null,
-      stateVersion: 8,
+      stateVersion: 9,
     }))
     render(<ProposalCreationWizard />)
     const generateBtn = screen.getByTestId('generate-button')

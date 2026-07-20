@@ -216,6 +216,47 @@ describe('buildSectionPromptV2 — investigational product name', () => {
   })
 })
 
+describe('buildSectionPromptV2 — investigational product not disclosed (blinded)', () => {
+  const base = {
+    sectionId: 'understanding',
+    sectionName: 'Understanding of the Study',
+    sectionDescription: null,
+    sectionRole: 'understanding',
+    tone: 'formal',
+    regulatoryChunks: [],
+    proposalChunks: [],
+    regulatoryCount: 0,
+    priorSections: [],
+    proposalContext: {},
+  }
+
+  it('marks the product not disclosed and suppresses the name placeholder when undisclosed', () => {
+    const { system, userMessage } = buildSectionPromptV2({
+      ...base,
+      investigationalProductUndisclosed: true,
+    })
+    expect(userMessage).toContain('**Investigational Product:** Not disclosed by sponsor (blinded during vendor selection)')
+    expect(userMessage).not.toContain('[PLACEHOLDER: Investigational product name]')
+    // System instruction tells the model to write around it, never placeholder the name
+    expect(system).toContain('Do NOT insert a [PLACEHOLDER] for the product name')
+  })
+
+  it('ignores any stray product name when undisclosed is set (undisclosed wins)', () => {
+    const { userMessage } = buildSectionPromptV2({
+      ...base,
+      investigationalProductUndisclosed: true,
+      proposalContext: { studyInfo: { investigationalProduct: 'JAM-042' } },
+    })
+    expect(userMessage).toContain('**Investigational Product:** Not disclosed by sponsor (blinded during vendor selection)')
+    expect(userMessage).not.toContain('JAM-042')
+  })
+
+  it('does not add the undisclosed instruction when the flag is false/absent', () => {
+    const { system } = buildSectionPromptV2({ ...base })
+    expect(system).not.toContain('Do NOT insert a [PLACEHOLDER] for the product name')
+  })
+})
+
 // CR-01: adversarial chunk content containing our block delimiters must not break out of its block.
 describe('CR-01 — block-delimiter injection hardening', () => {
   it('sanitizeChunkText strips structural delimiters but leaves [PLACEHOLDER:] and acronyms', () => {

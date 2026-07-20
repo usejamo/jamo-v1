@@ -196,8 +196,9 @@ export function buildSectionPromptV2(params: {
     services?: string[]
   }
   croName?: string
+  investigationalProductUndisclosed?: boolean
 }): { system: string; userMessage: string } {
-  const { sectionName, sectionDescription, sectionRole, tone, regulatoryChunks, proposalChunks, consistencyAnchor, priorSections, proposalContext, croName } = params
+  const { sectionName, sectionDescription, sectionRole, tone, regulatoryChunks, proposalChunks, consistencyAnchor, priorSections, proposalContext, croName, investigationalProductUndisclosed } = params
 
   // Derive grounding from the actual chunk array, never a caller-supplied count (CR-02).
   const groundedCount = regulatoryChunks.length
@@ -227,6 +228,10 @@ export function buildSectionPromptV2(params: {
   }
 
   system += `\n\nTone for this section: ${tone}.\n\nCRITICAL RULE: When specific information is not available, use [PLACEHOLDER: description of what's needed] markers. NEVER invent specific numbers, dates, or names.`
+
+  if (investigationalProductUndisclosed) {
+    system += `\n\nINVESTIGATIONAL PRODUCT: The sponsor has NOT disclosed the investigational product name (blinded during vendor selection). Do NOT insert a [PLACEHOLDER] for the product name in any section. Refer to it generically — e.g. "the investigational product", "the study drug", or "the Sponsor's compound".`
+  }
 
   if (consistencyAnchor) {
     system += `\n\n## CONSISTENCY ANCHOR (summary of prior sections):\n${consistencyAnchor}`
@@ -263,7 +268,10 @@ export function buildSectionPromptV2(params: {
   const sections: string[] = []
   sections.push(`## PROPOSING ORGANIZATION (CRO)\n\n**Organization Name:** ${croName || '[PLACEHOLDER: CRO name]'}`)
   sections.push(`## SPONSOR & RFP INFORMATION\n\n**Sponsor Name:** ${studyInfo.sponsorName || '[PLACEHOLDER: Sponsor name]'}\n**Therapeutic Area:** ${studyInfo.therapeuticArea || '[PLACEHOLDER: Therapeutic area]'}\n**Indication:** ${studyInfo.indication || '[PLACEHOLDER: Indication]'}\n**Proposal Due Date:** ${studyInfo.dueDate || '[Not provided]'}`)
-  sections.push(`## STUDY DETAILS\n\n**Study Phase:** ${studyInfo.studyPhase || '[PLACEHOLDER: Study phase]'}\n**Regions/Countries:** ${studyInfo.countries || '[Not provided]'}\n**Investigational Product:** ${studyInfo.investigationalProduct || '[PLACEHOLDER: Investigational product name]'}`)
+  const investigationalProductLine = investigationalProductUndisclosed
+    ? 'Not disclosed by sponsor (blinded during vendor selection)'
+    : (studyInfo.investigationalProduct || '[PLACEHOLDER: Investigational product name]')
+  sections.push(`## STUDY DETAILS\n\n**Study Phase:** ${studyInfo.studyPhase || '[PLACEHOLDER: Study phase]'}\n**Regions/Countries:** ${studyInfo.countries || '[Not provided]'}\n**Investigational Product:** ${investigationalProductLine}`)
 
   if (assumptions.length > 0) {
     const assumptionsList = assumptions.map((a: any) => `- [${a.category}] ${a.value || a.content}`).join('\n')

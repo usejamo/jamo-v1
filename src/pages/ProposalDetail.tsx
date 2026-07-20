@@ -412,7 +412,7 @@ const isStreamingMode = genState.isGenerating
     // services is stored as JSON in proposal.description by the wizard.
     // geography (countries) now comes from the real proposals.geography column (Phase 14.5);
     // the legacy description.regions blob key is retired.
-    const meta: { services?: string[]; investigationalProduct?: string } = (() => {
+    const meta: { services?: string[]; investigationalProduct?: string; investigationalProductUndisclosed?: boolean } = (() => {
       try { return JSON.parse(proposal?.description ?? '{}') } catch { return {} }
     })()
     return {
@@ -421,6 +421,7 @@ const isStreamingMode = genState.isGenerating
         therapeuticArea: proposal?.therapeuticArea ?? '',
         indication: proposal?.indication ?? '',
         investigationalProduct: meta.investigationalProduct ?? '',
+        investigationalProductUndisclosed: meta.investigationalProductUndisclosed ?? false,
         studyPhase: proposal?.studyType ?? '',
         countries: proposal?.geography ?? [],
         dueDate: proposal?.dueDate ?? '',

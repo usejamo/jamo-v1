@@ -235,6 +235,10 @@ serve(async (req) => {
     }
     const croName: string | undefined = org?.name ?? undefined
 
+    // When the sponsor blinded the investigational product, write around it generically
+    // instead of emitting a [PLACEHOLDER: Investigational product name] to be filled later.
+    const investigationalProductUndisclosed: boolean = Boolean(proposalContext?.studyInfo?.investigationalProductUndisclosed)
+
     // Build prompts
     const { system: baseSystem, userMessage } = isV2
       ? buildSectionPromptV2({
@@ -250,6 +254,7 @@ serve(async (req) => {
           priorSections,
           proposalContext,
           croName,
+          investigationalProductUndisclosed,
         })
       : buildSectionPrompt({
           sectionId,

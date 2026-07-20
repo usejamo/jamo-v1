@@ -29,6 +29,14 @@ export function Step1StudyInfo({ state, dispatch }: Step1StudyInfoProps) {
     dispatch({ type: 'UPDATE_STUDY_INFO', field, value })
   }
 
+  function handleUndisclosedToggle(checked: boolean) {
+    dispatch({ type: 'UPDATE_STUDY_INFO', field: 'investigationalProductUndisclosed', value: checked })
+    // Checking wins: an undisclosed product and a typed name are mutually exclusive
+    if (checked) {
+      dispatch({ type: 'UPDATE_STUDY_INFO', field: 'investigationalProduct', value: '' })
+    }
+  }
+
   function handleRegionsBlur(value: string) {
     const arr = value
       .split(',')
@@ -116,9 +124,23 @@ export function Step1StudyInfo({ state, dispatch }: Step1StudyInfoProps) {
           type="text"
           value={studyInfo.investigationalProduct}
           onChange={(e) => handleTextChange('investigationalProduct', e.target.value)}
-          className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jamo-500"
+          disabled={studyInfo.investigationalProductUndisclosed}
+          className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jamo-500 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
           aria-label="Investigational Product Name"
         />
+        <label className="mt-2 flex items-center gap-2 text-sm text-gray-600">
+          <input
+            type="checkbox"
+            checked={studyInfo.investigationalProductUndisclosed}
+            onChange={(e) => handleUndisclosedToggle(e.target.checked)}
+            className="rounded border-gray-300 text-jamo-500 focus:ring-jamo-500"
+            aria-label="Not disclosed by sponsor (blinded)"
+          />
+          Not disclosed by sponsor (blinded)
+        </label>
+        <p className="mt-1 text-xs text-gray-400">
+          Common when the sponsor keeps the product confidential during vendor selection
+        </p>
       </div>
 
       {/* Study Phase */}

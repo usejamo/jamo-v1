@@ -10,6 +10,7 @@ export interface StudyInfo {
   therapeuticArea: string
   indication: string
   investigationalProduct: string  // optional; per-proposal, feeds generation
+  investigationalProductUndisclosed: boolean  // sponsor blinded the product name; write around it, no placeholder
   studyPhase: string
   regions: string[]
   dueDate: string
@@ -47,13 +48,13 @@ export interface WizardState {
   extractionStatus: ExtractionStatus
   documentCount: number
   selectedTemplateId: string | null  // null = no template selected (D-02)
-  stateVersion: 8
+  stateVersion: 9
 }
 
 export type WizardAction =
   | { type: 'SET_STEP'; step: 0 | 1 | 2 | 3 }
   | { type: 'SKIP_TO_GENERATE' }
-  | { type: 'UPDATE_STUDY_INFO'; field: keyof StudyInfo; value: string | string[] }
+  | { type: 'UPDATE_STUDY_INFO'; field: keyof StudyInfo; value: string | string[] | boolean }
   | { type: 'TOGGLE_SERVICE'; label: string }
   | { type: 'SET_ERRORS'; errors: Partial<Record<keyof StudyInfo, string>> }
   | { type: 'SET_SUBMITTING'; value: boolean }
@@ -76,6 +77,7 @@ export const DEFAULT_WIZARD_STATE: WizardState = {
     therapeuticArea: '',
     indication: '',
     investigationalProduct: '',
+    investigationalProductUndisclosed: false,
     studyPhase: '',
     regions: [],
     dueDate: '',
@@ -88,7 +90,7 @@ export const DEFAULT_WIZARD_STATE: WizardState = {
   extractionStatus: 'idle',
   documentCount: 0,
   selectedTemplateId: null,
-  stateVersion: 8,
+  stateVersion: 9,
 }
 
 export const WIZARD_STEPS = ['Study Info', 'Document Upload', 'Assumption Review', 'Template & Generate'] as const
