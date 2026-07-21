@@ -763,3 +763,17 @@ Plans:
 
 Plans:
 - [ ] TBD (promote with /gsd-review-backlog when ready)
+
+### Phase 999.6: Abandoned draft proposals accumulate with no cleanup (BACKLOG)
+
+**Goal:** Abandoned draft proposals no longer accumulate indefinitely. A user who starts the creation wizard but never finishes should not leave a permanent orphaned draft (plus its child rows and uploaded files) behind.
+
+**Evidence / lead (verified 2026-07-20, surfaced during Phase 16 spec research):** The wizard creates a `proposals` draft **eagerly on entering step 1 (Document Upload)** — `src/components/ProposalCreationWizard.tsx:139-159`, before generation. The "Reset Demo" control (`src/components/Sidebar.tsx:123`) only does `sessionStorage.clear(); window.location.reload()` — it deletes **nothing** in the DB. There is **no** cleanup mechanism for abandoned drafts anywhere (the only cron, `reap_stuck_document_extractions` `20260713000001`, just flips `proposal_documents.parse_status` to `error`; it never deletes proposals). Abandoned drafts pass the list filter (`deleted_at IS NULL AND is_archived = false`, `ProposalsContext.tsx:58-63`) so they stay visible. Live data corroborates: **Test Org A holds 60 drafts** vs. a handful of terminal-status proposals — consistent with accumulation. Note the orphan chain on any hard-delete: `proposal_documents.proposal_id` is **SET NULL** (not cascade) and Storage objects in the `documents` bucket are never removed by proposal-delete paths (`ProposalsContext.tsx:130-135`), so a naive cleanup would leave orphaned document rows + files.
+
+**Scope note:** This is a **pre-existing production defect independent of demo mode** — deliberately NOT absorbed into Phase 16 (which only needs its own demo-org sweep). Options to weigh when promoted: (a) don't persist a draft until the user commits past step 1; (b) a sweep of stale untouched drafts; (c) explicit delete-on-abandon. Any fix must also clean `proposal_documents`/`document_extracts` + Storage, not just the `proposals` row.
+
+**Requirements:** TBD
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with /gsd-review-backlog when ready)
