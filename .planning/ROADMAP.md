@@ -671,7 +671,7 @@ Plans:
 **SPEC:** 16-SPEC.md (9 requirements, Decisions A/B/C locked)
 **Context:** 16-CONTEXT.md - **Research:** 16-RESEARCH.md - **Validation:** 16-VALIDATION.md
 
-**Plans:** 9 plans in 5 waves
+**Plans:** 9 plans in 4 waves
 
 Plans:
 - [ ] 16-01-PLAN.md - demo schema (5 tables + RLS) + clone_demo_fixture_chunks RPC + [BLOCKING] MCP apply (W1)
@@ -680,9 +680,9 @@ Plans:
 - [ ] 16-04-PLAN.md - demo-run-start edge fn (validate -> atomic materialize -> clone) + validation module (W2)
 - [ ] 16-05-PLAN.md - demo-reset edge fn (run-scoped triple-guard) + shared cleanup module + deploy (W2)
 - [ ] 16-06-PLAN.md - demo-sweep edge fn + pg_net/pg_cron hourly wiring + [BLOCKING] apply/deploy (W3)
-- [ ] 16-07-PLAN.md - capture UI on ProposalDetail + remove vestigial Reset Demo/labels (W4)
-- [ ] 16-08-PLAN.md - presenter run surface: wizard driver + template lock + paced populate + Req 6 guard (W4)
-- [ ] 16-09-PLAN.md - in-session run-scoped reset control + presenter E2E human-verify (W5)
+- [ ] 16-07-PLAN.md - capture UI on ProposalDetail + remove vestigial Reset Demo/labels (W3)
+- [ ] 16-08-PLAN.md - presenter run surface: wizard driver + template lock + paced populate + Req 6 guard (W3)
+- [ ] 16-09-PLAN.md - in-session run-scoped reset control + presenter E2E human-verify (W4)
 
 ---
 

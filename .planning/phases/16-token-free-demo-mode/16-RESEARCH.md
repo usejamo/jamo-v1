@@ -354,7 +354,13 @@ async function validateFixtureAgainstTemplate(admin, templateId: string, fixture
 
 **If this table is empty:** N/A — see above; all three are genuine gaps in what could be verified from static code alone (pg_net has zero precedent in this repo, and no live Supabase MCP session was used to check its installed version during this research pass).
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+**Resolution summary (planning, Phase 16):**
+- **Q1 — where does fixture validation run?** RESOLVED: validation lives in `demo-run-start` as a shared pure module `validateFixtureAgainstTemplate` (src + _shared copies), called BEFORE any write (16-04); no standalone `demo-validate-fixture` endpoint is built in v1 (CONTEXT discretion).
+- **Q2 — exact net.http_post argument shape for this project's pg_net?** DEFERRED-TO-LIVE-VERIFICATION (not fully resolvable statically): 16-06 Task 4 is a [BLOCKING] pre-apply MCP check that verifies pg_net availability + the live `net.http_post` arg names and adjusts the migration before apply.
+- **Q3 — demo org seed: migration vs script?** RESOLVED: split — the demo `organizations` row via a SQL migration, the presenter super_admin account via the invite-based seed script (16-02), matching the repo's "org via migration, account via invite-script" convention.
+
 
 1. **Where does fixture validation (Req 7) run — `demo-run-start` only, a separate `demo-validate-fixture`, or both?**
    - What we know: CONTEXT.md explicitly leaves this to planner/researcher discretion. `demo-run-start` MUST validate before writing (Pitfall 4) regardless.
