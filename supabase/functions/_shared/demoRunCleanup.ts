@@ -46,11 +46,15 @@
 // kept, and run last, so the routine is still correct (and idempotent) for a `demo_runs` row
 // whose proposal was already deleted by some other path — the sweep will meet exactly that.
 
-// Minimal structural type so this module does not depend on a generated Database type.
-type DeleteBuilder = {
-  delete: () => { eq: (column: string, value: string) => Promise<{ error: { message: string } | null }> }
-}
-type AdminClient = { from: (table: string) => DeleteBuilder }
+/**
+ * Minimal structural type so this module does not depend on a generated Database type and
+ * stays usable from any demo edge function. The builder returned by supabase-js is a
+ * thenable PostgrestFilterBuilder, not a bare Promise, so it is intentionally left loose
+ * here rather than mis-modelled — the shape actually used is
+ * `admin.from(table).delete().eq(column, value)` awaited for `{ error }`.
+ */
+// deno-lint-ignore no-explicit-any
+type AdminClient = { from: (table: string) => any }
 
 export type DemoRunRef = {
   id: string
