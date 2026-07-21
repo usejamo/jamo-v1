@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Phase 16 context gathered
-last_updated: "2026-07-21T00:13:02.219Z"
+stopped_at: Completed 16-01-PLAN.md (demo fixture tables + clone RPC, live-applied)
+last_updated: "2026-07-21T18:05:56.137Z"
 progress:
-  total_phases: 35
+  total_phases: 36
   completed_phases: 26
-  total_plans: 153
-  completed_plans: 151
-  percent: 99
+  total_plans: 162
+  completed_plans: 152
+  percent: 94
 ---
 
 ## Project Status
@@ -29,10 +29,12 @@ progress:
 
 Phase 15 (Client Onboarding & Provisioning): Wave 1 complete (15-01, 15-02, 15-03). Wave 2 plan 15-04 complete (shared invite helper + admin-create-org + admin-invite-first-admin + slug). Wave 2 plan 15-07 complete (idempotent bootstrap-super-admin script + test + npm entry, req 15-11 — NOT yet run live; live run + verification deferred to plan 15-08 per orchestrator's live-ops boundary). Wave 3 plan 15-05 complete (admin-invites-lifecycle: list/resend/revoke, req 15-08 — resend is revoke-then-reissue per Pitfall 4; NOT yet deployed). Wave 3 plan 15-06 complete (team-invite + team-manage: same-org, role-capped teammate invite + role change/deactivate/reactivate, reqs 15-06/15-07/15-08 — super_admin never mintable or targetable from either surface, deactivate uses ban_duration as the real auth block + is_active mirror; NOT yet deployed). Wave 5 plan 15-09 complete (Platform Admin panel UI — AdminPanel.tsx: org list/create-org/invite-first-admin/pending-invites, all writes via admin-* edge functions; NOT yet routed, route gating is plan 11; its human-verify checkpoint left open per orchestrator instruction, pending re-surfacing once plan 11 lands). Wave 5 plan 15-10 complete (Settings → Team tab — TeamTab.tsx: invite/member-list/role-toggle/deactivate-reactivate/pending-invites-resend-revoke, all via team-invite/team-manage edge functions, reqs 15-06/15-07/15-08; extended team-manage with a new `list_members` action and team-invite with `resend`/`revoke` actions since neither existed at the scope this plan's UI needed — see 15-10-SUMMARY.md deviations; its human-verify checkpoint also left open per orchestrator instruction). Wave 6 plan 15-11 complete (route wiring + signup removal — SuperAdminRoute.tsx role guard nested inside ProtectedRoute, denies non-super_admin to `/` not `/login`, 5 Vitest cases; App.tsx now wires `/admin` behind ProtectedRoute+SuperAdminRoute→AdminPanel and the three public auth routes `/accept-invite`/`/forgot-password`/`/reset-password`→AcceptInvite/ForgotPassword/ResetPassword; `signUp` fully removed from AuthContext + Login.tsx's signup JSX + hardcoded Test Org A/B UUIDs, replaced with a "Forgot password?" link; reqs 15-02/15-05/15-10/15-13 structurally complete. Build passes, full test suite green (382 passed, 16 skipped). This closes out the plan 09/10 "not yet routed" gap — their pages are now reachable). Next: remaining Phase 15 items — the deploy wave (plan 08, still not run) and the deferred human-verify checkpoints from plans 02 (Resend SMTP/DNS), 09, and 10, which are all blocked on that deploy wave for live end-to-end verification.
 
+Phase 16 (Token-Free Demo Mode): Wave 1 plan 16-01 complete — 5 demo tables (`demo_fixtures`, `demo_fixture_sections`, `demo_fixture_assumptions`, `demo_fixture_rfp_chunks`, `demo_runs`) + super_admin-only RLS + `clone_demo_fixture_chunks` SECURITY DEFINER RPC, applied live to project `fuuvdcvbliijffogjnwg` by the orchestrator (executor has no Supabase MCP tools) and `database.types.ts` regenerated (reqs SPEC-R2/R3/R5/R8). Next: remaining Phase 16 plans (16-02 through 16-09) — demo org/presenter seed, capture/run-start/reset/sweep edge functions, presenter wizard driver.
+
 ## Last Session
 
-**Stopped at:** Phase 16 context gathered
-**Session date:** 2026-07-14
+**Stopped at:** Completed 16-01-PLAN.md (demo fixture tables + clone RPC, live-applied)
+**Session date:** 2026-07-21
 
 ## Roadmap Evolution
 
@@ -53,6 +55,7 @@ Phase 15 (Client Onboarding & Provisioning): Wave 1 complete (15-01, 15-02, 15-0
 
 ## Active Decisions
 
+- **Live migration apply delegated to orchestrator (16-01):** this executor wrote and committed both `supabase/migrations/20260721000001_demo_fixture_tables.sql` and `supabase/migrations/20260721000002_clone_demo_fixture_chunks_rpc.sql` but has no Supabase MCP tools in its toolset — `supabase db push` was correctly never attempted (diverged migration history in this project). The orchestrator applied both migrations live to `fuuvdcvbliijffogjnwg` via Supabase MCP `apply_migration` at the plan's Task 3 `checkpoint:human-action`, verified 5 tables + 1 RPC + 5 RLS policies + 1 partial index, and regenerated `src/types/database.types.ts` (commit `262ec51`). This apply-via-orchestrator pattern should be reused for every subsequent Phase 16 plan with a live-DB or live-deploy step.
 - **Stale test mocks referencing removed `signUp` cleaned up (15-11):** `src/context/__tests__/auth-context.test.ts` and `src/components/__tests__/ProposalCreationWizard.test.tsx` both mocked/tested `signUp`, which no longer exists on `AuthContext`'s public interface after this plan's removal — both cleaned up as a direct, narrowly-scoped downstream fix (Rule 1), not scope creep.
 - **SuperAdminRoute nests inside ProtectedRoute, denial redirects to `/` not `/login` (15-11):** clones `ProtectedRoute`'s loading/Outlet shape and swaps the `!session` check for `!profile || profile.role !== 'super_admin'`; nested INSIDE the existing `ProtectedRoute` tree (not a sibling) so an unauthenticated user still hits `/login` first before any role check runs, per UI-SPEC section 1 and RESEARCH Pattern 1.
 - **team-manage `list_members` action added (15-10):** `user_profiles` has no `email` column (`auth.users` owns it, no client-readable view exposes it) — the Team tab's member list joins each org-scoped profile to its `auth.users` email via the service-role client, gated behind the existing admin/super_admin caller check. Net-new read surface, same trust boundary as existing team-manage actions (org-scoped, admin-gated).
@@ -168,6 +171,10 @@ Phase 15 (Client Onboarding & Provisioning): Wave 1 complete (15-01, 15-02, 15-0
 ---
 
 ## Completed Plans
+
+### Phase 16: Token-Free Demo Mode
+
+- **Plan 01** (2026-07-21): Demo fixture tables + clone RPC — 5 new tables (`demo_fixtures`, `demo_fixture_sections`, `demo_fixture_assumptions`, `demo_fixture_rfp_chunks`, `demo_runs`), all demo-org-scoped with super_admin-only SELECT RLS and no client write policy; `demo_fixtures` enforces `unique(template_id, version)` + a partial unique index (`demo_fixtures_one_active_per_template`, one active per template). `clone_demo_fixture_chunks(p_fixture_id, p_proposal_id, p_org_id)` SQL RPC (SECURITY DEFINER, service_role-only) does a pure `INSERT ... SELECT` of RFP chunks into `chunks` under a fresh `proposal_id` — no model call at run time, trigger-maintained full-text column excluded. Migrations applied live to `fuuvdcvbliijffogjnwg` by the orchestrator at the plan's Task 3 human-action checkpoint (executor has no Supabase MCP tools); `src/types/database.types.ts` regenerated. Reqs SPEC-R2/R3/R5/R8. Commits `040a69c`, `e09f3fc`, `262ec51`.
 
 ### Phase 15: Client Onboarding & Provisioning
 
@@ -285,4 +292,4 @@ Phase 15 (Client Onboarding & Provisioning): Wave 1 complete (15-01, 15-02, 15-0
 - **Plan 01** (2026-06-11): Wave 0 Nyquist test stubs — 4 it.skip stub files created: enum-sync.test.ts (AC-3, 2 stubs), useResolvedItemsWriteOnTerminal.askThenFill.test.ts (AC-4/AC-9, 2 stubs), activeTaskShape.test.ts (D-01 shape invariant, 1 stub), AskUserCard.skip.test.tsx (AC-9 skip button, 3 stubs). No production code touched. Suite green (pre-existing SectionEditorBlock failures unrelated). Commits bb22d1b, cfff3a1.
 - **Plan 04** (2026-06-11): Client ask_user branch + defer affordance — onCtaClick ask_user branch (focus via _onSectionFocusChange, originating_snapshot in cta_payload, description in message text); two-step attribution fallback at propose_edit arrival (Map first, then activeTask?.originating_snapshot); AskUserCard onSkip defer button ("I don't have this yet") wired to discard path; AC-4 + AC-9-card-01/02/03 + AC-9-hook all green. Commits e214403, 0dcffdc, 272ff0f, dc75677.
 
-**Planned Phase:** 15 (client-onboarding-provisioning) — 11 plans — 2026-07-14T00:30:39.224Z
+**Planned Phase:** 16 (token-free-demo-mode) — 9 plans — 2026-07-21T04:21:12.836Z

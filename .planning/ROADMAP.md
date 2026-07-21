@@ -674,7 +674,7 @@ Plans:
 **Plans:** 9 plans in 4 waves
 
 Plans:
-- [ ] 16-01-PLAN.md - demo schema (5 tables + RLS) + clone_demo_fixture_chunks RPC + [BLOCKING] MCP apply (W1)
+- [x] 16-01-PLAN.md - demo schema (5 tables + RLS) + clone_demo_fixture_chunks RPC + [BLOCKING] MCP apply (W1) — applied live to fuuvdcvbliijffogjnwg by orchestrator, types regenerated
 - [ ] 16-02-PLAN.md - demo org migration + idempotent presenter seed script + [BLOCKING] apply/run (W1)
 - [ ] 16-03-PLAN.md - demo-capture-fixture edge fn (versioned snapshot, demo-org-only) + deploy (W2)
 - [ ] 16-04-PLAN.md - demo-run-start edge fn (validate -> atomic materialize -> clone) + validation module (W2)
