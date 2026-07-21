@@ -677,7 +677,7 @@ Plans:
 - [x] 16-01-PLAN.md - demo schema (5 tables + RLS) + clone_demo_fixture_chunks RPC + [BLOCKING] MCP apply (W1) — applied live to fuuvdcvbliijffogjnwg by orchestrator, types regenerated
 - [x] 16-02-PLAN.md - demo org migration + idempotent presenter seed script + [BLOCKING] apply/run (W1) — jamo-demo org (is_demo=true) + shared super_admin presenter live on fuuvdcvbliijffogjnwg; seed re-run confirmed idempotent
 - [x] 16-03-PLAN.md - demo-capture-fixture edge fn (versioned snapshot, demo-org-only) + deploy (W2) — DEPLOYED and ACTIVE on fuuvdcvbliijffogjnwg (v1, verify_jwt true); end-to-end capture NOT yet exercised (no demo-org proposal exists to capture)
-- [ ] 16-04-PLAN.md - demo-run-start edge fn (validate -> atomic materialize -> clone) + validation module (W2)
+- [x] 16-04-PLAN.md - demo-run-start edge fn (validate -> atomic materialize -> clone) + validation module (W2) — DEPLOYED on fuuvdcvbliijffogjnwg (verify_jwt true); zero model calls confirmed by independent live scan; end-to-end run NOT yet exercised (demo_fixtures empty) and the canonical RFP Storage object is not yet uploaded
 - [ ] 16-05-PLAN.md - demo-reset edge fn (run-scoped triple-guard) + shared cleanup module + deploy (W2)
 - [ ] 16-06-PLAN.md - demo-sweep edge fn + pg_net/pg_cron hourly wiring + [BLOCKING] apply/deploy (W3)
 - [ ] 16-07-PLAN.md - capture UI on ProposalDetail + remove vestigial Reset Demo/labels (W3)
