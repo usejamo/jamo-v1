@@ -248,9 +248,30 @@ Deno.serve(async (req) => {
       return jsonError(422, validation.error, corsHeaders)
     }
 
+    // Roles are keyed with the SAME normalization validateFixtureAgainstTemplate uses (trim).
+    // Keying raw here would let a whitespace-only difference pass validation and then miss on
+    // lookup, silently pre-populating a blank section — the exact Req 7 failure.
+    const normalizeRole = (role: unknown): string => (typeof role === 'string' ? role.trim() : '')
+
     const fixtureByRole = new Map(
-      (fixtureSections ?? []).map((s) => [String(s.role), s])
+      (fixtureSections ?? []).map((s) => [normalizeRole(s.role), s])
     )
+
+    // Defense in depth: validation above already guarantees a bijective role match, so this
+    // is unreachable in practice. It exists so that any future divergence between the two
+    // fails loudly BEFORE the first write, rather than rendering an empty section mid-demo.
+    const unmatched = (templateSections ?? []).filter(
+      (ts) => !fixtureByRole.has(normalizeRole(ts.role))
+    )
+    if (unmatched.length > 0) {
+      return jsonError(
+        422,
+        `fixture section(s) could not be matched to the template: ${unmatched
+          .map((t) => t.name ?? `position ${t.position}`)
+          .join(', ')}`,
+        corsHeaders
+      )
+    }
 
     const { data: fixtureAssumptions, error: faError } = await admin
       .from('demo_fixture_assumptions')
@@ -294,7 +315,8 @@ Deno.serve(async (req) => {
     // content from the fixture, status 'complete', generated_at set (no generation call).
     const generatedAt = new Date().toISOString()
     const sectionRows = (templateSections ?? []).map((ts) => {
-      const fs = fixtureByRole.get(String(ts.role))
+      // Guaranteed present: validated above, and the unmatched check returned 422 otherwise.
+      const fs = fixtureByRole.get(normalizeRole(ts.role))
       return {
         proposal_id: proposalId,
         org_id: callerOrgId,
