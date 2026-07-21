@@ -660,6 +660,32 @@ Plans:
 
 ---
 
+### Phase 16: Token-Free Demo Mode
+
+**Goal:** An internal, super_admin-only demo path that replays a captured proposal generation deterministically and near-instantly, while every post-generation interaction (chat, rewrite, section regeneration, export) runs the real production paths against real indexed content. Demo branching lives ABOVE the population step only. Adds a dedicated demo org (Decision A), versioned capture fixtures (Decision B), per-run clone of pre-computed RFP embeddings (Decision C), a super_admin-gated capture/run/reset edge-fn trio, a scheduled sweep, and a presenter surface reusing the real wizard.
+
+**Requirements covered:** SPEC Reqs 1-9 (see 16-SPEC.md; no Req 10 exists)
+
+**Depends on:** Phase 15 (super_admin bootstrap/provisioning to mirror for the demo-org seed), Phase 14.3 (JWT-derived edge identity)
+
+**SPEC:** 16-SPEC.md (9 requirements, Decisions A/B/C locked)
+**Context:** 16-CONTEXT.md - **Research:** 16-RESEARCH.md - **Validation:** 16-VALIDATION.md
+
+**Plans:** 9 plans in 5 waves
+
+Plans:
+- [ ] 16-01-PLAN.md - demo schema (5 tables + RLS) + clone_demo_fixture_chunks RPC + [BLOCKING] MCP apply (W1)
+- [ ] 16-02-PLAN.md - demo org migration + idempotent presenter seed script + [BLOCKING] apply/run (W1)
+- [ ] 16-03-PLAN.md - demo-capture-fixture edge fn (versioned snapshot, demo-org-only) + deploy (W2)
+- [ ] 16-04-PLAN.md - demo-run-start edge fn (validate -> atomic materialize -> clone) + validation module (W2)
+- [ ] 16-05-PLAN.md - demo-reset edge fn (run-scoped triple-guard) + shared cleanup module + deploy (W2)
+- [ ] 16-06-PLAN.md - demo-sweep edge fn + pg_net/pg_cron hourly wiring + [BLOCKING] apply/deploy (W3)
+- [ ] 16-07-PLAN.md - capture UI on ProposalDetail + remove vestigial Reset Demo/labels (W4)
+- [ ] 16-08-PLAN.md - presenter run surface: wizard driver + template lock + paced populate + Req 6 guard (W4)
+- [ ] 16-09-PLAN.md - in-session run-scoped reset control + presenter E2E human-verify (W5)
+
+---
+
 ## Milestone 2: Growth (Post-MVP)
 
 *Planned but not yet phased. Begin planning after Milestone 1 ships.*
