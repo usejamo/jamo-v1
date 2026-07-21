@@ -678,7 +678,7 @@ Plans:
 - [x] 16-02-PLAN.md - demo org migration + idempotent presenter seed script + [BLOCKING] apply/run (W1) — jamo-demo org (is_demo=true) + shared super_admin presenter live on fuuvdcvbliijffogjnwg; seed re-run confirmed idempotent
 - [x] 16-03-PLAN.md - demo-capture-fixture edge fn (versioned snapshot, demo-org-only) + deploy (W2) — DEPLOYED and ACTIVE on fuuvdcvbliijffogjnwg (v1, verify_jwt true); end-to-end capture NOT yet exercised (no demo-org proposal exists to capture)
 - [x] 16-04-PLAN.md - demo-run-start edge fn (validate -> atomic materialize -> clone) + validation module (W2) — DEPLOYED on fuuvdcvbliijffogjnwg (verify_jwt true); zero model calls confirmed by independent live scan; end-to-end run NOT yet exercised (demo_fixtures empty) and the canonical RFP Storage object is not yet uploaded
-- [ ] 16-05-PLAN.md - demo-reset edge fn (run-scoped triple-guard) + shared cleanup module + deploy (W2)
+- [x] 16-05-PLAN.md - demo-reset edge fn (run-scoped triple-guard) + shared cleanup module + deploy (W2) — **WAVE 2 COMPLETE.** DEPLOYED on fuuvdcvbliijffogjnwg (verify_jwt true); every FK referencing proposals/proposal_documents re-verified live via pg_constraint, which surfaced a dormant `proposal_assumptions.source_document` NO ACTION FK that would have made every reset fail (fixed by a step-0 ref-clear, `d93de75`); no successful reset exercised yet (demo_runs empty — only 403/400/404 paths reachable)
 - [ ] 16-06-PLAN.md - demo-sweep edge fn + pg_net/pg_cron hourly wiring + [BLOCKING] apply/deploy (W3)
 - [ ] 16-07-PLAN.md - capture UI on ProposalDetail + remove vestigial Reset Demo/labels (W3)
 - [ ] 16-08-PLAN.md - presenter run surface: wizard driver + template lock + paced populate + Req 6 guard (W3)
