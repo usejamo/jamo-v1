@@ -332,6 +332,19 @@ Deno.serve(async (req) => {
 
     // Decision B: archive the prior active version, then promote this one. Prior versions
     // are retained and reactivatable by a status flip — recapture never overwrites.
+    //
+    // The prior active id is read BEFORE the archive so the promote step can undo it. Without
+    // that, an archive-succeeds/activate-fails interleaving would archive the old fixture, then
+    // delete the new one, leaving the template with ZERO active fixtures — breaking the
+    // never-zero-active invariant this ordering exists to uphold.
+    const { data: priorActive } = await admin
+      .from('demo_fixtures')
+      .select('id')
+      .eq('template_id', templateId)
+      .eq('status', 'active')
+      .neq('id', fixtureId)
+      .maybeSingle()
+
     const { error: archiveError } = await admin
       .from('demo_fixtures')
       .update({ status: 'archived' })
@@ -344,7 +357,14 @@ Deno.serve(async (req) => {
       .from('demo_fixtures')
       .update({ status: 'active' })
       .eq('id', fixtureId)
-    if (activateError) return await abort(500, `could not activate fixture: ${activateError.message}`)
+    if (activateError) {
+      // Restore the prior active version first — this row is still 'archived', so the partial
+      // unique index (one active per template) permits the restore before the delete.
+      if (priorActive?.id) {
+        await admin.from('demo_fixtures').update({ status: 'active' }).eq('id', priorActive.id)
+      }
+      return await abort(500, `could not activate fixture: ${activateError.message}`)
+    }
 
     return new Response(
       JSON.stringify({
