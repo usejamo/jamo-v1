@@ -12,8 +12,72 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.1"
   }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
+      _gap_debug: {
+        Row: {
+          created_at: string
+          deduped_count: number | null
+          dismissed_unchanged: string | null
+          final_count: number | null
+          haiku_raw: string | null
+          id: number
+          prompt_chars: number | null
+          proposal_id: string | null
+          resolved_count: number | null
+          validated_count: number | null
+        }
+        Insert: {
+          created_at?: string
+          deduped_count?: number | null
+          dismissed_unchanged?: string | null
+          final_count?: number | null
+          haiku_raw?: string | null
+          id?: never
+          prompt_chars?: number | null
+          proposal_id?: string | null
+          resolved_count?: number | null
+          validated_count?: number | null
+        }
+        Update: {
+          created_at?: string
+          deduped_count?: number | null
+          dismissed_unchanged?: string | null
+          final_count?: number | null
+          haiku_raw?: string | null
+          id?: never
+          prompt_chars?: number | null
+          proposal_id?: string | null
+          resolved_count?: number | null
+          validated_count?: number | null
+        }
+        Relationships: []
+      }
       chat_sessions: {
         Row: {
           active_task: Json | null
@@ -84,7 +148,9 @@ export type Database = {
           guideline_type: string | null
           id: string
           metadata: Json
-          org_id: string
+          org_id: string | null
+          proposal_id: string | null
+          regulatory_document_id: string | null
           search_vector: unknown
           source: string
           therapeutic_area: string | null
@@ -98,7 +164,9 @@ export type Database = {
           guideline_type?: string | null
           id?: string
           metadata?: Json
-          org_id: string
+          org_id?: string | null
+          proposal_id?: string | null
+          regulatory_document_id?: string | null
           search_vector?: unknown
           source: string
           therapeutic_area?: string | null
@@ -112,7 +180,9 @@ export type Database = {
           guideline_type?: string | null
           id?: string
           metadata?: Json
-          org_id?: string
+          org_id?: string | null
+          proposal_id?: string | null
+          regulatory_document_id?: string | null
           search_vector?: unknown
           source?: string
           therapeutic_area?: string | null
@@ -123,6 +193,237 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chunks_proposal_id_fkey"
+            columns: ["proposal_id"]
+            isOneToOne: false
+            referencedRelation: "proposals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chunks_regulatory_document_id_fkey"
+            columns: ["regulatory_document_id"]
+            isOneToOne: false
+            referencedRelation: "regulatory_documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      demo_fixture_assumptions: {
+        Row: {
+          category: string | null
+          confidence: string | null
+          content: string
+          fixture_id: string | null
+          id: string
+          status: string | null
+          user_edited: boolean | null
+        }
+        Insert: {
+          category?: string | null
+          confidence?: string | null
+          content: string
+          fixture_id?: string | null
+          id?: string
+          status?: string | null
+          user_edited?: boolean | null
+        }
+        Update: {
+          category?: string | null
+          confidence?: string | null
+          content?: string
+          fixture_id?: string | null
+          id?: string
+          status?: string | null
+          user_edited?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "demo_fixture_assumptions_fixture_id_fkey"
+            columns: ["fixture_id"]
+            isOneToOne: false
+            referencedRelation: "demo_fixtures"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      demo_fixture_rfp_chunks: {
+        Row: {
+          content: string
+          embedding: string | null
+          fixture_id: string | null
+          id: string
+          metadata: Json | null
+          source: string | null
+        }
+        Insert: {
+          content: string
+          embedding?: string | null
+          fixture_id?: string | null
+          id?: string
+          metadata?: Json | null
+          source?: string | null
+        }
+        Update: {
+          content?: string
+          embedding?: string | null
+          fixture_id?: string | null
+          id?: string
+          metadata?: Json | null
+          source?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "demo_fixture_rfp_chunks_fixture_id_fkey"
+            columns: ["fixture_id"]
+            isOneToOne: false
+            referencedRelation: "demo_fixtures"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      demo_fixture_sections: {
+        Row: {
+          compliance_flags: Json | null
+          content: string
+          fixture_id: string
+          id: string
+          position: number
+          role: string
+          section_name: string
+        }
+        Insert: {
+          compliance_flags?: Json | null
+          content: string
+          fixture_id: string
+          id?: string
+          position: number
+          role: string
+          section_name: string
+        }
+        Update: {
+          compliance_flags?: Json | null
+          content?: string
+          fixture_id?: string
+          id?: string
+          position?: number
+          role?: string
+          section_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "demo_fixture_sections_fixture_id_fkey"
+            columns: ["fixture_id"]
+            isOneToOne: false
+            referencedRelation: "demo_fixtures"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      demo_fixtures: {
+        Row: {
+          captured_by: string | null
+          created_at: string | null
+          id: string
+          label: string | null
+          org_id: string
+          rfp_extract_text: string | null
+          rfp_fields: Json
+          source_proposal_id: string | null
+          status: string | null
+          template_id: string
+          version: number
+        }
+        Insert: {
+          captured_by?: string | null
+          created_at?: string | null
+          id?: string
+          label?: string | null
+          org_id: string
+          rfp_extract_text?: string | null
+          rfp_fields: Json
+          source_proposal_id?: string | null
+          status?: string | null
+          template_id: string
+          version: number
+        }
+        Update: {
+          captured_by?: string | null
+          created_at?: string | null
+          id?: string
+          label?: string | null
+          org_id?: string
+          rfp_extract_text?: string | null
+          rfp_fields?: Json
+          source_proposal_id?: string | null
+          status?: string | null
+          template_id?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "demo_fixtures_captured_by_fkey"
+            columns: ["captured_by"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "demo_fixtures_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      demo_runs: {
+        Row: {
+          created_at: string | null
+          fixture_id: string | null
+          id: string
+          org_id: string
+          proposal_id: string
+          started_by: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          fixture_id?: string | null
+          id?: string
+          org_id: string
+          proposal_id: string
+          started_by?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          fixture_id?: string | null
+          id?: string
+          org_id?: string
+          proposal_id?: string
+          started_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "demo_runs_fixture_id_fkey"
+            columns: ["fixture_id"]
+            isOneToOne: false
+            referencedRelation: "demo_fixtures"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "demo_runs_proposal_id_fkey"
+            columns: ["proposal_id"]
+            isOneToOne: false
+            referencedRelation: "proposals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "demo_runs_started_by_fkey"
+            columns: ["started_by"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -175,6 +476,47 @@ export type Database = {
           },
         ]
       }
+      invites: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          invited_by: string | null
+          org_id: string
+          role: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          invited_by?: string | null
+          org_id: string
+          role: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          invited_by?: string | null
+          org_id?: string
+          role?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invites_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       oauth_pending: {
         Row: {
           code_verifier: string
@@ -205,6 +547,9 @@ export type Database = {
           feature_flags: Json
           id: string
           is_active: boolean
+          learn_from_lost: boolean
+          learn_from_submitted: boolean
+          learn_from_won: boolean
           name: string
           plan: string
           slug: string
@@ -215,6 +560,9 @@ export type Database = {
           feature_flags?: Json
           id?: string
           is_active?: boolean
+          learn_from_lost?: boolean
+          learn_from_submitted?: boolean
+          learn_from_won?: boolean
           name: string
           plan?: string
           slug: string
@@ -225,6 +573,9 @@ export type Database = {
           feature_flags?: Json
           id?: string
           is_active?: boolean
+          learn_from_lost?: boolean
+          learn_from_submitted?: boolean
+          learn_from_won?: boolean
           name?: string
           plan?: string
           slug?: string
@@ -566,10 +917,12 @@ export type Database = {
           description: string | null
           due_date: string | null
           estimated_value: number | null
+          geography: string[] | null
           id: string
           indication: string | null
           is_archived: boolean
           org_id: string
+          reference_override: boolean | null
           selected_template_id: string | null
           services_requested: string[] | null
           status: string
@@ -590,10 +943,12 @@ export type Database = {
           description?: string | null
           due_date?: string | null
           estimated_value?: number | null
+          geography?: string[] | null
           id?: string
           indication?: string | null
           is_archived?: boolean
           org_id: string
+          reference_override?: boolean | null
           selected_template_id?: string | null
           services_requested?: string[] | null
           status?: string
@@ -614,10 +969,12 @@ export type Database = {
           description?: string | null
           due_date?: string | null
           estimated_value?: number | null
+          geography?: string[] | null
           id?: string
           indication?: string | null
           is_archived?: boolean
           org_id?: string
+          reference_override?: boolean | null
           selected_template_id?: string | null
           services_requested?: string[] | null
           status?: string
@@ -647,6 +1004,72 @@ export type Database = {
             columns: ["selected_template_id"]
             isOneToOne: false
             referencedRelation: "templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      regulatory_documents: {
+        Row: {
+          agency: string
+          created_at: string
+          document_key: string
+          effective_date: string | null
+          geography: string[]
+          id: string
+          phase: string[] | null
+          source: string
+          status: string
+          superseded_by: string | null
+          supersedes: string | null
+          therapeutic_area: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          agency: string
+          created_at?: string
+          document_key: string
+          effective_date?: string | null
+          geography: string[]
+          id?: string
+          phase?: string[] | null
+          source: string
+          status?: string
+          superseded_by?: string | null
+          supersedes?: string | null
+          therapeutic_area?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          agency?: string
+          created_at?: string
+          document_key?: string
+          effective_date?: string | null
+          geography?: string[]
+          id?: string
+          phase?: string[] | null
+          source?: string
+          status?: string
+          superseded_by?: string | null
+          supersedes?: string | null
+          therapeutic_area?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "regulatory_documents_superseded_by_fkey"
+            columns: ["superseded_by"]
+            isOneToOne: false
+            referencedRelation: "regulatory_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "regulatory_documents_supersedes_fkey"
+            columns: ["supersedes"]
+            isOneToOne: false
+            referencedRelation: "regulatory_documents"
             referencedColumns: ["id"]
           },
         ]
@@ -841,6 +1264,7 @@ export type Database = {
           created_at: string
           full_name: string | null
           id: string
+          is_active: boolean
           org_id: string
           role: string
           updated_at: string
@@ -851,6 +1275,7 @@ export type Database = {
           created_at?: string
           full_name?: string | null
           id?: string
+          is_active?: boolean
           org_id: string
           role?: string
           updated_at?: string
@@ -861,6 +1286,7 @@ export type Database = {
           created_at?: string
           full_name?: string | null
           id?: string
+          is_active?: boolean
           org_id?: string
           role?: string
           updated_at?: string
@@ -890,11 +1316,33 @@ export type Database = {
         }
         Returns: Json
       }
+      clone_demo_fixture_chunks: {
+        Args: { p_fixture_id: string; p_org_id: string; p_proposal_id: string }
+        Returns: number
+      }
+      ingest_regulatory_document: {
+        Args: {
+          p_agency: string
+          p_chunks: Json
+          p_document_key: string
+          p_effective_date: string
+          p_geography: string[]
+          p_phase: string[]
+          p_source: string
+          p_status: string
+          p_supersedes_document_key: string
+          p_therapeutic_area: string
+          p_title: string
+        }
+        Returns: string
+      }
       match_chunks_fts: {
         Args: {
           agencies_filter: string[]
+          geographies_filter: string[]
           match_count: number
           org_id_filter: string
+          phases_filter: string[]
           query_text: string
           therapeutic_areas_filter: string[]
         }
@@ -909,7 +1357,12 @@ export type Database = {
         }[]
       }
       match_chunks_fts_proposals: {
-        Args: { match_count: number; org_id_filter: string; query_text: string }
+        Args: {
+          current_proposal_id: string
+          match_count: number
+          org_id_filter: string
+          query_text: string
+        }
         Returns: {
           agency: string
           content: string
@@ -923,8 +1376,10 @@ export type Database = {
       match_chunks_vector: {
         Args: {
           agencies_filter: string[]
+          geographies_filter: string[]
           match_count: number
           org_id_filter: string
+          phases_filter: string[]
           query_embedding: string
           similarity_threshold: number
           therapeutic_areas_filter: string[]
@@ -941,6 +1396,7 @@ export type Database = {
       }
       match_chunks_vector_proposals: {
         Args: {
+          current_proposal_id: string
           match_count: number
           org_id_filter: string
           query_embedding: string
@@ -955,6 +1411,19 @@ export type Database = {
           therapeutic_area: string
           vector_score: number
         }[]
+      }
+      reap_stuck_document_extractions: { Args: never; Returns: number }
+      set_org_learning_switches: {
+        Args: {
+          p_learn_from_lost: boolean
+          p_learn_from_submitted: boolean
+          p_learn_from_won: boolean
+        }
+        Returns: undefined
+      }
+      set_reference_override: {
+        Args: { p_proposal_id: string; p_value: boolean }
+        Returns: undefined
       }
       vault_delete_sf_tokens: {
         Args: { p_secret_id: string }
@@ -1093,6 +1562,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {},
   },
