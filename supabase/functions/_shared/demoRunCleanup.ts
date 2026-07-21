@@ -38,10 +38,24 @@
 // ---------------------------------------------------------------------------------------
 // FK ASSUMPTIONS THIS ORDER DEPENDS ON (each verified against the committed migrations)
 // ---------------------------------------------------------------------------------------
-//   proposal_documents.proposal_id -> proposals(id)          ON DELETE SET NULL   (must be explicit)
-//   document_extracts.document_id  -> proposal_documents(id) ON DELETE CASCADE    (step 1 covers it)
-//   demo_runs.proposal_id          -> proposals(id)          ON DELETE CASCADE    (step 2 covers it)
-//   chunks.proposal_id             -> proposals(id)          ON DELETE CASCADE    (step 2 covers it)
+// (Re-verified against the LIVE database via pg_constraint.confdeltype, not just the migrations,
+// by enumerating EVERY foreign key referencing proposals and proposal_documents.)
+//   proposal_documents.proposal_id      -> proposals(id)          ON DELETE SET NULL  (must be explicit)
+//   usage_events.proposal_id            -> proposals(id)          ON DELETE SET NULL  (left alone, see above)
+//   document_extracts.document_id       -> proposal_documents(id) ON DELETE CASCADE   (step 1 covers it)
+//   demo_runs.proposal_id               -> proposals(id)          ON DELETE CASCADE   (step 2 covers it)
+//   chunks.proposal_id                  -> proposals(id)          ON DELETE CASCADE   (step 2 covers it)
+//   proposal_sections / proposal_assumptions / proposal_chats / chat_sessions /
+//     proposal_section_versions         -> proposals(id)          ON DELETE CASCADE   (step 2 covers them)
+//   proposal_assumptions.source_document -> proposal_documents(id) ON DELETE **NO ACTION**  <-- see step 0
+//
+// That last one is the trap. It points at proposal_documents, NOT proposals, so it is not
+// cleared by the proposals cascade — and being NO ACTION it would REFUSE step 1's delete with
+// a foreign-key violation, failing the whole reset and leaving the run permanently unresettable.
+// Nothing populates that column today (no writer exists in the codebase and 0 of 629 live rows
+// set it), so the hazard is currently dormant — step 0 exists so that it stays harmless if a
+// future feature does start populating it, rather than breaking teardown in a way whose error
+// message points at an apparently unrelated table.
 // Because `demo_runs.proposal_id` cascades, step 3 is normally a no-op after step 2. It is
 // kept, and run last, so the routine is still correct (and idempotent) for a `demo_runs` row
 // whose proposal was already deleted by some other path — the sweep will meet exactly that.
@@ -103,6 +117,20 @@ export function isRunInDemoOrg(
  * row permanently (its proposal_id would be NULLed and no longer joinable).
  */
 export async function cleanupDemoRun(admin: AdminClient, run: DemoRunRef): Promise<void> {
+  // 0. Clear proposal_assumptions.source_document for this proposal. That FK targets
+  //    proposal_documents with ON DELETE NO ACTION, so a populated reference would make step 1
+  //    fail with a foreign-key violation and render the run permanently unresettable. Dormant
+  //    today (nothing writes the column); this keeps step 1 unblockable if that ever changes.
+  const { error: sourceRefError } = await admin
+    .from('proposal_assumptions')
+    .update({ source_document: null })
+    .eq('proposal_id', run.proposal_id)
+  if (sourceRefError) {
+    throw new Error(
+      `demo run cleanup failed clearing assumption source_document refs: ${sourceRefError.message}`
+    )
+  }
+
   // 1. delete from proposal_documents where proposal_id = run.proposal_id
   //    (cascades document_extracts). MUST precede the proposals delete — SET NULL, not cascade.
   const { error: docError } = await admin

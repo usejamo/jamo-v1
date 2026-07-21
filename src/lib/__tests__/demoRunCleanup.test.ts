@@ -85,23 +85,23 @@ describe('isRunInDemoOrg', () => {
 // ---------------------------------------------------------------------------
 // Delete order + blast radius
 // ---------------------------------------------------------------------------
-type Call = { table: string; column: string; value: string }
+type Call = { table: string; column: string; value: string; op: 'delete' | 'update' }
 
 function fakeAdmin(failOn?: string) {
   const calls: Call[] = []
+  const record = (table: string, op: 'delete' | 'update') => ({
+    eq(column: string, value: string) {
+      calls.push({ table, column, value, op })
+      return Promise.resolve({
+        error: failOn === table ? { message: `boom on ${table}` } : null,
+      })
+    },
+  })
   const admin = {
     from(table: string) {
       return {
-        delete() {
-          return {
-            eq(column: string, value: string) {
-              calls.push({ table, column, value })
-              return Promise.resolve({
-                error: failOn === table ? { message: `boom on ${table}` } : null,
-              })
-            },
-          }
-        },
+        delete: () => record(table, 'delete'),
+        update: () => record(table, 'update'),
       }
     },
   }
@@ -111,24 +111,41 @@ function fakeAdmin(failOn?: string) {
 const RUN = { id: 'run-1', proposal_id: 'prop-1', org_id: DEMO_ORG }
 
 describe('cleanupDemoRun', () => {
-  it('deletes proposal_documents BEFORE proposals, then demo_runs', async () => {
+  it('clears assumption source_document refs, then deletes documents, proposal, run', async () => {
     const { admin, calls } = fakeAdmin()
     await cleanupDemoRun(admin, RUN)
     expect(calls.map((c) => c.table)).toEqual([
+      'proposal_assumptions',
       'proposal_documents',
       'proposals',
       'demo_runs',
     ])
   })
 
-  it('scopes every delete to this run only — never a bare table delete', async () => {
+  it('only UPDATES proposal_assumptions — the row deletion is left to the proposal cascade', async () => {
+    const { admin, calls } = fakeAdmin()
+    await cleanupDemoRun(admin, RUN)
+    const assumptionOps = calls.filter((c) => c.table === 'proposal_assumptions')
+    expect(assumptionOps.map((c) => c.op)).toEqual(['update'])
+  })
+
+  it('scopes every write to this run only — never a bare table delete', async () => {
     const { admin, calls } = fakeAdmin()
     await cleanupDemoRun(admin, RUN)
     expect(calls).toEqual([
-      { table: 'proposal_documents', column: 'proposal_id', value: 'prop-1' },
-      { table: 'proposals', column: 'id', value: 'prop-1' },
-      { table: 'demo_runs', column: 'id', value: 'run-1' },
+      { table: 'proposal_assumptions', column: 'proposal_id', value: 'prop-1', op: 'update' },
+      { table: 'proposal_documents', column: 'proposal_id', value: 'prop-1', op: 'delete' },
+      { table: 'proposals', column: 'id', value: 'prop-1', op: 'delete' },
+      { table: 'demo_runs', column: 'id', value: 'run-1', op: 'delete' },
     ])
+  })
+
+  it('deletes NOTHING when clearing the source_document refs fails', async () => {
+    // proposal_assumptions.source_document -> proposal_documents is NO ACTION, so leaving a
+    // populated ref would make the proposal_documents delete fail anyway. Abort before any delete.
+    const { admin, calls } = fakeAdmin('proposal_assumptions')
+    await expect(cleanupDemoRun(admin, RUN)).rejects.toThrow(/source_document/)
+    expect(calls.filter((c) => c.op === 'delete')).toEqual([])
   })
 
   it('does NOT delete the proposal when the proposal_documents delete fails', async () => {
@@ -136,19 +153,24 @@ describe('cleanupDemoRun', () => {
     // permanently — it would no longer be joinable to any proposal id.
     const { admin, calls } = fakeAdmin('proposal_documents')
     await expect(cleanupDemoRun(admin, RUN)).rejects.toThrow(/proposal_documents/)
-    expect(calls.map((c) => c.table)).toEqual(['proposal_documents'])
+    expect(calls.filter((c) => c.op === 'delete').map((c) => c.table)).toEqual([
+      'proposal_documents',
+    ])
   })
 
   it('stops before demo_runs when the proposal delete fails', async () => {
     const { admin, calls } = fakeAdmin('proposals')
     await expect(cleanupDemoRun(admin, RUN)).rejects.toThrow(/proposal/)
-    expect(calls.map((c) => c.table)).toEqual(['proposal_documents', 'proposals'])
+    expect(calls.filter((c) => c.op === 'delete').map((c) => c.table)).toEqual([
+      'proposal_documents',
+      'proposals',
+    ])
   })
 
-  it('touches exactly three tables and no others', async () => {
+  it('touches exactly four tables and no others', async () => {
     const { admin, calls } = fakeAdmin()
     await cleanupDemoRun(admin, RUN)
-    expect(new Set(calls.map((c) => c.table)).size).toBe(3)
+    expect(new Set(calls.map((c) => c.table)).size).toBe(4)
   })
 })
 
