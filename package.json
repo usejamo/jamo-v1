@@ -12,7 +12,8 @@
     "test:watch": "vitest",
     "db:types": "npx supabase gen types typescript --linked > src/types/database.types.ts",
     "seed:regulatory": "npx tsx scripts/seed-regulatory.ts",
-    "bootstrap:super-admin": "npx tsx scripts/bootstrap-super-admin.ts"
+    "bootstrap:super-admin": "npx tsx scripts/bootstrap-super-admin.ts",
+    "seed:demo-org": "npx tsx scripts/seed-demo-org.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
