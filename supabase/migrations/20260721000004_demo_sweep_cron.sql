@@ -88,7 +88,10 @@ begin
   -- ---- Resolve the demo org at runtime, or do nothing ---------------------
   -- Fail closed on 0 matches (misconfigured / demo org removed) AND on >1 match (ambiguous:
   -- a second org flagged is_demo must never widen an unattended delete's blast radius).
-  select count(*), min(o.id)
+  -- NOTE: array_agg(...)[1], not min(). Postgres has NO min() aggregate for uuid, so min(o.id)
+  -- raises 42883 on EVERY call — which on an hourly unattended job is a silent permanent
+  -- failure. Caught by the post-apply dry run; do not "simplify" this back to min().
+  select count(*), (array_agg(o.id order by o.id))[1]
     into v_demo_org_count, v_demo_org_id
   from organizations o
   where o.feature_flags->>'is_demo' = 'true'
