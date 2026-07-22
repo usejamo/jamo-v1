@@ -159,7 +159,7 @@ export function DemoRunSurface({ sectionDelayMs }: DemoRunSurfaceProps) {
           />
           <div className="py-4">
             {wizardState.step <= 1 && (
-              <Step2DocumentUpload state={wizardState} dispatch={wizardDispatch} />
+              <Step2DocumentUpload state={wizardState} dispatch={wizardDispatch} demoMode />
             )}
             {wizardState.step === 2 && (
               <Step3AssumptionReview state={wizardState} dispatch={wizardDispatch} />

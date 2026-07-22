@@ -145,8 +145,15 @@ Deno.serve(async (req) => {
       .select('id, slug, feature_flags')
       .eq('id', callerOrgId)
       .single()
+    // Flag OR slug, matching demo-run-start, demo-reset, src/lib/demoOrg.ts and the sweep
+    // migration (16-REVIEW WR-04). Flag-only resolution here meant a demo org identified by
+    // slug alone would 403 on capture while both destructive endpoints accepted it — the
+    // inconsistency fails closed, but only capture was inconsistent.
+    const callerFlags = (callerOrg?.feature_flags ?? null) as Record<string, unknown> | null
     const callerOrgIsDemo =
-      (callerOrg?.feature_flags as Record<string, unknown> | null)?.is_demo === true
+      callerFlags?.is_demo === true ||
+      callerFlags?.is_demo === 'true' ||
+      callerOrg?.slug === 'jamo-demo'
 
     const { data: proposal, error: proposalError } = await admin
       .from('proposals')

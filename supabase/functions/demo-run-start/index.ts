@@ -298,16 +298,78 @@ Deno.serve(async (req) => {
     }
     const proposalId: string = proposal.id as string
 
+    // Track the run IMMEDIATELY (16-REVIEW WR-02). Registering it only after a fully
+    // successful materialization meant that if the rollback's `proposals` delete failed, the
+    // draft was left with no demo_runs row — invisible to demo-reset (which needs a run id)
+    // and to the sweep (which joins demo_runs), so it could never be cleaned up by anything.
+    // Inserting first makes every demo-org draft reachable by both, whatever happens next.
+    const { data: runRow, error: runError } = await admin
+      .from('demo_runs')
+      .insert({
+        proposal_id: proposalId,
+        fixture_id: fixture.id,
+        started_by: startedBy, // user_profiles(id), not auth.users(id)
+        org_id: callerOrgId,
+      })
+      .select('id')
+      .single()
+    if (runError || !runRow) {
+      await admin.from('proposals').delete().eq('id', proposalId)
+      return jsonError(500, `demo run tracking failed: ${runError?.message}`, corsHeaders)
+    }
+
     // Any failure past this point tears the whole run down, so a demo is never left
-    // half-populated. Deleting the proposal cascades sections, assumptions, cloned chunks
-    // and chats; proposal_documents.proposal_id is SET NULL (not cascade), so that row is
-    // deleted explicitly (SPEC "orphan caveat"). The shared canonical Storage object is
-    // referenced, not owned — it is never touched (D-06).
+    // half-populated. The order mirrors _shared/demoRunCleanup.ts and the sweep migration —
+    // this is a THIRD copy of that teardown (16-REVIEW WR-01) and must stay in step with them:
+    //   0. clear proposal_assumptions.source_document (FK to proposal_documents is NO ACTION)
+    //   1. delete proposal_documents explicitly (its FK to proposals is SET NULL, not cascade,
+    //      so it would orphan along with its document_extracts — SPEC "orphan caveat")
+    //   2. delete the proposal (cascades sections, assumptions, cloned chunks, chats, demo_runs)
+    // The shared canonical Storage object is referenced, not owned — never touched (D-06).
+    // Delete errors are surfaced rather than swallowed: a rollback that silently half-failed
+    // is how the stranded-draft case above arose in the first place.
     let documentId: string | null = null
     const abort = async (status: number, message: string) => {
-      if (documentId) await admin.from('proposal_documents').delete().eq('id', documentId)
-      await admin.from('demo_runs').delete().eq('proposal_id', proposalId)
-      await admin.from('proposals').delete().eq('id', proposalId)
+      const failures: string[] = []
+
+      const { error: refError } = await admin
+        .from('proposal_assumptions')
+        .update({ source_document: null })
+        .eq('proposal_id', proposalId)
+      if (refError) failures.push(`source_document clear: ${refError.message}`)
+
+      if (documentId) {
+        const { error: docDelError } = await admin
+          .from('proposal_documents')
+          .delete()
+          .eq('id', documentId)
+        if (docDelError) failures.push(`proposal_documents: ${docDelError.message}`)
+      }
+
+      const { error: propDelError } = await admin
+        .from('proposals')
+        .delete()
+        .eq('id', proposalId)
+      if (propDelError) failures.push(`proposals: ${propDelError.message}`)
+
+      // Normally cascaded by the proposals delete; kept for idempotency and so a failed
+      // proposal delete still leaves a consistent pair for the sweep to retry.
+      if (!propDelError) {
+        await admin.from('demo_runs').delete().eq('id', runRow.id)
+      }
+
+      if (failures.length > 0) {
+        // The run row is deliberately left in place when the proposal survives, so the
+        // hourly sweep can finish the job once the run ages past its threshold.
+        console.error(
+          `demo-run-start rollback incomplete for proposal ${proposalId}: ${failures.join('; ')}`
+        )
+        return jsonError(
+          status,
+          `${message} (rollback incomplete: ${failures.join('; ')})`,
+          corsHeaders
+        )
+      }
       return jsonError(status, message, corsHeaders)
     }
 
@@ -400,21 +462,9 @@ Deno.serve(async (req) => {
       return await abort(500, `rfp chunk clone failed: ${cloneError.message}`)
     }
 
-    // Run tracking — drives demo-reset targeting and the abandoned-run sweep.
-    const { data: runRow, error: runError } = await admin
-      .from('demo_runs')
-      .insert({
-        proposal_id: proposalId,
-        fixture_id: fixture.id,
-        started_by: startedBy, // user_profiles(id), not auth.users(id)
-        org_id: callerOrgId,
-      })
-      .select('id')
-      .single()
-    if (runError || !runRow) {
-      return await abort(500, `demo run tracking failed: ${runError?.message}`)
-    }
-
+    // Run tracking already happened immediately after the proposal insert — see the
+    // WR-02 note above. Registering it here instead would leave a window in which a failed
+    // rollback stranded an untrackable draft.
     return new Response(
       JSON.stringify({
         proposal_id: proposalId,

@@ -8,6 +8,16 @@ import { DocumentList } from '../DocumentList'
 interface Step2DocumentUploadProps {
   state: WizardState
   dispatch: React.Dispatch<WizardAction>
+  /**
+   * Demo mode locks the upload control (16-REVIEW WR-05). The demo's RFP is
+   * already materialized and its chunks cloned from the fixture, so an upload
+   * here would run the REAL parse + embed pipeline and spend tokens mid-demo —
+   * defeating the point of token-free demo mode. Presentational lock only, same
+   * shape as Step4Generate's template lock; the extraction trigger below is NOT
+   * branched on it (that is handled above the boundary, by the demo driver
+   * seeding extractionStatus='complete').
+   */
+  demoMode?: boolean
 }
 
 interface DocumentRow {
@@ -15,7 +25,7 @@ interface DocumentRow {
   parse_status: string
 }
 
-export function Step2DocumentUpload({ state, dispatch }: Step2DocumentUploadProps) {
+export function Step2DocumentUpload({ state, dispatch, demoMode = false }: Step2DocumentUploadProps) {
   const { profile } = useAuth()
   const [documents, setDocuments] = useState<DocumentRow[]>([])
   const [refreshKey, setRefreshKey] = useState(0)
@@ -125,10 +135,19 @@ export function Step2DocumentUpload({ state, dispatch }: Step2DocumentUploadProp
 
       {state.proposalId ? (
         <div className="space-y-4">
-          <FileUpload
-            proposalId={state.proposalId}
-            onUploadComplete={() => setRefreshKey((k) => k + 1)}
-          />
+          {demoMode ? (
+            <p
+              data-testid="demo-upload-locked"
+              className="rounded-md border border-dashed border-gray-300 bg-gray-50 px-4 py-3 text-sm text-gray-500"
+            >
+              The demo RFP is already attached and indexed.
+            </p>
+          ) : (
+            <FileUpload
+              proposalId={state.proposalId}
+              onUploadComplete={() => setRefreshKey((k) => k + 1)}
+            />
+          )}
           <DocumentList
             proposalId={state.proposalId}
             onDocumentDeleted={() => setRefreshKey((k) => k + 1)}
