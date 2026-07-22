@@ -1,0 +1,26 @@
+# This repo is developed on Windows with core.autocrlf=true, so git rewrites line
+# endings on checkout. For binary files that would corrupt the file. Git's automatic
+# binary detection usually catches it, but it is a heuristic (it samples the first
+# few KB for NUL bytes) — these rules make it explicit rather than lucky.
+#
+# Symptom if this is ever removed: `git add` warns "LF will be replaced by CRLF"
+# on a binary path, and clones get a corrupted file that the original machine
+# still reads fine.
+
+*.pdf  binary
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.webp binary
+*.woff binary
+*.woff2 binary
+*.ttf  binary
+*.otf  binary
+*.eot  binary
+*.zip  binary
+*.gz   binary
+*.docx binary
+*.xlsx binary
+*.pptx binary
