@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { resolveIsDemoOrg } from '../lib/demoOrg'
+import { extractInvokeErrorMessage } from '../lib/invokeError'
 
 // ── SaveAsDemoFixtureButton (16-07, D-04) ────────────────────────────────────
 //
@@ -17,7 +19,11 @@ import { supabase } from '../lib/supabase'
 // org (403 otherwise). This component does not duplicate or weaken that gate —
 // hiding the affordance is a UX affordance, not enforcement.
 
-const DEMO_ORG_SLUG = 'jamo-demo'
+// `resolveIsDemoOrg` and `extractInvokeErrorMessage` moved to src/lib/demoOrg.ts
+// and src/lib/invokeError.ts in 16-08, when the demo run surface became a second
+// caller of both. One implementation, two call sites — not two copies.
+
+const CAPTURE_FALLBACK_ERROR = 'Capture failed. Please try again.'
 
 export interface SaveAsDemoFixtureButtonProps {
   /** Source proposal to capture. */
@@ -26,51 +32,6 @@ export interface SaveAsDemoFixtureButtonProps {
   role?: string | null
   /** Caller's own org id from useAuth().profile. */
   orgId?: string | null
-}
-
-/**
- * Runtime demo-org resolution. Returns true when the given org is flagged
- * `feature_flags.is_demo` or carries the canonical `jamo-demo` slug.
- */
-export async function resolveIsDemoOrg(orgId: string): Promise<boolean> {
-  const { data, error } = await supabase
-    .from('organizations')
-    .select('id, slug, feature_flags')
-    .eq('id', orgId)
-    .maybeSingle()
-
-  if (error || !data) return false
-  const flags = (data.feature_flags ?? {}) as Record<string, unknown>
-  return flags.is_demo === true || data.slug === DEMO_ORG_SLUG
-}
-
-/**
- * Pull the edge function's own message out of a functions.invoke error.
- *
- * demo-capture-fixture returns precise, actionable failures (`403 super_admin
- * required`, `400 source proposal has ungenerated section(s): <names>`, …) as
- * `{ error: message }`. supabase-js surfaces those as a FunctionsHttpError
- * whose `.message` is a generic "non-2xx status code" string and whose
- * `.context` is the raw Response — so the useful text must be read off the
- * body, otherwise the presenter sees nothing actionable.
- */
-export async function extractInvokeErrorMessage(err: unknown): Promise<string> {
-  const context = (err as { context?: unknown } | null)?.context
-  if (context && typeof (context as Response).json === 'function') {
-    try {
-      const body = await (context as Response).json()
-      const serverMessage = (body as { error?: unknown } | null)?.error
-      if (typeof serverMessage === 'string' && serverMessage.trim()) {
-        return serverMessage
-      }
-    } catch {
-      // Body was not JSON / already consumed — fall back to the error message.
-    }
-  }
-  const message = (err as { message?: unknown } | null)?.message
-  return typeof message === 'string' && message.trim()
-    ? message
-    : 'Capture failed. Please try again.'
 }
 
 export function SaveAsDemoFixtureButton({
@@ -115,14 +76,14 @@ export function SaveAsDemoFixtureButton({
       )
 
       if (invokeError) {
-        setError(await extractInvokeErrorMessage(invokeError))
+        setError(await extractInvokeErrorMessage(invokeError, CAPTURE_FALLBACK_ERROR))
         return
       }
 
       const version = (data as { version?: number } | null)?.version
       setCaptured({ version: typeof version === 'number' ? version : null })
     } catch (err) {
-      setError(await extractInvokeErrorMessage(err))
+      setError(await extractInvokeErrorMessage(err, CAPTURE_FALLBACK_ERROR))
     } finally {
       setPending(false)
     }

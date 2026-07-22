@@ -1,14 +1,11 @@
 import { useReducer, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import type {
-  WizardState,
-  WizardAction,
-  WizardAssumption,
-} from '../types/wizard'
+import type { WizardState } from '../types/wizard'
 import {
   DEFAULT_WIZARD_STATE,
   WIZARD_STEPS,
 } from '../types/wizard'
+import { wizardReducer } from '../lib/wizardReducer'
 import { useProposalModal } from '../context/ProposalModalContext'
 import { useProposals } from '../context/ProposalsContext'
 import { useAuth } from '../context/AuthContext'
@@ -20,83 +17,6 @@ import { Step3AssumptionReview } from './wizard/Step3AssumptionReview'
 import { Step4Generate } from './wizard/Step4Generate'
 
 const SESSION_KEY = 'jamo-wizard-state'
-
-function wizardReducer(state: WizardState, action: WizardAction): WizardState {
-  switch (action.type) {
-    case 'SET_STEP':
-      return { ...state, step: action.step, errors: {} }
-    case 'SKIP_TO_GENERATE':
-      return { ...state, step: 3, errors: {} }
-    case 'UPDATE_STUDY_INFO':
-      return {
-        ...state,
-        studyInfo: { ...state.studyInfo, [action.field]: action.value },
-        errors: { ...state.errors, [action.field]: undefined },
-      }
-    case 'TOGGLE_SERVICE': {
-      const current = state.studyInfo.services
-      const next = current.includes(action.label)
-        ? current.filter((s) => s !== action.label)
-        : [...current, action.label]
-      return { ...state, studyInfo: { ...state.studyInfo, services: next } }
-    }
-    case 'SET_ERRORS':
-      return { ...state, errors: action.errors }
-    case 'SET_SUBMITTING':
-      return { ...state, submitting: action.value }
-    case 'SET_PROPOSAL_ID':
-      return { ...state, proposalId: action.id }
-    case 'RESET':
-      return DEFAULT_WIZARD_STATE
-    case 'SET_ASSUMPTIONS':
-      return { ...state, assumptions: action.assumptions, missingFields: action.missing }
-    case 'UPDATE_ASSUMPTION':
-      return {
-        ...state,
-        assumptions: state.assumptions.map((a) =>
-          a.id === action.id ? { ...a, ...action.updates } : a
-        ),
-      }
-    case 'ADD_ASSUMPTION': {
-      const newAssumption: WizardAssumption = {
-        id: crypto.randomUUID(),
-        category: 'scope',
-        value: '',
-        confidence: 'high',
-        source: 'user-provided',
-        status: 'pending',
-      }
-      return { ...state, assumptions: [...state.assumptions, newAssumption] }
-    }
-    case 'REMOVE_ASSUMPTION':
-      return { ...state, assumptions: state.assumptions.filter((a) => a.id !== action.id) }
-    case 'SET_DOCUMENT_COUNT':
-      return { ...state, documentCount: action.count }
-    case 'FILL_MISSING': {
-      const filledAssumption: WizardAssumption = {
-        id: crypto.randomUUID(),
-        category: 'scope',
-        value: action.value,
-        confidence: 'high',
-        source: 'user-provided',
-        status: 'approved',
-      }
-      return {
-        ...state,
-        missingFields: state.missingFields.map((f) =>
-          f.field === action.field ? { ...f, filledValue: action.value } : f
-        ),
-        assumptions: [...state.assumptions, filledAssumption],
-      }
-    }
-    case 'SET_EXTRACTION_STATUS':
-      return { ...state, extractionStatus: action.status }
-    case 'SET_TEMPLATE':
-      return { ...state, selectedTemplateId: action.templateId }
-    default:
-      return state
-  }
-}
 
 function getInitialState(): WizardState {
   try {
