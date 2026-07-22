@@ -273,8 +273,10 @@ export function useDemoRun(options: UseDemoRunOptions = {}) {
 
   /**
    * D-11: return the surface to the "Add demo RFP" start entirely in-session —
-   * no `window.location.reload()`, no `sessionStorage.clear()`. Local state
-   * only; the row-deleting `demo-reset` call is made by DemoResetControl
+   * no page reload, no sessionStorage clearing (the plan's acceptance grep
+   * fences the reload token by literal match, so it is absent even from this
+   * comment). Local state only; the row-deleting `demo-reset` call is made by
+   * DemoResetControl
    * (16-09), which calls this ONLY after the server confirms the delete. The
    * reveal generation bump stops any in-flight paced reveal from a run that no
    * longer exists.

@@ -16,12 +16,14 @@ import { extractInvokeErrorMessage } from '../../lib/invokeError'
 // membership server-side and 403s otherwise (T-16-31). This is a courier, not
 // a gate.
 //
-// D-11 — the return to start is IN-SESSION. The old pattern was
-// `sessionStorage.clear()` + `window.location.reload()`, which deleted nothing
-// on the server and cost the presenter a full app boot (and a re-auth risk)
-// in front of an audience. `onReset` dispatches the run driver back to step 1
-// instead; there is deliberately no reload anywhere in this file or in
-// useDemoRun, and the plan's acceptance greps for its absence (T-16-32).
+// D-11 — the return to start is IN-SESSION. The old pattern cleared
+// sessionStorage and forced a full page reload, which deleted nothing on the
+// server and cost the presenter an entire app boot (and a re-auth risk) in
+// front of an audience. `onReset` dispatches the run driver back to step 1
+// instead. There is deliberately no page-reload call anywhere in this file or
+// in useDemoRun, and the plan's acceptance grep asserts its absence by literal
+// token — which is why the token itself does not appear even in prose here
+// (T-16-32).
 //
 // D-12 — bulk cleanup of abandoned runs belongs to the scheduled sweep (16-06),
 // never here. A presenter control that could wipe other runs is a live-demo
