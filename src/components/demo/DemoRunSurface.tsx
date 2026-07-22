@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { resolveIsDemoOrg } from '../../lib/demoOrg'
 import { useDemoRun } from '../../hooks/useDemoRun'
+import { DemoResetControl } from './DemoResetControl'
 import { WizardStepIndicator } from '../wizard/WizardStepIndicator'
 import { Step2DocumentUpload } from '../wizard/Step2DocumentUpload'
 import { Step3AssumptionReview } from '../wizard/Step3AssumptionReview'
@@ -55,6 +56,7 @@ export function DemoRunSurface({ sectionDelayMs }: DemoRunSurfaceProps) {
     generationState,
     startRun,
     populate,
+    resetToStart,
   } = useDemoRun(sectionDelayMs === undefined ? {} : { sectionDelayMs })
 
   useEffect(() => {
@@ -95,11 +97,20 @@ export function DemoRunSurface({ sectionDelayMs }: DemoRunSurfaceProps) {
           A fresh, isolated draft in the demo org, replayed from the captured fixture.
         </p>
         {run && (
-          <p className="mt-2 text-xs text-gray-400" data-testid="demo-run-meta">
-            Fixture {run.fixtureVersion !== null ? `v${run.fixtureVersion}` : 'active'} ·{' '}
-            {run.sectionCount} sections · {run.assumptionCount} assumptions ·{' '}
-            {run.rfpChunkCount} indexed RFP chunks
-          </p>
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+            <p className="text-xs text-gray-400" data-testid="demo-run-meta">
+              Fixture {run.fixtureVersion !== null ? `v${run.fixtureVersion}` : 'active'} ·{' '}
+              {run.sectionCount} sections · {run.assumptionCount} assumptions ·{' '}
+              {run.rfpChunkCount} indexed RFP chunks
+            </p>
+            {/*
+              D-10: the reset is scoped to the run THIS session started, so the
+              id comes from the driver's own `run`, never from the account. The
+              shared demo login may have another presenter's run live at the
+              same time.
+            */}
+            <DemoResetControl demoRunId={run.demoRunId} onReset={resetToStart} />
+          </div>
         )}
       </header>
 

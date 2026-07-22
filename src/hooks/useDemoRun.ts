@@ -272,11 +272,14 @@ export function useDemoRun(options: UseDemoRunOptions = {}) {
   }, [run, phase, sectionDelayMs])
 
   /**
-   * Return the surface to the "Add demo RFP" start entirely in-session — no
-   * page reload. Local state only; the row-deleting `demo-reset` call is wired
-   * by the reset control in 16-09, which calls this after the server confirms.
+   * D-11: return the surface to the "Add demo RFP" start entirely in-session —
+   * no `window.location.reload()`, no `sessionStorage.clear()`. Local state
+   * only; the row-deleting `demo-reset` call is made by DemoResetControl
+   * (16-09), which calls this ONLY after the server confirms the delete. The
+   * reveal generation bump stops any in-flight paced reveal from a run that no
+   * longer exists.
    */
-  const reset = useCallback(() => {
+  const resetToStart = useCallback(() => {
     revealGeneration.current += 1
     wizardDispatch({ type: 'RESET' })
     generationDispatch({ type: 'RESET' })
@@ -294,7 +297,7 @@ export function useDemoRun(options: UseDemoRunOptions = {}) {
     generationState,
     startRun,
     populate,
-    reset,
+    resetToStart,
     sectionDelayMs,
   }
 }
