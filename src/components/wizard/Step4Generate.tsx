@@ -6,6 +6,18 @@ interface Step4GenerateProps {
   state: WizardState
   dispatch: React.Dispatch<WizardAction>
   onGenerate: () => Promise<void>
+  /**
+   * D-02 (demo run surface only). Pre-selects the standard (`is_default`)
+   * template and LOCKS the choice: every card renders non-interactive, so the
+   * presenter can point at the selection but cannot change it and cannot pick a
+   * template that has no captured fixture.
+   *
+   * This mirrors a server rule, it does not implement one: demo-run-start
+   * independently rejects any non-`is_default` template with
+   * "demo runs require the standard template" (Req 4). Default (non-demo)
+   * behaviour is unchanged.
+   */
+  demoMode?: boolean
 }
 
 interface Template {
@@ -28,11 +40,13 @@ function TemplateSelector({
   templates,
   loading,
   onSelect,
+  demoMode = false,
 }: {
   selectedTemplateId: string | null
   templates: Template[]
   loading: boolean
   onSelect: (id: string | null) => void
+  demoMode?: boolean
 }) {
   const prebuilt = templates.filter((t) => t.source === 'prebuilt')
   const uploaded = templates.filter((t) => t.source === 'uploaded')
@@ -49,18 +63,29 @@ function TemplateSelector({
     )
   }
 
+  // D-02: in demo mode the standard template is the selection, regardless of
+  // what is in wizard state, and no card responds to a click.
+  const lockedTemplateId = demoMode
+    ? templates.find((t) => t.is_default === true)?.id ?? null
+    : null
+
   function renderCard(t: Template) {
-    const isSelected = selectedTemplateId === t.id
-    const cardClass = isSelected
-      ? 'bg-jamo-50 border-jamo-300 ring-2 ring-jamo-200 rounded-lg p-4 cursor-pointer transition-colors'
-      : 'bg-white border border-gray-200 hover:border-jamo-200 rounded-lg p-4 cursor-pointer transition-colors'
+    const isSelected = demoMode ? lockedTemplateId === t.id : selectedTemplateId === t.id
+    const baseClass = isSelected
+      ? 'bg-jamo-50 border-jamo-300 ring-2 ring-jamo-200 rounded-lg p-4 transition-colors'
+      : 'bg-white border border-gray-200 rounded-lg p-4 transition-colors'
+    const cardClass = demoMode
+      ? `${baseClass} pointer-events-none ${isSelected ? '' : 'opacity-60'}`
+      : `${baseClass} cursor-pointer ${isSelected ? '' : 'hover:border-jamo-200'}`
 
     return (
       <div
         key={t.id}
         role="radio"
         aria-checked={isSelected}
-        onClick={() => onSelect(isSelected ? null : t.id)}
+        aria-disabled={demoMode || undefined}
+        data-locked={demoMode ? 'true' : undefined}
+        onClick={demoMode ? undefined : () => onSelect(isSelected ? null : t.id)}
         className={cardClass}
       >
         <div className="flex items-start justify-between gap-2">
@@ -160,7 +185,7 @@ function ContextSummary({
   )
 }
 
-export function Step4Generate({ state, dispatch, onGenerate }: Step4GenerateProps) {
+export function Step4Generate({ state, dispatch, onGenerate, demoMode = false }: Step4GenerateProps) {
   const [templates, setTemplates] = useState<Template[]>([])
   const [loading, setLoading] = useState(true)
   const [sections, setSections] = useState<{ id: string; name: string; position: number }[]>([])
@@ -177,10 +202,12 @@ export function Step4Generate({ state, dispatch, onGenerate }: Step4GenerateProp
         setTemplates(loaded)
         setLoading(false)
 
-        // D-16: Pre-select default template if nothing is selected yet
-        if (!state.selectedTemplateId) {
+        // D-16: Pre-select default template if nothing is selected yet.
+        // D-02: in demo mode the default template is forced, not merely
+        // defaulted — the standard template is the only one with a fixture.
+        if (demoMode || !state.selectedTemplateId) {
           const defaultTemplate = loaded.find((t) => t.is_default === true)
-          if (defaultTemplate) {
+          if (defaultTemplate && defaultTemplate.id !== state.selectedTemplateId) {
             dispatch({ type: 'SET_TEMPLATE', templateId: defaultTemplate.id })
           }
         }
@@ -211,12 +238,15 @@ export function Step4Generate({ state, dispatch, onGenerate }: Step4GenerateProp
       </div>
 
       <div>
-        <p className="text-sm font-semibold text-gray-700 mb-2">Choose a template (optional)</p>
+        <p className="text-sm font-semibold text-gray-700 mb-2">
+          {demoMode ? 'Template' : 'Choose a template (optional)'}
+        </p>
         <TemplateSelector
           selectedTemplateId={state.selectedTemplateId}
           templates={templates}
           loading={loading}
           onSelect={(id) => dispatch({ type: 'SET_TEMPLATE', templateId: id })}
+          demoMode={demoMode}
         />
       </div>
 
