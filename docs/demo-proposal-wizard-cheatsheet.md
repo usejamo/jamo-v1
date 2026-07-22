@@ -139,6 +139,62 @@ The full 10-step verification script — including what failure looks like at ea
 
 ---
 
+## Gap list — sponsor answers
+
+These answers are not in the RFP PDF. They exist so whoever is running the demo can respond confidently if a prospect asks "so what's the actual answer?" after the product surfaces a gap. Read them as what Calidra/Quorvane would say in clarification responses.
+
+**1. Total budget / cost range / allocation by service** *(product may surface these as 3 separate gaps — they're one)*
+
+Withheld deliberately, not an omission. Competitive RFPs don't disclose budget; it's how sponsors get honest pricing. Sponsor wants fees by service area and year, FTE assumptions by role and region, unit costs for repeatable deliverables, pass-throughs itemised separately.
+
+**2. Contract type preference**
+
+Full-service for core scope, given a lean sponsor org. Open to hybrid. Biostatistics/stat programming is the likeliest FSP carve-out. Milestone invoicing, 5% holdback against performance metrics.
+
+**3. Regulatory pathway**
+
+Traditional approval on OS — not accelerated. Fast Track designation held. Intends Real-Time Oncology Review and Project Orbis (FDA, Health Canada, TGA, ANVISA, MHRA). EU via CTIS under Reg. 536/2014; Japan via PMDA CTN. NDA/MAA within 9 months of primary OS data cut.
+
+**4. Patient visit schedule**
+
+28-day screening, FGF19 testing allowed on archival tissue under pre-screening consent. 21-day cycles aligned to atezo/bev. RECIST v1.1 every 6 weeks to week 48, then every 9 weeks. Weekly LFTs through Cycle 1 (hepatic risk of FGFR4 inhibition), then Day 1 each cycle. QLQ-C30 + HCC-18 at baseline, C1–C6 Day 1, then every second cycle. Sparse PK all patients, intensive PK in ~40. Safety follow-up 30 days; survival every 12 weeks.
+
+**5. AE reporting timelines**
+
+Site → CRO within 24h of awareness; CRO → Sponsor within 24h of receipt. 21 CFR 312.32: 7 days fatal/life-threatening SUSARs, 15 days other. Same 7/15 clock to EudraVigilance. Pregnancy and overdose within 24h regardless of seriousness. Events of special interest (Grade ≥3 transaminase elevation, Grade ≥3 diarrhoea, suspected Hy's Law DILI) — 24h notification. Reconciliation quarterly, 100% complete 30 days pre-lock.
+
+**6. DSMB/IDMC requirements**
+
+Five voting members: three oncologists/hepatologists with HCC trial experience, one hepatologist with DILI adjudication experience, one independent biostatistician. Charter to FDA guidance and DAMOCLES, executed pre-FPI. Organisational meeting ~6 weeks pre-FPI, safety reviews every 6 months, ad hoc on hepatic triggers. Unblinded analyses by an independent stats centre firewalled from the CRO study team. Interim analysis at ~185 OS events (~50% of the ~370 needed for final).
+
+**7. Medical coding standards**
+
+MedDRA v29.0 at study start; WHODrug Global, B3 format. Both up-versioned annually on the March release and at final lock. Coding guideline requires Sponsor approval before first patient in.
+
+**8. Central lab vendor**
+
+No incumbent — CRO recommendations welcome. Must have global kit distribution with proven import/export in Japan, South Korea, Taiwan, Brazil; biological sample import licences for all planned countries; validated cold chain for biomarker shipment.
+
+**9. Quality metrics / KPIs**
+
+FPFV within 120 days of contract execution. 80% of sites activated within 6 months. eCRF entry within 5 business days of visit. Median query resolution ≤5 business days, ≥95% closed within 15. Monitoring visit reports submitted within 10 business days, signed off within 21. Deviations reported within 5 business days. eTMF ≥95% during conduct, 100% at close. Primary DBL within 6 months of OS data cut. Portion of fee at risk against these.
+
+**10. Sponsor internal resources**
+
+Lean org, all field monitoring outsourced. Internal: 1 Clinical Development Lead, 1 Medical Director, Head of Clin Ops + 2 Clinical Program Managers, 2 biostatisticians + 1 stat programmer, 2 Regulatory Affairs, 3-person PV team retaining the safety database, 2 clinical supply. No internal data management — CRO leads, Sponsor reviews at checkpoints.
+
+**11. Phase II data availability**
+
+Topline QRV-CAL-201 efficacy and safety available now, released under NDA at presentation stage. IB Edition 5 current; Edition 6 with final Phase II dataset planned Q4 2026, available before FPI. Phase II CSR expected Q4 2026. No database migration to Phase III EDC, but ISS/ISE pool both studies. Phase II collected under SDTM IG 3.3.
+
+---
+
+**Flag 1 — the budget triple.** The extractor currently reports total budget, cost range, and allocation-by-service as three findings. They're one gap. If a prospect notices, the honest framing is that granularity is tunable, not that the product miscounted. Worth deciding whether to collapse these before the fixture is captured.
+
+**Flag 2 — companion diagnostic.** The full answer to the central-lab gap includes a CDx thread: FGF19 amplification testing sits on the companion diagnostic pathway, the Sponsor has a CDx partner under separate agreement, the clinical trial assay is used for enrolment, and a bridging study is planned — so the CRO scopes central lab services excluding the assay but including specimen logistics and site training. This is realistic for a biomarker-selected registrational trial but is scope that doesn't appear anywhere in the RFP. Include it only if the demo narrative tolerates answers that go beyond the document. Otherwise stop at the vendor requirements in row 8.
+
+---
+
 ## Quick reference
 
 | | |
