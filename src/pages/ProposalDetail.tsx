@@ -40,6 +40,11 @@ interface MockDoc {
 
 import { StatusSelector, STATUS_LABELS } from '../components/StatusSelector'
 import { ProposalReferenceControl } from '../components/ProposalReferenceControl'
+// D-04 capture entry point. The action lives in its own component (invoking
+// `demo-capture-fixture`) so it is unit-testable — ProposalDetail itself is too
+// heavy to mount. It self-hides unless the caller is a super_admin in the demo
+// org; the edge function remains the authoritative gate.
+import { SaveAsDemoFixtureButton } from '../components/SaveAsDemoFixtureButton'
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(value)
@@ -585,6 +590,13 @@ const isStreamingMode = genState.isGenerating
                       value={proposal.reference_override ?? null}
                       disabled={!(profile?.role === 'admin' || profile?.role === 'super_admin')}
                     />
+                    {profile?.role === 'super_admin' && (
+                      <SaveAsDemoFixtureButton
+                        proposalId={proposal.id}
+                        role={profile?.role ?? null}
+                        orgId={profile?.org_id ?? null}
+                      />
+                    )}
                     <span className="text-xs text-gray-400">{proposal.id.toUpperCase()}</span>
                   </div>
                   <h1 className="text-xl font-bold text-gray-900">{proposal.title}</h1>
