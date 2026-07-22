@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
-import jamoLogo from '../assets/svg/logo-icon.svg'
+import jamoLogo from '../assets/svg/logo-wordmark.png'
 import { useAuth } from '../context/AuthContext'
 
 interface NavItem {
@@ -38,10 +38,7 @@ export default function Sidebar({ pendingActionsCount = 0 }: SidebarProps) {
       {/* Logo + collapse toggle */}
       <div className={`${collapsed ? 'px-2 py-4 justify-center' : 'p-6'} border-b border-gray-200 shrink-0 flex items-center`}>
         {!collapsed && (
-          <>
-            <img src={jamoLogo} alt="jamo" className="h-10 w-10" />
-            <span className="text-xl font-bold text-gray-900 ml-3 flex-1">jamo</span>
-          </>
+          <img src={jamoLogo} alt="Jamo" className="h-8 w-auto flex-1 object-contain object-left" />
         )}
         <button
           onClick={() => setCollapsed(!collapsed)}
