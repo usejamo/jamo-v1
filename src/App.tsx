@@ -9,6 +9,7 @@ import AcceptInvite from './pages/AcceptInvite'
 import ForgotPassword from './pages/ForgotPassword'
 import ResetPassword from './pages/ResetPassword'
 import AdminPanel from './pages/admin/AdminPanel'
+import { DemoRunSurface } from './components/demo/DemoRunSurface'
 import { AuthProvider } from './context/AuthContext'
 import { ArchivedProvider } from './context/ArchivedContext'
 import { ProposalsProvider } from './context/ProposalsContext'
@@ -57,6 +58,16 @@ export default function App() {
                       {/* Super-admin-only routes */}
                       <Route element={<SuperAdminRoute />}>
                         <Route path="/admin" element={<AdminPanel />} />
+                        {/*
+                          Demo run surface (16-08). Inside Layout so the demo
+                          runs in the real app chrome. SuperAdminRoute is the
+                          route guard; DemoRunSurface additionally renders null
+                          unless the caller's OWN org is the demo org, and
+                          demo-run-start re-checks both server-side.
+                        */}
+                        <Route element={<Layout />}>
+                          <Route path="/demo" element={<DemoRunSurface />} />
+                        </Route>
                       </Route>
                     </Route>
                   </Routes>
