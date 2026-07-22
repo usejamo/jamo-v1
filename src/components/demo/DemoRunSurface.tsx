@@ -139,9 +139,12 @@ export function DemoRunSurface({ sectionDelayMs }: DemoRunSurfaceProps) {
           <WizardStepIndicator
             steps={WIZARD_STEPS}
             currentStep={wizardState.step}
-            onStepClick={() => {
-              /* locked: the demo walks forward through the real steps */
-            }}
+            // Same behaviour as the real wizard: the indicator only navigates
+            // backward (it disables steps at or ahead of the current one), so
+            // the demo still walks forward through the real Next buttons.
+            onStepClick={(index) =>
+              wizardDispatch({ type: 'SET_STEP', step: index as 0 | 1 | 2 | 3 })
+            }
           />
           <div className="py-4">
             {wizardState.step <= 1 && (
