@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 16-08-PLAN.md (presenter run surface at /demo + Req 6 no-demo-branch fence)
-last_updated: "2026-07-21T18:55:00.000Z"
+stopped_at: Completed 16-09-PLAN.md — all 9 Phase 16 plans coded; live E2E verification still OPEN
+last_updated: "2026-07-22T04:15:00.000Z"
 progress:
   total_phases: 36
   completed_phases: 26
   total_plans: 162
-  completed_plans: 159
-  percent: 98
+  completed_plans: 160
+  percent: 99
 ---
 
 ## Project Status
@@ -53,11 +53,27 @@ Phase 16 (Token-Free Demo Mode): **Wave 1 COMPLETE (16-01 + 16-02).** 16-01 — 
 
 **Req 6 is now enforced by a mutation-verified fence:** `src/__tests__/no-demo-branch-below-population.test.ts` reads the committed bytes of the five below-population paths (`generate-proposal-section`, `retrieve-context`, `chat-with-jamo`, `section-ai-action`, `exportDocx`) plus `useProposalGeneration`/`AIChatPanel`, **and sweeps every module in those four edge-fn directories**, failing on `is_demo|demo_run|demo_fixture|demoMode`. Probes injected into `retrieve-context/index.ts` and `chat-with-jamo/rag.ts` both failed the suite before being reverted — and the `rag.ts` probe was caught **only** by the directory sweep, which is why the sweep exists. The mutation run also exposed a hole in the first pattern: **`/\bdemo_run\b/` does not match `demo_run_id`** because `_` is a word character, so the obvious both-ends-bounded regex would have missed the exact identifiers the demo tables use; it is now `\b(...)\w*` with guard-the-guard cases.
 
-Next: wave 4 (16-09 reset control + E2E human-verify) — plus the manual first-capture above, which every remaining live verification depends on.
+**16-09 COMPLETE — WAVE 4 COMPLETE. ALL 9 PLANS OF PHASE 16 ARE CODED.** `DemoResetControl.tsx` invokes the deployed `demo-reset` with the `demo_run_id` this session started (D-10: the demo login is shared, so an account-inferred "current run" could delete another presenter's live demo), and only after the server confirms calls `useDemoRun.resetToStart()` to return to "Add demo RFP" entirely in-session (D-11, no reload). One behavior, no modes, no bulk option (D-12). Two-step confirm added because a one-click irreversible delete on a live presentation surface is a hazard. Suite 500 passed / 16 skipped / 0 failed. Frontend-only; nothing deployed. **Task 3 (live presenter E2E) is an OPEN, DEFERRED human-verify checkpoint**, recorded like 15-09/15-10's.
+
+---
+
+### PHASE 16 STATUS — READ BEFORE ASSUMING THIS PHASE IS DONE
+
+**Coded and DEPLOYED to production:** 5 demo_* tables + `clone_demo_fixture_chunks` RPC; the `jamo-demo` org + shared presenter super_admin; edge functions `demo-capture-fixture`, `demo-run-start`, `demo-reset` (all ACTIVE, verify_jwt true); and the hourly `demo-run-sweep` pg_cron job. Frontend (`/demo` surface, capture button, reset control) is committed but NOT pushed — 30+ commits remain local, so Netlify prod does not have it.
+
+**NOT DEMONSTRATED.** Nothing on the demo path has run end-to-end. The deferred live verifications from **16-03, 16-04, 16-05 and 16-09 are all still owed**. What has been proven is narrower than "the demo works": the code is reviewed against the live schema, the guards are unit-tested, and six real defects were found and fixed during execution (zero-active-fixture on promote failure; blank-section role-normalization mismatch; the NO ACTION `source_document` FK; `min(uuid)` breaking the sweep on every call; and `extract-assumptions` firing a live model call on every demo run).
+
+**The single genuine live verification achieved:** 16-06's sweep. A real, non-dry `sweep_abandoned_demo_runs(50, false)` ran against production with 66 proposals and 38 proposal_documents present and correctly swept nothing — the guards held against real client data, not an empty table.
+
+**TWO BLOCKING PREREQUISITES, both human actions in the browser:**
+1. **Capture the first fixture** via the 16-07 UI (sign in as the demo-org presenter, generate one real proposal in the demo org — this one costs tokens — then "Save as demo fixture").
+2. **Upload** `{demoOrgId}/demo/canonical-demo-rfp.pdf` to the `documents` bucket, or every run's RFP download 404s while the DB rows still look correct.
+
+**The 10-step end-to-end verification script that clears the deferred verifications for 16-03/16-04/16-05/16-09 in a single session is in `16-09-SUMMARY.md`.** It states what a FAILURE looks like at each step, so an expected pre-capture `400 no active demo fixture` is not mistaken for a bug. Read it before attempting the phase verification gate.
 
 ## Last Session
 
-**Stopped at:** Completed 16-08-PLAN.md (presenter run surface at /demo + Req 6 no-demo-branch fence)
+**Stopped at:** Completed 16-09-PLAN.md — all 9 Phase 16 plans coded; live E2E verification OPEN
 **Session date:** 2026-07-21
 
 ## Roadmap Evolution
