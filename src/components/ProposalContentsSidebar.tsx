@@ -96,11 +96,6 @@ export default function ProposalContentsSidebar({ sections, generated }: Props) 
         )}
       </div>
 
-      {/* Footer */}
-      <div className="p-4 border-t border-gray-200 shrink-0">
-        <p className="text-xs text-gray-400 px-3">jamo Demo v0.1.0</p>
-      </div>
-
     </aside>
   )
 }
