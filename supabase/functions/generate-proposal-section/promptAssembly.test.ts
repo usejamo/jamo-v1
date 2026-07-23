@@ -308,8 +308,11 @@ describe('section strategy', () => {
   })
   it('fills the previously-missing default roles', () => {
     expect(baseV2('scope_of_work').system).toContain('SECTION STRATEGY:')
+    expect(baseV2('scope_of_work').system).toContain('what is included and what is excluded')
     expect(baseV2('proposed_team').system).toContain('SECTION STRATEGY:')
+    expect(baseV2('proposed_team').system).toContain('role-by-role table')
     expect(baseV2('quality_management').system).toContain('SECTION STRATEGY:')
+    expect(baseV2('quality_management').system).toContain('CAPA')
   })
   it('uses a generic strategy for a null role and an off-list role', () => {
     expect(baseV2(null).system).toContain('conclude explicitly')
