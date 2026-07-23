@@ -1,6 +1,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'supabase'
 import { SECTION_NAMES, buildSectionPrompt, buildSectionPromptV2 } from './promptAssembly.ts'
+import { parseStopReason, TRUNCATION_SENTINEL } from './truncationSignal.ts'
 
 // Re-export the pure prompt-assembly builders so existing importers of
 // index.ts (and the Deno test.ts suite) keep working. promptAssembly.ts is
@@ -305,16 +306,27 @@ serve(async (req) => {
 
     // Pipe SSE through TransformStream, accumulate text, write on stream close
     let fullText = ''
+    let stopReason: string | null = null
     const { readable, writable } = new TransformStream({
       transform(chunk: Uint8Array, controller: TransformStreamDefaultController) {
         const text = new TextDecoder().decode(chunk)
         for (const line of text.split('\n')) {
           const delta = parseSSEDelta(line)
           if (delta) fullText += delta
+          const sr = parseStopReason(line)
+          if (sr) stopReason = sr
         }
         controller.enqueue(chunk)
       },
-      async flush() {
+      async flush(controller: TransformStreamDefaultController) {
+        // Truncated at the token ceiling: do NOT persist. Leaving the proposal_sections row
+        // blank routes it into demo-capture-fixture's existing blank-section refusal, so a
+        // cut-off section can never be baked into the fixture. Signal the client so it discards
+        // the streamed text and raises a section error instead of completing.
+        if (stopReason === 'max_tokens') {
+          controller.enqueue(new TextEncoder().encode(TRUNCATION_SENTINEL))
+          return
+        }
         // Post-process: convert placeholder patterns to stable UUID-keyed spans.
         // IDs assigned once here; preserved through parseHTML on all subsequent loads.
         // Kept in parity with src/lib/migratePlaceholders.ts (the client re-runs the

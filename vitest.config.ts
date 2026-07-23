@@ -27,15 +27,16 @@ export default defineConfig({
     setupFiles: ['./src/test/setup.ts'],
     // supabase/** holds Deno-runtime edge functions with their own Deno.test suites
     // (test.ts, __tests__/*.test.ts) that cannot run under Vitest/Node — exclude the
-    // tree broadly, but carve out promptAssembly.test.ts, which is a pure Vitest spec
-    // for the Node-importable supabase/functions/generate-proposal-section/promptAssembly.ts.
+    // tree broadly, but carve out promptAssembly.test.ts and truncationSignal.test.ts,
+    // which are pure Vitest specs for the Node-importable pure modules
+    // (promptAssembly.ts, truncationSignal.ts) in generate-proposal-section.
     exclude: [
       '**/node_modules/**',
       '**/e2e/**',
       'supabase/migrations/**',
       'supabase/tests/**',
       'supabase/functions/!(generate-proposal-section)/**',
-      'supabase/functions/generate-proposal-section/!(promptAssembly.test).*',
+      'supabase/functions/generate-proposal-section/!(promptAssembly.test|truncationSignal.test).*',
     ],
     globals: true,
     pool: 'forks',
