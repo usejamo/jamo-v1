@@ -22,6 +22,7 @@
 // ids live inside that HTML and must survive capture untouched (SPEC Constraints).
 import { createClient } from 'supabase'
 import { getAuthedUserAndOrg, jsonError } from '../_shared/auth.ts'
+import { scanPlaceholderProse } from './proseScan.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -196,6 +197,17 @@ Deno.serve(async (req) => {
         corsHeaders
       )
     }
+
+    // Heuristic, NON-blocking: unbracketed self-instruction prose ("insert X", "TBD", …)
+    // left in section content instead of a proper [PLACEHOLDER: …]. This never refuses
+    // capture — false positives must not wall off a legitimate fixture, the presenter
+    // decides. Purely additive to the success response below.
+    const warnings = sections
+      .map((s) => ({
+        section: s.name ?? `position ${s.position ?? '?'}`,
+        found: scanPlaceholderProse(s.content ?? ''),
+      }))
+      .filter((w) => w.found.length > 0)
 
     const { data: assumptions, error: assumptionsError } = await admin
       .from('proposal_assumptions')
@@ -382,6 +394,7 @@ Deno.serve(async (req) => {
         assumptions: assumptions?.length ?? 0,
         rfp_chunks: sourceChunks?.length ?? 0,
         rfp_extract_text_captured: rfpExtractText !== null,
+        warnings,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
