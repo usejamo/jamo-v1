@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildSectionPrompt, buildSectionPromptV2, sanitizeChunkText } from './promptAssembly.ts'
+import { buildSectionPrompt, buildSectionPromptV2, sanitizeChunkText, SECTION_DEPTH, DEPTH_GUIDANCE } from './promptAssembly.ts'
 
 function countLiteral(haystack: string, needle: string): number {
   return haystack.split(needle).length - 1
@@ -288,5 +288,36 @@ describe('CR-01 — block-delimiter injection hardening', () => {
     // The breakout must not manufacture a structural compliance assertion; ungrounded → marker present.
     expect(system).not.toContain('compliant with ICH-GCP')
     expect(system).toContain('No regulatory grounding available')
+  })
+})
+
+function baseV2(role: string | null) {
+  return buildSectionPromptV2({
+    sectionId: 's', sectionName: 'S', sectionDescription: null, sectionRole: role,
+    tone: 'formal', regulatoryChunks: [], proposalChunks: [], regulatoryCount: 0,
+    priorSections: [], proposalContext: {},
+  })
+}
+
+describe('section depth', () => {
+  it('emits a SECTION LENGTH block for a known role (comprehensive for study_understanding)', () => {
+    const { system } = baseV2('study_understanding')
+    expect(system).toContain('SECTION LENGTH:')
+    expect(system).toContain(DEPTH_GUIDANCE.comprehensive)
+  })
+  it('falls back to standard depth for a null role', () => {
+    const { system } = baseV2(null)
+    expect(system).toContain('SECTION LENGTH:')
+    expect(system).toContain(DEPTH_GUIDANCE.standard)
+  })
+  it('falls back to standard depth for an off-list role (site_selection)', () => {
+    const { system } = baseV2('site_selection')
+    expect(system).toContain(DEPTH_GUIDANCE.standard)
+  })
+  it('maps all 21 known roles to a depth level', () => {
+    expect(Object.keys(SECTION_DEPTH).length).toBe(21)
+    for (const v of Object.values(SECTION_DEPTH)) {
+      expect(['brief', 'standard', 'comprehensive']).toContain(v)
+    }
   })
 })

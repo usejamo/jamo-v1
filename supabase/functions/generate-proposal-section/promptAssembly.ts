@@ -70,6 +70,25 @@ Rules:
 // assertion (CR-02, hardens T-14.6-03).
 export const COMPLIANCE_CLAUSE = ' The proposal must be compliant with ICH-GCP (E6 R2/R3) and reference FDA/EMA guidance where grounded.'
 
+// Per-role output size. Keyed by the same role vocabulary as KNOWN_ROLES (study_understanding,
+// not understanding). `?? 'standard'` at the call site covers null and any off-list role, so no
+// section can reach generation without a length target.
+export const SECTION_DEPTH: Record<string, 'brief' | 'standard' | 'comprehensive'> = {
+  cover_letter: 'brief', executive_summary: 'standard', study_understanding: 'comprehensive',
+  company_overview: 'brief', therapeutic_experience: 'standard', references: 'brief',
+  scope_of_work: 'comprehensive', project_management: 'standard', proposed_team: 'standard',
+  clinical_operations: 'standard', site_management: 'standard', patient_recruitment: 'standard',
+  data_management: 'standard', biostatistics: 'standard', medical_writing: 'brief',
+  regulatory_strategy: 'standard', pharmacovigilance: 'standard', quality_management: 'standard',
+  timeline: 'brief', assumptions: 'brief', budget: 'brief',
+}
+
+export const DEPTH_GUIDANCE: Record<'brief' | 'standard' | 'comprehensive', string> = {
+  brief: 'Keep this section tight — roughly 200–400 words. Lead with the essentials, use a table or list where it carries the content, and stop once the point is made.',
+  standard: 'Aim for roughly 500–800 words. Cover the topic thoroughly without padding; every paragraph should add something the sponsor needs.',
+  comprehensive: 'This is a substantial section — roughly 1000–1200 words. Structure it around the scope above, give each sub-topic proportionate depth, and always finish with an explicit concluding paragraph. Never stop mid-thought or trail off; a section that ends abruptly reads as an error.',
+}
+
 // Neutralize our structural prompt-block delimiters if they appear inside retrieved chunk
 // content/source. Adversarial chunk text (e.g. sponsor RFP history containing a literal
 // "[/PROPOSAL HISTORY]") must not be able to break out of its block and inject instructions
@@ -228,6 +247,9 @@ export function buildSectionPromptV2(params: {
   }
 
   system += `\n\nTone for this section: ${tone}.\n\nCRITICAL RULE: When specific information is not available, use [PLACEHOLDER: description of what's needed] markers. NEVER invent specific numbers, dates, or names.`
+
+  const depthKey = SECTION_DEPTH[sectionRole ?? ''] ?? 'standard'
+  system += `\n\nSECTION LENGTH: ${DEPTH_GUIDANCE[depthKey]}`
 
   if (investigationalProductUndisclosed) {
     system += `\n\nINVESTIGATIONAL PRODUCT: The sponsor has NOT disclosed the investigational product name (blinded during vendor selection). Do NOT insert a [PLACEHOLDER] for the product name in any section. Refer to it generically — e.g. "the investigational product", "the study drug", or "the Sponsor's compound".`
