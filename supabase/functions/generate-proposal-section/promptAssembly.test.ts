@@ -299,6 +299,24 @@ function baseV2(role: string | null) {
   })
 }
 
+describe('section strategy', () => {
+  it('emits a specific hint for study_understanding', () => {
+    expect(baseV2('study_understanding').system).toContain('credibility section')
+  })
+  it('understanding alias resolves to the same hint (fresh-env seed value)', () => {
+    expect(baseV2('understanding').system).toContain('credibility section')
+  })
+  it('fills the previously-missing default roles', () => {
+    expect(baseV2('scope_of_work').system).toContain('SECTION STRATEGY:')
+    expect(baseV2('proposed_team').system).toContain('SECTION STRATEGY:')
+    expect(baseV2('quality_management').system).toContain('SECTION STRATEGY:')
+  })
+  it('uses a generic strategy for a null role and an off-list role', () => {
+    expect(baseV2(null).system).toContain('conclude explicitly')
+    expect(baseV2('site_selection').system).toContain('conclude explicitly')
+  })
+})
+
 describe('section depth', () => {
   it('emits a SECTION LENGTH block for a known role (comprehensive for study_understanding)', () => {
     const { system } = baseV2('study_understanding')

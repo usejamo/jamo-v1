@@ -223,6 +223,8 @@ export function buildSectionPromptV2(params: {
   const groundedCount = regulatoryChunks.length
 
   // Role-based tone/structure hints (soft signal only — does NOT override content scope)
+  const studyUnderstandingHint =
+    "Demonstrate deep comprehension of the sponsor's study. Reference protocol specifics and therapeutic context. This is your credibility section."
   const roleHints: Record<string, string> = {
     executive_summary: 'Write as a compelling 1–2 page executive summary. Synthesize all key points from prior sections. Lead with the CRO\'s strongest differentiators.',
     cover_letter: 'Write as a formal business letter. Keep under 1 page. Reference the sponsor by name. Express genuine enthusiasm and commitment.',
@@ -231,8 +233,14 @@ export function buildSectionPromptV2(params: {
     regulatory_strategy: groundedCount > 0
       ? 'Reference specific ICH-GCP guidelines (E6 R2/R3) and FDA/EMA guidance only where grounded in the provided [REGULATORY CONTEXT].'
       : 'No regulatory grounding is available for this section/geography. Do not reference or assert compliance with any named regulatory framework or guideline for this section. Flag any unresolved regulatory items with [PLACEHOLDER] per the CRITICAL RULES; never fabricate.',
-    understanding: 'Demonstrate deep comprehension of the sponsor\'s study. Reference protocol specifics and therapeutic context. This is your credibility section.',
+    study_understanding: studyUnderstandingHint,
+    understanding: studyUnderstandingHint, // alias: fresh envs whose seed wrote 'understanding'
+    scope_of_work: 'Lead with a clear table or list of every service in scope, then give proportionate detail per service area. Be explicit about what is included and what is excluded.',
+    proposed_team: 'Introduce named roles and responsibilities — a role-by-role table works well. Emphasize therapeutic-area and phase-relevant experience.',
+    quality_management: 'Describe the quality system concretely: SOP framework, audit plan, deviation/CAPA handling, and how risk is managed across the study.',
   }
+  const GENERIC_STRATEGY =
+    'Structure the section around the scope described above. Lead with the material most decision-relevant to the sponsor, support claims with specifics, and conclude explicitly rather than trailing off.'
 
   let system = CRO_PROPOSAL_SYSTEM_PROMPT + (groundedCount > 0 ? COMPLIANCE_CLAUSE : '')
 
@@ -242,9 +250,8 @@ export function buildSectionPromptV2(params: {
     system += `\n\nSECTION SCOPE: ${sectionDescription}`
   }
 
-  if (sectionRole && roleHints[sectionRole]) {
-    system += `\n\nSECTION STRATEGY: ${roleHints[sectionRole]}`
-  }
+  const strategy = (sectionRole ? roleHints[sectionRole] : undefined) ?? GENERIC_STRATEGY
+  system += `\n\nSECTION STRATEGY: ${strategy}`
 
   system += `\n\nTone for this section: ${tone}.\n\nCRITICAL RULE: When specific information is not available, use [PLACEHOLDER: description of what's needed] markers. NEVER invent specific numbers, dates, or names.`
 
