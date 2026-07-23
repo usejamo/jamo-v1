@@ -126,7 +126,8 @@ export function generationReducer(
 export async function readSSEStream(
   response: Response,
   onToken: (token: string) => void,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  onControl?: (evt: { type: string }) => void
 ): Promise<void> {
   if (!response.body) return
 
@@ -156,6 +157,7 @@ export async function readSSEStream(
       if (raw === '[DONE]') return
       try {
         const parsed = JSON.parse(raw)
+        if (parsed.type === 'jamo_truncated') { onControl?.({ type: 'jamo_truncated' }); continue }
         if (
           parsed.type === 'content_block_delta' &&
           parsed.delta?.type === 'text_delta' &&
@@ -424,10 +426,23 @@ export function useProposalGeneration(proposalId: string) {
       }
 
       let fullText = ''
+      let truncated = false
       await readSSEStream(response, (token) => {
         fullText += token
         dispatch({ type: 'SECTION_TOKEN', sectionId: section.id, token })
-      }, signal)
+      }, signal, (evt) => { if (evt.type === 'jamo_truncated') truncated = true })
+
+      if (truncated) {
+        // Server refused to persist a max_tokens-truncated section, so the DB row is blank and
+        // capture will refuse it. Discard the streamed text and surface an error — do NOT run the
+        // 10s complete-from-local-text fallback, which would re-materialize the cut-off content.
+        dispatch({
+          type: 'SECTION_ERROR',
+          sectionId: section.id,
+          error: 'This section hit the length limit and was discarded. Regenerate it.',
+        })
+        return ''
+      }
 
       // Fallback: if Realtime hasn't confirmed within 10s, dispatch complete from local text
       setTimeout(() => {

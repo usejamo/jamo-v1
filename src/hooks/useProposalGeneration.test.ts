@@ -154,6 +154,24 @@ describe('generationReducer', () => {
     expect(next.sections['sec-uuid-1'].error).toBe('Network timeout')
   })
 
+  it('SECTION_ERROR leaves finalContent null so nothing is persisted for a truncated section', () => {
+    const section = makeSectionState()
+    const state = makeInitialState([section])
+    const generating = generationReducer(state, { type: 'SECTION_GENERATING', sectionId: 'sec-uuid-1' })
+    const withText = generationReducer(generating, {
+      type: 'SECTION_TOKEN',
+      sectionId: 'sec-uuid-1',
+      token: 'cut off here',
+    })
+    const errored = generationReducer(withText, {
+      type: 'SECTION_ERROR',
+      sectionId: 'sec-uuid-1',
+      error: 'truncated',
+    })
+    expect(errored.sections['sec-uuid-1'].status).toBe('error')
+    expect(errored.sections['sec-uuid-1'].finalContent).toBeNull()
+  })
+
   it('SET_ANCHOR updates consistencyAnchor', () => {
     const state = makeInitialState()
     const next = generationReducer(state, { type: 'SET_ANCHOR', anchor: 'anchor-text' })
@@ -324,6 +342,31 @@ describe('fetchRagChunks', () => {
 // ---------------------------------------------------------------------------
 // Realtime subscription (requires live Supabase — skip in unit tests)
 // ---------------------------------------------------------------------------
+
+describe('readSSEStream truncation control event', () => {
+  function sseResponse(lines: string[]): Response {
+    const body = new ReadableStream<Uint8Array>({
+      start(c) { for (const l of lines) c.enqueue(new TextEncoder().encode(l + '\n')); c.close() },
+    })
+    return new Response(body, { headers: { 'Content-Type': 'text/event-stream' } })
+  }
+
+  it('routes jamo_truncated to onControl and never to onToken', async () => {
+    const tokens: string[] = []
+    const controls: string[] = []
+    await readSSEStream(
+      sseResponse([
+        'data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"partial"}}',
+        'data: {"type":"jamo_truncated"}',
+      ]),
+      (t) => tokens.push(t),
+      undefined,
+      (e) => controls.push(e.type),
+    )
+    expect(tokens).toEqual(['partial'])
+    expect(controls).toEqual(['jamo_truncated'])
+  })
+})
 
 describe('useProposalGeneration Realtime', () => {
   it.skip('subscribes to proposal_sections postgres_changes on mount', () => {
