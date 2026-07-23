@@ -29,14 +29,16 @@ export default defineConfig({
     // (test.ts, __tests__/*.test.ts) that cannot run under Vitest/Node — exclude the
     // tree broadly, but carve out promptAssembly.test.ts and truncationSignal.test.ts,
     // which are pure Vitest specs for the Node-importable pure modules
-    // (promptAssembly.ts, truncationSignal.ts) in generate-proposal-section.
+    // (promptAssembly.ts, truncationSignal.ts) in generate-proposal-section, and
+    // coverage.test.ts, a pure Vitest spec for coverage.ts in template-extract.
     exclude: [
       '**/node_modules/**',
       '**/e2e/**',
       'supabase/migrations/**',
       'supabase/tests/**',
-      'supabase/functions/!(generate-proposal-section)/**',
+      'supabase/functions/!(generate-proposal-section|template-extract)/**',
       'supabase/functions/generate-proposal-section/!(promptAssembly.test|truncationSignal.test).*',
+      'supabase/functions/template-extract/!(coverage.test).*',
     ],
     globals: true,
     pool: 'forks',

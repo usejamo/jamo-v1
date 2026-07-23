@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { isCoverageComplete } from './coverage.ts'
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -128,7 +129,7 @@ ${sectionList}`
       },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 200,
+        max_tokens: 2000,
         messages: [{ role: 'user', content: prompt }],
       }),
     })
@@ -288,7 +289,10 @@ serve(async (req) => {
       : {}
 
     // 7. Low-confidence detection
-    const isLowConfidence = sections.length < 3 || wordCount < 200
+    const classificationRan = !!anthropicApiKey && sections.length > 0
+    const classificationIncomplete =
+      classificationRan && !isCoverageComplete(sections.map((s) => s.name), roleMap)
+    const isLowConfidence = sections.length < 3 || wordCount < 200 || classificationIncomplete
 
     // 8. Bulk-insert template_sections (deduplicate by name first)
     if (sections.length > 0) {
