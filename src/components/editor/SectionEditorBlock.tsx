@@ -48,10 +48,18 @@ interface SectionEditorBlockProps {
   orgId?: string
   editorState: SectionEditorState
   onFocus?: () => void
+  /**
+   * Called after an accepted edit's content has been persisted to the DB, with the
+   * section key and the newly-accepted html. The parent (ProposalDetail) uses this to
+   * keep its `proposalSections` seed source in sync — without it, a later remount of
+   * SectionWorkspace re-seeds editors from the stale pre-edit content and the mount-time
+   * placeholder-migration effect (below) re-persists that stale content, reverting the edit.
+   */
+  onSectionContentPersisted?: (sectionKey: string, html: string) => void
 }
 
 export const SectionEditorBlock = forwardRef<SectionEditorHandle, SectionEditorBlockProps>(
-  function SectionEditorBlock({ sectionKey, sectionTitle, proposalId, orgId = '', editorState, onFocus }, ref) {
+  function SectionEditorBlock({ sectionKey, sectionTitle, proposalId, orgId = '', editorState, onFocus, onSectionContentPersisted }, ref) {
     const { state: workspaceState, dispatch: workspaceDispatch } = useSectionWorkspace()
     const { checkCompliance } = useComplianceCheck(proposalId, orgId)
     const { triggerAction } = useSectionAIAction(proposalId, sectionKey, orgId)
@@ -202,6 +210,11 @@ export const SectionEditorBlock = forwardRef<SectionEditorHandle, SectionEditorB
       // effect ran before this accept committed, so any edit whose anchor was
       // just created would otherwise never get its ghost widget.
       editor.view.dispatch(editor.state.tr.setMeta(PendingEditsPluginKey, 'refresh'))
+      // Sync the parent's seed source with the post-accept doc (same invariant as
+      // handleAcceptAIAction) — content itself still persists via the normal
+      // onUpdate → triggerAutosave path; this just keeps proposalSections from
+      // going stale so a later remount cannot revert this batch accept.
+      onSectionContentPersisted?.(sectionKey, editor.getHTML())
       prevBatchResolutionsRef.current = Object.fromEntries(currentEdits.map((e) => [e.id, e.resolution]))
     }, [editor, workspaceState.sections[sectionKey]?.pending_edits]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -284,6 +297,9 @@ export const SectionEditorBlock = forwardRef<SectionEditorHandle, SectionEditorB
         // Rebuild decorations against the post-accept doc so a chained edit whose
         // anchor was just created gets its ghost widget.
         editor.view.dispatch(editor.state.tr.setMeta(PendingEditsPluginKey, 'refresh'))
+        // Sync the parent's seed source with the post-accept doc (same invariant as
+        // handleAcceptAIAction) — see comment on the batch-accept effect above.
+        onSectionContentPersisted?.(sectionKey, editor.getHTML())
       }
       prevResolutionsRef.current = Object.fromEntries(currentEdits.map((e) => [e.id, e.resolution]))
     }, [editor, workspaceState.sections[sectionKey]?.pending_edits]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -352,6 +368,9 @@ export const SectionEditorBlock = forwardRef<SectionEditorHandle, SectionEditorB
       editor?.commands.setContent(acceptedHtml, { emitUpdate: true })
       // Immediately persist accepted content so a quick refresh doesn't lose it
       await saveNow(acceptedHtml)
+      // Sync the parent's seed source (ProposalDetail's proposalSections) with the
+      // now-persisted content so a later remount cannot re-seed and revert this edit.
+      onSectionContentPersisted?.(sectionKey, acceptedHtml)
       // Write post-accept version (skip if orgId not yet available)
       if (orgId) {
         const actionLabel = `After ${aiAction.type.charAt(0).toUpperCase() + aiAction.type.slice(1)}`
@@ -365,7 +384,7 @@ export const SectionEditorBlock = forwardRef<SectionEditorHandle, SectionEditorB
       }
       // Fire compliance check on accept (D-13)
       checkCompliance(sectionKey, aiAction.preview_content)
-    }, [editorState.ai_action, dispatch, sectionKey, editor, proposalId, orgId, checkCompliance, saveNow])
+    }, [editorState.ai_action, dispatch, sectionKey, editor, proposalId, orgId, checkCompliance, saveNow, onSectionContentPersisted])
 
     const handleDeclineAIAction = useCallback(() => {
       dispatch({ type: 'REJECT_AI_ACTION', payload: { section_key: sectionKey } })

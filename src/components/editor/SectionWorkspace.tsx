@@ -24,9 +24,11 @@ interface SectionWorkspaceProps {
   onActiveSectionChange?: (sectionKey: string | null) => void
   externalScrollRef?: React.RefObject<HTMLDivElement>
   consistencyCheckRef?: React.MutableRefObject<(() => void) | null>
+  /** Threaded down to each SectionEditorBlock — see its prop doc for why this exists. */
+  onSectionContentPersisted?: (sectionKey: string, html: string) => void
 }
 
-function SectionWorkspaceInner({ proposalId, sections, orgId, editorRefsRef, onActiveSectionChange, externalScrollRef, consistencyCheckRef }: SectionWorkspaceProps) {
+function SectionWorkspaceInner({ proposalId, sections, orgId, editorRefsRef, onActiveSectionChange, externalScrollRef, consistencyCheckRef, onSectionContentPersisted }: SectionWorkspaceProps) {
   const { state, dispatch } = useSectionWorkspace()
   const localEditorRefs = useRef<Map<string, SectionEditorHandle>>(new Map())
   const editorRefs = editorRefsRef ?? localEditorRefs
@@ -263,6 +265,7 @@ function SectionWorkspaceInner({ proposalId, sections, orgId, editorRefsRef, onA
               orgId={orgId}
               editorState={editorState}
               onFocus={() => dispatch({ type: 'SET_ACTIVE_SECTION', payload: key })}
+              onSectionContentPersisted={onSectionContentPersisted}
             />
           )
         })}
@@ -284,8 +287,8 @@ function SectionWorkspaceInner({ proposalId, sections, orgId, editorRefsRef, onA
   )
 }
 
-export default function SectionWorkspace({ proposalId, sections, orgId, editorRefsRef, onActiveSectionChange, externalScrollRef, consistencyCheckRef }: SectionWorkspaceProps) {
+export default function SectionWorkspace({ proposalId, sections, orgId, editorRefsRef, onActiveSectionChange, externalScrollRef, consistencyCheckRef, onSectionContentPersisted }: SectionWorkspaceProps) {
   return (
-    <SectionWorkspaceInner proposalId={proposalId} sections={sections} orgId={orgId} editorRefsRef={editorRefsRef} onActiveSectionChange={onActiveSectionChange} externalScrollRef={externalScrollRef} consistencyCheckRef={consistencyCheckRef} />
+    <SectionWorkspaceInner proposalId={proposalId} sections={sections} orgId={orgId} editorRefsRef={editorRefsRef} onActiveSectionChange={onActiveSectionChange} externalScrollRef={externalScrollRef} consistencyCheckRef={consistencyCheckRef} onSectionContentPersisted={onSectionContentPersisted} />
   )
 }

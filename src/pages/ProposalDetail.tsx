@@ -302,15 +302,24 @@ export default function ProposalDetail() {
     }
   }, [proposalSections, contentLatched])
 
+  // Fetch-race guard: proposal_sections is read from both this mount-effect and
+  // refetchSections below. Without a sequence guard, an out-of-order network response
+  // from an earlier fetch could land AFTER a later one and overwrite proposalSections
+  // with stale data — including data from before an accepted edit. Only the response
+  // matching the CURRENT sequence number is applied.
+  const sectionsFetchSeqRef = useRef(0)
+
   useEffect(() => {
     if (!id) return
     setSectionsLoaded(false)
+    const seq = ++sectionsFetchSeqRef.current
     supabase
       .from('proposal_sections')
       .select('id, section_key, name, position, content, is_locked, status, last_saved_content, compliance_flags')
       .eq('proposal_id', id)
       .order('position', { ascending: true })
       .then(({ data }) => {
+        if (seq !== sectionsFetchSeqRef.current) return  // superseded by a newer fetch
         if (data && data.length > 0) {
           setProposalSections(data as any)
           setGenerated(true)
@@ -369,14 +378,26 @@ export default function ProposalDetail() {
     }))
   }, [proposalSections])
 
+  // Targeted in-memory sync — called after an accepted edit persists so `proposalSections`
+  // (the seed source SectionWorkspace re-seeds editors from on remount) never goes stale.
+  // Deliberately NOT a refetch: a DB read here could race the autosave debounce and read
+  // stale content, clobbering the very update we're trying to preserve.
+  const handleSectionContentPersisted = useCallback((sectionKey: string, html: string) => {
+    setProposalSections(prev =>
+      prev.map(s => (s.section_key === sectionKey ? { ...s, content: html } : s))
+    )
+  }, [])
+
   const refetchSections = useCallback(() => {
     if (!id) return
+    const seq = ++sectionsFetchSeqRef.current
     supabase
       .from('proposal_sections')
       .select('id, section_key, name, position, content, is_locked, status, last_saved_content, compliance_flags')
       .eq('proposal_id', id)
       .order('position', { ascending: true })
       .then(({ data }) => {
+        if (seq !== sectionsFetchSeqRef.current) return  // superseded by a newer fetch
         if (data && data.length > 0) {
           setProposalSections(data as any)
           setGenerated(true)
@@ -783,6 +804,7 @@ const isStreamingMode = genState.isGenerating
                   onActiveSectionChange={setActiveSectionKey}
                   externalScrollRef={scrollRef as React.RefObject<HTMLDivElement>}
                   consistencyCheckRef={consistencyCheckRef}
+                  onSectionContentPersisted={handleSectionContentPersisted}
                 />
               </div>
             )}
@@ -803,7 +825,7 @@ const isStreamingMode = genState.isGenerating
         sections={proposalSections ?? []}
         editorRefs={editorRefsMap}
         activeSectionKey={activeSectionKey}
-        onEditAccepted={refetchSections}
+        onEditAccepted={handleSectionContentPersisted}
         onPendingActionsCountChange={setPendingActionsCount}
         sectionTitles={sectionTitles}
         onSectionFocusChange={setActiveSectionKey}

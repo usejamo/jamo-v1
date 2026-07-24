@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 
 vi.mock('../../../lib/supabase', () => ({
   supabase: {
@@ -34,7 +34,7 @@ vi.mock('../../../context/SectionWorkspaceContext', () => ({
 }))
 
 vi.mock('../../../hooks/useAutosave', () => ({
-  useAutosave: vi.fn(() => ({ triggerAutosave: vi.fn(), cancel: vi.fn() })),
+  useAutosave: vi.fn(() => ({ triggerAutosave: vi.fn(), cancel: vi.fn(), saveNow: vi.fn(() => Promise.resolve()) })),
 }))
 
 vi.mock('../../../hooks/useComplianceCheck', () => ({
@@ -47,6 +47,7 @@ vi.mock('../../../hooks/useSectionAIAction', () => ({
 
 import { SectionEditorBlock } from '../SectionEditorBlock'
 import type { SectionEditorState } from '../../../types/workspace'
+import { useAutosave } from '../../../hooks/useAutosave'
 
 const baseEditorState: SectionEditorState = {
   section_key: 'executive_summary',
@@ -102,5 +103,60 @@ describe('SectionEditorBlock', () => {
 
   it.skip('injects accepted AI content via editor.commands.setContent', () => {
     expect(true).toBe(false)
+  })
+
+  // Regression test for the "accepted edits revert after reopening the proposal" bug.
+  // Root cause: handleAcceptAIAction persisted the accepted content to the editor + DB,
+  // but never told the parent (ProposalDetail's proposalSections, which SEEDS editors on
+  // remount) about it — so a later remount re-seeded stale content and re-persisted it,
+  // reverting the edit. The fix: SectionEditorBlock must call onSectionContentPersisted
+  // with the accepted html, AFTER the save succeeds, so the parent can keep its seed
+  // source in sync.
+  it('calls onSectionContentPersisted with the accepted html after saveNow succeeds', async () => {
+    const saveNowMock = vi.fn(() => Promise.resolve())
+    vi.mocked(useAutosave).mockReturnValue({
+      triggerAutosave: vi.fn(),
+      cancel: vi.fn(),
+      saveNow: saveNowMock,
+    })
+
+    const onSectionContentPersisted = vi.fn()
+    const stateWithRewrite: SectionEditorState = {
+      ...baseEditorState,
+      ai_action: {
+        type: 'rewrite',
+        streaming: false,
+        preview_content: 'Rewritten content',
+        snapshot_before: '<p>Hello world</p>',
+      },
+    }
+
+    render(
+      <SectionEditorBlock
+        ref={null}
+        sectionKey="executive_summary"
+        sectionTitle="Executive Summary"
+        proposalId="proposal-1"
+        editorState={stateWithRewrite}
+        onSectionContentPersisted={onSectionContentPersisted}
+      />
+    )
+
+    fireEvent.click(screen.getByText('Apply Rewrite'))
+
+    await waitFor(() => {
+      expect(onSectionContentPersisted).toHaveBeenCalled()
+    })
+
+    expect(onSectionContentPersisted).toHaveBeenCalledWith(
+      'executive_summary',
+      expect.stringContaining('Rewritten content')
+    )
+
+    // saveNow must complete BEFORE the parent is notified — otherwise the parent
+    // could be told about content that never made it to the DB.
+    const saveNowCallOrder = saveNowMock.mock.invocationCallOrder[0]
+    const callbackCallOrder = onSectionContentPersisted.mock.invocationCallOrder[0]
+    expect(saveNowCallOrder).toBeLessThan(callbackCallOrder)
   })
 })

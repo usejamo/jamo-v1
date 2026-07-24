@@ -72,7 +72,14 @@ interface Props {
   sections: Array<{ section_key: string; content: string; title?: string }>
   editorRefs: React.MutableRefObject<Map<string, SectionEditorHandle>>
   activeSectionKey?: string | null
-  onEditAccepted?: () => void
+  /**
+   * Called after a pending-edit accept (single/batch/bulk-substitution) has been applied
+   * to the editor, with the section key and its now-current html. ProposalDetail uses this
+   * to keep its `proposalSections` seed source in sync so a later remount cannot revert the
+   * accepted edit — the same invariant SectionEditorBlock enforces for whole-section AI
+   * action accepts (see SectionEditorBlock's onSectionContentPersisted).
+   */
+  onEditAccepted?: (sectionKey: string, html: string) => void
   sectionTitles: Record<string, string>
   onSectionFocusChange?: (key: string | null) => void
   /** Callback to expose pendingActions count to parent (for Sidebar badge) */
@@ -178,7 +185,7 @@ export default function AIChatPanel({
   sections,
   editorRefs,
   activeSectionKey,
-  onEditAccepted: _onEditAccepted,
+  onEditAccepted,
   sectionTitles,
   onSectionFocusChange: _onSectionFocusChange,
   onPendingActionsCountChange,
@@ -203,6 +210,11 @@ export default function AIChatPanel({
 
   // ── Part B state ───────────────────────────────────────────────────────────
   const [pendingActions, setPendingActions] = useState<PendingActionItem[]>([])
+  // onResolved (below) is a stable useCallback with an intentionally empty dep array —
+  // route reads through a ref (same pattern as activeTaskRef) so it always sees the
+  // latest pendingActions when looking up an accepted action's section_key.
+  const pendingActionsRef = useRef<PendingActionItem[]>(pendingActions)
+  pendingActionsRef.current = pendingActions
   const [activeTask, setActiveTask] = useState<ActiveTask | null>(null)
   // The streaming SSE loop in handleSendMessage runs across many renders and must read
   // the LATEST active task when it stamps originating_action onto an ask-then-fill
@@ -259,8 +271,22 @@ export default function AIChatPanel({
           return next
         })
         setPendingActions(prev => prev.filter(a => a.id !== actionId))
+        // Connect the previously-dead onEditAccepted wire: notify the parent with this
+        // section's CURRENT editor content (read live off the ref, not workspaceState —
+        // workspaceState.sections[key].content is still the PRE-accept value at this exact
+        // point, since SectionEditorBlock's PM-transaction effect updates it via a separate,
+        // later dispatch; the live editor ref already reflects the just-applied accept
+        // because SectionWorkspace's effects flush before this component's in the same
+        // commit). A full refetchSections() here would race the 1500ms autosave debounce
+        // and risk overwriting fresh content with stale DB rows — so this passes the html
+        // directly instead of triggering a DB read.
+        const resolvedAction = pendingActionsRef.current.find(a => a.id === actionId)
+        if (resolvedAction) {
+          const html = editorRefs.current?.get(resolvedAction.section_key)?.getContent()
+          if (html != null) onEditAccepted?.(resolvedAction.section_key, html)
+        }
       },
-      [],
+      [editorRefs, onEditAccepted],
     ),
   })
 
