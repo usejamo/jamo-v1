@@ -277,7 +277,12 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
-        max_tokens: debug ? 150 : 4000,
+        // 8000 (not 4000): comprehensive sections render as token-heavy HTML (tables, markup) and
+        // overshoot their word target — a 1000–1200-word comprehensive section is ~3300–4500+ output
+        // tokens, so 4000 clipped scope_of_work mid-generation. 8000 gives them headroom to finish;
+        // the truncation guard (truncationSignal.ts) now trips only on genuine runaways. Sonnet 4.6
+        // supports up to 64k output, so 8000 is well within model limits.
+        max_tokens: debug ? 150 : 8000,
         stream: true,
         system: baseSystem,
         messages: [{ role: 'user', content: userMessage }],
