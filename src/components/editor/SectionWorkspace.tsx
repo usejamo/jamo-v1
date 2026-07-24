@@ -222,8 +222,16 @@ function SectionWorkspaceInner({ proposalId, sections, orgId, editorRefsRef, onA
     // Inject restored content via command API (undoable with Cmd+Z per D-11)
     editorRefs.current.get(sectionKey)?.setContent(restoredContent)
 
+    // Sync the parent's seed source (ProposalDetail's proposalSections) with the
+    // restored content — same invariant as the accept-edit paths in
+    // SectionEditorBlock. setContent above persists via onUpdate → triggerAutosave,
+    // which is debounced, so this must be called with the restored html directly
+    // rather than waiting on the autosave to flush. Without this, a later remount
+    // re-seeds editors from the stale pre-restore content and reverts the restore.
+    onSectionContentPersisted?.(sectionKey, restoredContent)
+
     dispatch({ type: 'CLOSE_VERSION_HISTORY' })
-  }, [state.sections, proposalId, orgId, dispatch])
+  }, [state.sections, proposalId, orgId, dispatch, editorRefs, onSectionContentPersisted])
 
   const versionHistorySectionKey = state.version_history_open
 

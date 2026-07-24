@@ -113,7 +113,16 @@ describe('SectionEditorBlock', () => {
   // with the accepted html, AFTER the save succeeds, so the parent can keep its seed
   // source in sync.
   it('calls onSectionContentPersisted with the accepted html after saveNow succeeds', async () => {
-    const saveNowMock = vi.fn(() => Promise.resolve())
+    // Deferred promise so we can control exactly when saveNow "completes" and
+    // assert the callback hasn't fired yet at that point — a plain
+    // `vi.fn(() => Promise.resolve())` only proves CALL order (via
+    // invocationCallOrder), not COMPLETION order, so a broken variant that drops
+    // the `await` before calling onSectionContentPersisted would still pass it.
+    let resolveSaveNow!: () => void
+    const saveNowPromise = new Promise<void>((resolve) => {
+      resolveSaveNow = resolve
+    })
+    const saveNowMock = vi.fn(() => saveNowPromise)
     vi.mocked(useAutosave).mockReturnValue({
       triggerAutosave: vi.fn(),
       cancel: vi.fn(),
@@ -145,6 +154,21 @@ describe('SectionEditorBlock', () => {
     fireEvent.click(screen.getByText('Apply Rewrite'))
 
     await waitFor(() => {
+      expect(saveNowMock).toHaveBeenCalled()
+    })
+
+    // saveNow has been CALLED but its promise is still pending — the callback must
+    // not fire yet. This is the part a dropped `await` would break: without it,
+    // onSectionContentPersisted would run synchronously after the (un-awaited)
+    // saveNow call, before this promise ever resolves.
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(onSectionContentPersisted).not.toHaveBeenCalled()
+
+    // Now let saveNow's promise resolve (simulating the DB write completing) and
+    // confirm the callback fires only after that.
+    resolveSaveNow()
+
+    await waitFor(() => {
       expect(onSectionContentPersisted).toHaveBeenCalled()
     })
 
@@ -152,11 +176,5 @@ describe('SectionEditorBlock', () => {
       'executive_summary',
       expect.stringContaining('Rewritten content')
     )
-
-    // saveNow must complete BEFORE the parent is notified — otherwise the parent
-    // could be told about content that never made it to the DB.
-    const saveNowCallOrder = saveNowMock.mock.invocationCallOrder[0]
-    const callbackCallOrder = onSectionContentPersisted.mock.invocationCallOrder[0]
-    expect(saveNowCallOrder).toBeLessThan(callbackCallOrder)
   })
 })
