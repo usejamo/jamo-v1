@@ -6,6 +6,7 @@ import { DEFAULT_WIZARD_STATE } from '../types/wizard'
 import type { WizardAssumption, ConfidenceLevel } from '../types/wizard'
 import { generationReducer } from './useProposalGeneration'
 import type { SectionState } from '../types/generation'
+import { useProposals } from '../context/ProposalsContext'
 
 // ── useDemoRun (16-08, D-01/D-03) ────────────────────────────────────────────
 //
@@ -108,6 +109,7 @@ export interface UseDemoRunOptions {
 
 export function useDemoRun(options: UseDemoRunOptions = {}) {
   const sectionDelayMs = options.sectionDelayMs ?? DEMO_SECTION_DELAY_MS
+  const { refetch: refetchProposals } = useProposals()
 
   const [phase, setPhase] = useState<DemoRunPhase>('idle')
   const [run, setRun] = useState<DemoRunInfo | null>(null)
@@ -177,6 +179,12 @@ export function useDemoRun(options: UseDemoRunOptions = {}) {
 
       // Adopt the SERVER's proposal — never mint a second draft.
       wizardDispatch({ type: 'SET_PROPOSAL_ID', id: proposalId })
+      // demo-run-start created this proposal server-side, so ProposalsContext's
+      // login-time list has never seen it. Refetch now (fires well before the
+      // paced reveal ends) so ProposalDetail's `proposals.find(id)` resolves when
+      // the presenter clicks "Open proposal" — otherwise it renders "Proposal not
+      // found." Demo-awareness stays inside useDemoRun, above the population boundary.
+      void refetchProposals()
       wizardDispatch({ type: 'SET_ASSUMPTIONS', assumptions, missing: [] })
       wizardDispatch({ type: 'SET_DOCUMENT_COUNT', count: payload.document_id ? 1 : 0 })
       wizardDispatch({ type: 'SET_TEMPLATE', templateId: payload.template_id ?? STANDARD_TEMPLATE_ID })

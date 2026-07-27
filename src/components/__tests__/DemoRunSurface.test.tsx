@@ -48,6 +48,21 @@ vi.mock('../../context/AuthContext', () => ({
 
 vi.mock('react-router-dom', () => ({ useNavigate: () => vi.fn() }))
 
+// useDemoRun refetches ProposalsContext after demo-run-start (so ProposalDetail's
+// proposals.find(id) resolves the server-created proposal). Provide a stub here.
+vi.mock('../../context/ProposalsContext', () => ({
+  useProposals: () => ({
+    proposals: [],
+    loading: false,
+    error: null,
+    refetch: vi.fn(),
+    createProposal: vi.fn(),
+    updateProposal: vi.fn(),
+    updateStatus: vi.fn(),
+    permanentlyDelete: vi.fn(),
+  }),
+}))
+
 function setOrg(org: { slug: string; feature_flags: Record<string, unknown> } | null) {
   tableResults.organizations = { data: org ? { id: DEMO_ORG, ...org } : null, error: null }
 }

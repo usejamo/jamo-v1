@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { Proposal, ProposalStatus } from '../types/proposal'
 import { supabase } from '../lib/supabase'
@@ -32,6 +32,10 @@ interface ProposalsContextValue {
   proposals: Proposal[]
   loading: boolean
   error: string | null
+  /** Re-load the proposal list from the DB. Needed after a proposal is created
+   *  server-side (e.g. the demo-run-start edge function), which the context's
+   *  login-time fetch and createProposal optimistic insert never see. */
+  refetch: () => Promise<void>
   createProposal: (data: Omit<Proposal, 'id' | 'createdAt'>) => Promise<string>
   updateProposal: (id: string, data: Partial<Omit<Proposal, 'id' | 'createdAt'>>) => Promise<void>
   updateStatus: (id: string, status: ProposalStatus) => Promise<void>
@@ -46,6 +50,22 @@ export function ProposalsProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  const loadProposals = useCallback(async () => {
+    setLoading(true)
+    const { data, error } = await supabase
+      .from('proposals')
+      .select('*')
+      .is('deleted_at', null)
+      .eq('is_archived', false)
+      .order('created_at', { ascending: false })
+    if (error) {
+      setError(error.message)
+    } else {
+      setProposals((data ?? []).map(mapRow))
+    }
+    setLoading(false)
+  }, [])
+
   useEffect(() => {
     // Wait for session — if no session, render with empty state (pre-auth)
     if (!session) {
@@ -53,23 +73,8 @@ export function ProposalsProvider({ children }: { children: ReactNode }) {
       setLoading(false)
       return
     }
-
-    setLoading(true)
-    supabase
-      .from('proposals')
-      .select('*')
-      .is('deleted_at', null)
-      .eq('is_archived', false)
-      .order('created_at', { ascending: false })
-      .then(({ data, error }) => {
-        if (error) {
-          setError(error.message)
-        } else {
-          setProposals((data ?? []).map(mapRow))
-        }
-        setLoading(false)
-      })
-  }, [session])
+    void loadProposals()
+  }, [session, loadProposals])
 
   async function createProposal(data: Omit<Proposal, 'id' | 'createdAt'>): Promise<string> {
     if (!profile) throw new Error('No user profile — cannot create proposal')
@@ -140,6 +145,7 @@ export function ProposalsProvider({ children }: { children: ReactNode }) {
         proposals,
         loading,
         error,
+        refetch: loadProposals,
         createProposal,
         updateProposal,
         updateStatus,
