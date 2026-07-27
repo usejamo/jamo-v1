@@ -93,7 +93,11 @@ Deno.serve(async (req) => {
 
     const stream = await anthropic.messages.stream({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 1500,
+      // 8000 (was 1500): a rewrite must be able to match the size of a section originally
+      // generated at the 8000-token generation ceiling. At 1500 the model was silently
+      // truncated (no truncation guard on this path), so rewrites of comprehensive sections
+      // came back much shorter than the original. 8000 is within Haiku 4.5's output limit.
+      max_tokens: 8000,
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: prompt }],
     })
