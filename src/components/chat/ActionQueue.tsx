@@ -88,7 +88,12 @@ export function ActionQueue({
             transition={{ duration: 0.15 }}
             className="overflow-hidden"
           >
-            <div className="px-0 pb-1">
+            {/* Bound the queue to a fraction of the panel and scroll internally.
+                Without this, a large findings set grows past the fixed-height
+                panel and clips the panel header (and its collapse control) off
+                the top — unrecoverable by refresh since it's driven by finding
+                count, not transient state. */}
+            <div className="px-0 pb-1 max-h-[40vh] overflow-y-auto">
               {/* Active walkthrough continue item */}
               {activeTaskSectionTitle && isWalkthroughActive && (
                 <div className="flex items-center gap-2 py-2 px-3 bg-jamo-50 rounded-lg border border-jamo-200 mx-3 mb-1">
