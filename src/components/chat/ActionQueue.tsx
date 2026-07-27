@@ -18,6 +18,9 @@ export interface ActionQueueProps {
   actions: PendingActionItem[]
   activeTaskSectionTitle?: string | null
   isWalkthroughActive: boolean
+  /** True while gap analysis is in flight — drives the header spinner so the
+   *  user can see suggestions are being gathered. */
+  isAnalyzing?: boolean
   onCtaClick: (action: PendingActionItem) => void
   onDismiss: (actionId: string) => void
   onUndoDismiss: (actionId: string) => void
@@ -28,6 +31,7 @@ export function ActionQueue({
   actions,
   activeTaskSectionTitle,
   isWalkthroughActive,
+  isAnalyzing = false,
   onCtaClick,
   onDismiss,
   onUndoDismiss,
@@ -63,7 +67,21 @@ export function ActionQueue({
         onClick={() => setIsCollapsed(c => !c)}
         aria-expanded={!isCollapsed}
       >
-        <span className="text-xs font-semibold text-gray-700">Suggestions</span>
+        <span className="flex items-center gap-1.5">
+          <span className="text-xs font-semibold text-gray-700">Suggestions</span>
+          {isAnalyzing && (
+            <svg
+              className="w-3 h-3 text-jamo-500 animate-spin"
+              viewBox="0 0 24 24"
+              fill="none"
+              role="status"
+              aria-label="Gathering suggestions"
+            >
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+          )}
+        </span>
         <span className="flex items-center gap-1.5">
           {isCollapsed && active.length > 0 && (
             <span className="text-[10px] text-gray-500">{active.length} items in queue</span>
@@ -112,7 +130,9 @@ export function ActionQueue({
               {/* Empty state */}
               {active.length === 0 && !isWalkthroughActive && (
                 <p className="text-xs text-gray-400 px-3 py-4">
-                  No suggestions right now. Ask me anything below.
+                  {isAnalyzing
+                    ? 'Gathering suggestions…'
+                    : 'No suggestions right now. Ask me anything below.'}
                 </p>
               )}
 

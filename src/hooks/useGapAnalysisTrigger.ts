@@ -17,7 +17,7 @@
 //
 // Wiring into AIChatPanel happens in Plan 02. This hook is fire-and-forget.
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { rebuildFilterSet, identityKey } from '../chat/resolved-items'
 import type { ResolvedItem, FindingType } from '../types/chat'
@@ -86,9 +86,12 @@ function is429(error: unknown): boolean {
 export function useGapAnalysisTrigger(params: {
   proposalId: string | null | undefined
   userId: string | null | undefined
-}): void {
+}): { isAnalyzing: boolean } {
   const { proposalId, userId } = params
 
+  // UI-visible mirror of isAnalyzingRef. The ref stays the concurrency guard
+  // (safe to read in async closures); this state drives the Suggestions spinner.
+  const [isAnalyzing, setIsAnalyzing] = useState(false)
   const hashRef = useRef<string | null>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -148,6 +151,7 @@ export function useGapAnalysisTrigger(params: {
       hashRef.current = hash
 
       isAnalyzingRef.current = true
+      setIsAnalyzing(true)
       try {
         const { error } = await supabase.functions.invoke('analyze-proposal-gaps', {
           body: {
@@ -179,6 +183,7 @@ export function useGapAnalysisTrigger(params: {
         }
       } finally {
         isAnalyzingRef.current = false
+        setIsAnalyzing(false)
       }
     }
 
@@ -330,4 +335,6 @@ export function useGapAnalysisTrigger(params: {
       void supabase.removeChannel(channel)
     }
   }, [proposalId, userId])
+
+  return { isAnalyzing }
 }

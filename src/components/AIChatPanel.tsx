@@ -241,7 +241,7 @@ export default function AIChatPanel({
   // ── Part B trigger (D-30 Realtime debounce + D-35 initial-population) ─────
   // Hook owns its own in-flight ref, content-hash skip, and 429-silence.
   // See src/hooks/useGapAnalysisTrigger.ts.
-  useGapAnalysisTrigger({ proposalId, userId })
+  const { isAnalyzing: isGatheringSuggestions } = useGapAnalysisTrigger({ proposalId, userId })
 
   // Phase 14.2.2 — fires once per propose_edit message when all edits hit a terminal
   // resolution (accepted | rejected | auto_rejected_stale). Free-text origins are skipped
@@ -963,6 +963,7 @@ export default function AIChatPanel({
                   actions={visiblePendingActions}
                   activeTaskSectionTitle={activeTask?.section_title ?? null}
                   isWalkthroughActive={!!activeTask && activeTask.status === 'active'}
+                  isAnalyzing={isGatheringSuggestions}
                   onCtaClick={(action) => {
                     // Phase 14.2.2 D-9: capture snapshot BEFORE edge function call so it
                     // survives a mid-review re-analyze that replaces pending_actions.
