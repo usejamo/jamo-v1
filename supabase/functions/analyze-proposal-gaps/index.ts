@@ -349,18 +349,10 @@ Deno.serve(async (req) => {
   // persisted as a real result. Distinct from a successful run that legitimately
   // produced zero findings, which still writes []. See validation.ts.
   let analysisFailure: string | null = null
-  // ── TEMP DIAGNOSTIC (14.2.3 session-3) — REVERT after. Capture the Haiku→dedup boundary
-  // to diagnose the 0-findings result. ────────────────────────────────────────────────
-  let dbgRaw = '(no text)'
-  let dbgValidated = -1
-  let dbgDeduped = -1
-  let dbgPromptChars = 0
-  let dbgDismissed = ''
   try {
     // Phase 14.2.2 — append RESOLVED_ITEMS block only when annotatedResolved is non-empty.
     // Phase 14.2.3 — block is now a terse, demoted dedup appendix (see buildResolvedBlock).
     const systemPromptForCall = ANALYSIS_SYSTEM_PROMPT + buildResolvedBlock(annotatedResolved)
-    dbgPromptChars = systemPromptForCall.length
     const response = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',  // AI-SPEC: Haiku ONLY — NEVER Sonnet
       // 8192 (was 2048): placeholder-heavy proposals produce 10-15 findings; the
@@ -375,7 +367,6 @@ Deno.serve(async (req) => {
     })
 
     const textBlock = response.content.find((b) => b.type === 'text')
-    dbgRaw = (textBlock as { text?: string } | undefined)?.text ?? '(no text block)'
     // Haiku occasionally wraps its JSON in ```json …``` fences despite the system
     // prompt forbidding it. Strip a leading fence and any trailing fence/whitespace
     // before parsing so we don't lose the entire payload to a JSON.parse exception.
@@ -435,9 +426,6 @@ Deno.serve(async (req) => {
       const deduped = partition.valid.filter(
         (f) => !resolvedUnchanged.has(`${f.section_key}|${f.type}|${f.title}`)
       )
-      dbgValidated = partition.valid.length
-      dbgDeduped = deduped.length
-      dbgDismissed = [...resolvedUnchanged].join(' ;; ')
       // Apply priority ordering and tier caps (D-26/D-28)
       const byPriority = (t: string) => ({ compliance: 1, conflict: 2, gap: 3, missing: 4 }[t] ?? 5)
       const sorted = deduped.sort((a, b) => byPriority(a.type) - byPriority(b.type))
@@ -467,21 +455,13 @@ Deno.serve(async (req) => {
     analysisFailure = msg
   }
 
-  // ── TEMP DIAGNOSTIC insert (14.2.3 session-3) — self-swallowing; REVERT after. ──
-  try {
-    await supabase.from('_gap_debug').insert({
-      proposal_id: proposalId,
-      resolved_count: annotatedResolved.length,
-      dismissed_unchanged: dbgDismissed,
-      validated_count: dbgValidated,
-      deduped_count: dbgDeduped,
-      final_count: pendingActions.length,
-      prompt_chars: dbgPromptChars,
-      haiku_raw: dbgRaw.slice(0, 8000),
-    })
-  } catch (_dbgErr) {
-    // diagnostics must never affect the function
-  }
+  // The TEMP `_gap_debug` diagnostic (14.2.3 session-3) is REMOVED — it captured raw
+  // Haiku output including real client proposal content into an RLS-less, PostgREST-
+  // exposed table (leak verified and closed 2026-07-28). It served its purpose: it is
+  // what root-caused the blank-suggestions bug fixed below. Failures are now visible in
+  // the edge logs instead — `console.warn` names the dropped-finding count and
+  // `console.error` + a 502 mark a hard failure. Do NOT reintroduce a raw-payload table
+  // without RLS.
 
   // 2026-07-27 root-cause fix — a FAILED analysis must never overwrite the user's
   // queue with []. Realtime pushes every chat_sessions write straight into
