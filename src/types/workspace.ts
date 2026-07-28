@@ -183,6 +183,13 @@ export interface SectionEditorHandle {
    *  caller can surface a user-visible message on failure instead of dropping silently.
    *  Both initial propose_edit arrival AND 'Review in editor →' use this as the single entry point. */
   materializePendingEdits: (messageId: string, edits: PendingEdit[]) => MaterializeResult
+  /** Scrolls the viewport to a message's pending edit — the edited paragraph's data-id
+   *  anchor when present, else the section root (id={section_key}). Independent of
+   *  materializePendingEdits, whose idempotency guard early-returns (and so skips its own
+   *  scroll) once the edits are already live — which they always are, since propose_edit
+   *  auto-materializes on arrival. Returns false only when the section root is absent
+   *  from the DOM. See docs/handoffs/2026-07-27-chat-suggestion-bugs-rootcause.md. */
+  scrollToEdit: (messageId: string) => boolean
 }
 
 export const DEFAULT_WORKSPACE_STATE: WorkspaceState = {

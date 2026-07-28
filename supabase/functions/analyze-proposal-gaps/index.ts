@@ -1,6 +1,15 @@
 import Anthropic from "npm:@anthropic-ai/sdk"
 import { createClient } from "npm:@supabase/supabase-js@2"
 import { z } from "npm:zod@^3"
+// Pure, Node-importable helpers (no npm:/jsr: specifiers) so Vitest can cover
+// them — see validation.test.ts. They own the "a failed analysis is never
+// persisted as an empty result" invariant.
+import {
+  partitionFindings,
+  planSessionWrite,
+  contentHashToPersist,
+  type AnalysisOutcome,
+} from "./validation.ts"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -336,6 +345,10 @@ Deno.serve(async (req) => {
   const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY')! })
 
   let pendingActions: z.infer<typeof PendingActionSchema>[] = []
+  // Non-null ⇒ this run FAILED and its (empty) pendingActions must never be
+  // persisted as a real result. Distinct from a successful run that legitimately
+  // produced zero findings, which still writes []. See validation.ts.
+  let analysisFailure: string | null = null
   // ── TEMP DIAGNOSTIC (14.2.3 session-3) — REVERT after. Capture the Haiku→dedup boundary
   // to diagnose the 0-findings result. ────────────────────────────────────────────────
   let dbgRaw = '(no text)'
@@ -381,13 +394,28 @@ Deno.serve(async (req) => {
         console.warn('[analyze-proposal-gaps] salvaged truncated Haiku output —', salvaged.length, 'findings recovered')
         raw = salvaged
       } else {
+        // NOT `raw = []`. An unparseable payload is a FAILURE, not "no issues
+        // found" — persisting it as an empty array is what blanked the user's
+        // suggestions queue. `null` is non-array, so partitionFindings below
+        // returns null and the run is classified as failed.
         console.error('[analyze-proposal-gaps] Haiku output JSON.parse failed', parseErr, 'raw:', textBlock?.text?.slice(0, 500))
-        raw = []
+        raw = null
       }
     }
 
-    const validated = z.array(PendingActionSchema).safeParse(raw)
-    if (validated.success) {
+    // Per-item validation (was: z.array(PendingActionSchema).safeParse(raw)).
+    // One malformed finding used to discard all ~25 valid siblings and persist [].
+    const partition = partitionFindings(raw, (item) => {
+      const r = PendingActionSchema.safeParse(item)
+      return r.success ? r.data : null
+    })
+    if (partition === null) {
+      analysisFailure = 'Haiku output was not a JSON array'
+      console.error('[analyze-proposal-gaps]', analysisFailure)
+    } else {
+      if (partition.rejected > 0) {
+        console.warn('[analyze-proposal-gaps] dropped', partition.rejected, 'malformed finding(s); kept', partition.valid.length)
+      }
       // 14.2.3 — drop findings the user already RESOLVED (fixed OR dismissed) whose section
       // content is UNCHANGED since that resolution, BEFORE tier-capping. At temperature 0
       // Haiku deterministically re-mints the identical finding every run; without this filter
@@ -404,10 +432,10 @@ Deno.serve(async (req) => {
           .filter((r) => r.content_status === 'content_unchanged_since_action')
           .map((r) => `${r.section_key}|${r.finding_type}|${r.title}`)
       )
-      const deduped = validated.data.filter(
+      const deduped = partition.valid.filter(
         (f) => !resolvedUnchanged.has(`${f.section_key}|${f.type}|${f.title}`)
       )
-      dbgValidated = validated.data.length
+      dbgValidated = partition.valid.length
       dbgDeduped = deduped.length
       dbgDismissed = [...resolvedUnchanged].join(' ;; ')
       // Apply priority ordering and tier caps (D-26/D-28)
@@ -420,10 +448,6 @@ Deno.serve(async (req) => {
         counts[tier]++
         return true
       }).slice(0, QUEUE_CAP)
-    } else {
-      // Validation failure: return empty array, log error (D-34: safe fallback)
-      console.error('[analyze-proposal-gaps] Haiku output failed Zod validation', validated.error.flatten())
-      pendingActions = []
     }
   } catch (err) {
     // Surface "credit balance is too low" as 402 so the client can show a dedicated banner
@@ -436,9 +460,11 @@ Deno.serve(async (req) => {
         { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
-    // LLM call failed: return empty array (not crash)
+    // LLM call failed. NOT `pendingActions = []` — that persisted the outage as a
+    // legitimate "no issues found" and blanked the user's queue. Classify as failed
+    // so planSessionWrite leaves pending_actions untouched.
     console.error('[analyze-proposal-gaps] Haiku call failed', err)
-    pendingActions = []
+    analysisFailure = msg
   }
 
   // ── TEMP DIAGNOSTIC insert (14.2.3 session-3) — self-swallowing; REVERT after. ──
@@ -457,41 +483,84 @@ Deno.serve(async (req) => {
     // diagnostics must never affect the function
   }
 
-  // D-34 + D-45: Upsert with composite conflict target (proposal_id, user_id)
-  // Canonical store: chat_sessions.pending_actions (NOT proposal_chats.tool_data)
-  // org_id is required (NOT NULL column + RLS WITH CHECK).
-  const { error: upsertErr } = await supabase
-    .from('chat_sessions')
-    .upsert(
-      {
-        proposal_id: proposalId,
-        org_id: orgId,
-        user_id: userId,
-        pending_actions: pendingActions,
-        // D-3 desync guard: written in the SAME upsert object as pending_actions so the
-        // two never diverge. 14.2.3 cache-trap fix (defense in depth): NEVER cache an
-        // EMPTY result. When pendingActions is empty we persist null so the next mount
-        // re-runs, instead of letting "[] + matching hash" become a permanent cached
-        // empty (the bug where suggestions disappeared and never came back). A genuinely
-        // clean proposal therefore re-analyzes on each open (bounded by the 30s cooldown)
-        // — that is intentional; do NOT "optimize" empties back into the cache.
-        pending_actions_content_hash: pendingActions.length > 0 ? (contentHash ?? null) : null,
-        // #1 cooldown clock: written on EVERY completed run, INCLUDING empty ones.
-        // This is the DELIBERATE OPPOSITE of pending_actions_content_hash above —
-        // the hash writes null on empty (so the next mount re-runs), but the cooldown
-        // timestamp must always advance so an empty run still starts the 30s window
-        // and back-to-back analyses are throttled. Only this function writes this
-        // column; chat writes never touch it (that decoupling is the whole fix).
-        pending_actions_generated_at: new Date().toISOString(),
-        last_updated: new Date().toISOString(),
-      },
-      { onConflict: 'proposal_id,user_id' }
-    )
+  // 2026-07-27 root-cause fix — a FAILED analysis must never overwrite the user's
+  // queue with []. Realtime pushes every chat_sessions write straight into
+  // AIChatPanel (setPendingActions(row.pending_actions ?? [])), and the client's
+  // guards only ever SUBTRACT findings — nothing can restore an array the server
+  // blanked, so the queue stayed empty until the next successful run. Confirmed in
+  // prod `_gap_debug`: 3 runs with validated_count = -1 → final_count = 0, each
+  // between two healthy runs on the same proposal.
+  // See docs/handoffs/2026-07-27-chat-suggestion-bugs-rootcause.md.
+  const outcome: AnalysisOutcome<z.infer<typeof PendingActionSchema>> = analysisFailure
+    ? { status: 'failed', reason: analysisFailure }
+    : { status: 'ok', findings: pendingActions }
+  // `session` is the row read for the cooldown gate above — null when this is the
+  // first-ever analysis for (proposal, user).
+  const plan = planSessionWrite(outcome, session != null)
+  const nowIso = new Date().toISOString()
+
+  let upsertErr: { message: string } | null = null
+  if (plan === 'full') {
+    // D-34 + D-45: Upsert with composite conflict target (proposal_id, user_id)
+    // Canonical store: chat_sessions.pending_actions (NOT proposal_chats.tool_data)
+    // org_id is required (NOT NULL column + RLS WITH CHECK).
+    const { error } = await supabase
+      .from('chat_sessions')
+      .upsert(
+        {
+          proposal_id: proposalId,
+          org_id: orgId,
+          user_id: userId,
+          pending_actions: pendingActions,
+          // D-3 desync guard: written in the SAME upsert object as pending_actions so the
+          // two never diverge. 14.2.3 cache-trap fix (defense in depth): NEVER cache an
+          // EMPTY result. When pendingActions is empty we persist null so the next mount
+          // re-runs, instead of letting "[] + matching hash" become a permanent cached
+          // empty (the bug where suggestions disappeared and never came back). A genuinely
+          // clean proposal therefore re-analyzes on each open (bounded by the 30s cooldown)
+          // — that is intentional; do NOT "optimize" empties back into the cache.
+          pending_actions_content_hash: contentHashToPersist(pendingActions.length, contentHash),
+          // #1 cooldown clock: written on EVERY completed run, INCLUDING empty ones.
+          // This is the DELIBERATE OPPOSITE of pending_actions_content_hash above —
+          // the hash writes null on empty (so the next mount re-runs), but the cooldown
+          // timestamp must always advance so an empty run still starts the 30s window
+          // and back-to-back analyses are throttled. Only this function writes this
+          // column; chat writes never touch it (that decoupling is the whole fix).
+          pending_actions_generated_at: nowIso,
+          last_updated: nowIso,
+        },
+        { onConflict: 'proposal_id,user_id' }
+      )
+    upsertErr = error
+  } else if (plan === 'cooldown-only') {
+    // Failed run, session row exists: advance ONLY the cooldown clock so retries stay
+    // throttled at 30s. pending_actions / pending_actions_content_hash are deliberately
+    // untouched — the existing queue stays on screen, and the unchanged (or null) hash
+    // means the next mount re-runs the analysis.
+    const { error } = await supabase
+      .from('chat_sessions')
+      .update({ pending_actions_generated_at: nowIso, last_updated: nowIso })
+      .eq('proposal_id', proposalId)
+      .eq('user_id', userId)
+    upsertErr = error
+  }
+  // plan === 'skip': failed run with no session row yet. A cooldown-only upsert would
+  // create a row whose pending_actions is null, so write nothing at all.
+
   if (upsertErr) {
-    console.error('[analyze-proposal-gaps] chat_sessions upsert failed', upsertErr)
+    console.error('[analyze-proposal-gaps] chat_sessions write failed', upsertErr)
     return new Response(
-      JSON.stringify({ error: 'chat_sessions upsert failed', detail: upsertErr.message }),
+      JSON.stringify({ error: 'chat_sessions write failed', detail: upsertErr.message }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  if (analysisFailure) {
+    // Non-2xx so the caller can tell this run produced nothing. useGapAnalysisTrigger
+    // treats only 429/402 as silent, so this surfaces as a debug log, not a toast.
+    return new Response(
+      JSON.stringify({ error: 'analysis_failed', detail: analysisFailure, run_id }),
+      { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
 

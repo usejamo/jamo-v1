@@ -1136,7 +1136,28 @@ export default function AIChatPanel({
                                     sectionKey={payload.section_key}
                                     message_id={msg.id}
                                     onReviewInEditor={() => {
-                                      editorRefs.current?.get(payload.section_key)?.materializePendingEdits(msg.id, buildEdits())
+                                      // Materialize is idempotent — by the time this card is
+                                      // clickable the edits are almost always already live
+                                      // (propose_edit auto-materializes on arrival, ~line 770),
+                                      // so materializePendingEdits early-returns on its
+                                      // idempotency guard and never reaches its own
+                                      // scrollIntoView. "Review in editor" is a NAVIGATION
+                                      // action, so focus + scroll unconditionally via
+                                      // scrollToEdit — parity with the ActionQueue CTA path
+                                      // (~line 976). Root cause:
+                                      // docs/handoffs/2026-07-27-chat-suggestion-bugs-rootcause.md
+                                      const handle = editorRefs.current?.get(payload.section_key)
+                                      handle?.materializePendingEdits(msg.id, buildEdits())
+                                      _onSectionFocusChange?.(payload.section_key)
+                                      requestAnimationFrame(() => {
+                                        // Falls back to the section root when the paragraph
+                                        // anchor isn't in the DOM (e.g. editor not mounted).
+                                        if (!handle?.scrollToEdit(msg.id)) {
+                                          document
+                                            .getElementById(payload.section_key)
+                                            ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                                        }
+                                      })
                                     }}
                                     onAcceptAll={() => {
                                       // Materialize this message's edits if not already live, then

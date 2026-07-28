@@ -103,6 +103,7 @@ function makeEditorRefs(handle?: Partial<SectionEditorHandle>) {
       setContent: vi.fn(),
       saveNow: vi.fn(() => Promise.resolve()),
       materializePendingEdits: vi.fn(() => ({ ok: true as const, applied: 1 })),
+      scrollToEdit: vi.fn(() => true),
       ...handle,
     }
     map.set('understanding', fullHandle)
@@ -174,6 +175,56 @@ describe('AIChatPanel', () => {
     await waitFor(() => {
       expect(screen.queryByText('Review proposed changes')).toBeTruthy()
     }, { timeout: 3000 })
+  })
+
+  // Regression: "Review in editor" did not move the viewport to the edit.
+  // propose_edit auto-materializes on arrival (AIChatPanel.tsx:770-788) with edit ids
+  // `${msgId}-${i}`; the card's handler re-minted the SAME ids, so
+  // materializePendingEdits hit its idempotency guard and early-returned BEFORE its
+  // scrollIntoView. See docs/handoffs/2026-07-27-chat-suggestion-bugs-rootcause.md.
+  it('scrolls the editor to the edit when "Review in editor" is clicked', async () => {
+    const editorRefs = makeEditorRefs({})
+    const onSectionFocusChange = vi.fn()
+
+    const mockStream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('data: {"type":"tool_start","tool":"propose_edit"}\n\n'))
+        controller.enqueue(new TextEncoder().encode('data: {"type":"tool_result","tool":"propose_edit","result":{"section_key":"understanding","overall_summary":"Rewrote the section","changes":[{"paragraph_id":"para-1","operation":"replace","before_html":"<p data-id=\\"para-1\\">old</p>","after_html":"<p data-id=\\"para-1\\">new</p>","change_summary":"tighter"}]}}\n\n'))
+        controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'))
+        controller.close()
+      },
+    })
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce({ ok: true, body: mockStream }))
+
+    renderWithWorkspace(
+      <AIChatPanel
+        {...defaultProps}
+        editorRefs={editorRefs}
+        activeSectionKey="understanding"
+        onSectionFocusChange={onSectionFocusChange}
+      />
+    )
+
+    const input = screen.getByPlaceholderText('Ask jamo to edit...')
+    fireEvent.change(input, { target: { value: 'Rewrite this section' } })
+    await act(async () => {
+      fireEvent.keyDown(input, { key: 'Enter' })
+      await new Promise(r => setTimeout(r, 100))
+    })
+
+    const reviewBtn = await screen.findByText(/Review in editor/, {}, { timeout: 3000 })
+
+    const handle = editorRefs.current.get('understanding')!
+    ;(handle.scrollToEdit as ReturnType<typeof vi.fn>).mockClear()
+
+    await act(async () => {
+      fireEvent.click(reviewBtn)
+      // the scroll is deferred to the next frame, as on the CTA path
+      await new Promise(r => requestAnimationFrame(() => r(null)))
+    })
+
+    expect(handle.scrollToEdit).toHaveBeenCalledTimes(1)
+    expect(onSectionFocusChange).toHaveBeenCalledWith('understanding')
   })
 
   it('streams content into message bubble without layout thrash', async () => {

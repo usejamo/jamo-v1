@@ -38,10 +38,19 @@ export default defineConfig({
       '**/e2e/**',
       'supabase/migrations/**',
       'supabase/tests/**',
-      'supabase/functions/!(generate-proposal-section|template-extract|demo-capture-fixture)/**',
+      'supabase/functions/!(generate-proposal-section|template-extract|demo-capture-fixture|analyze-proposal-gaps)/**',
       'supabase/functions/generate-proposal-section/!(promptAssembly.test|truncationSignal.test).*',
       'supabase/functions/template-extract/!(coverage.test).*',
       'supabase/functions/demo-capture-fixture/!(proseScan.test).*',
+      // analyze-proposal-gaps/validation.test.ts is a pure Vitest spec for
+      // validation.ts. Its __tests__/ dir must stay excluded explicitly: the
+      // tier-2 pattern below only matches the function dir's top level, so
+      // carving the function out of tier 1 would otherwise start collecting
+      // __tests__/*.test.ts — four Deno-targeted files that import index.ts and
+      // its `npm:` specifiers (stubbed to {} by denoSpecifierStubPlugin, so
+      // `z.object(...)` throws at module load).
+      'supabase/functions/analyze-proposal-gaps/__tests__/**',
+      'supabase/functions/analyze-proposal-gaps/!(validation.test).*',
     ],
     globals: true,
     pool: 'forks',

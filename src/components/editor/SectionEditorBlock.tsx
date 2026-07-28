@@ -473,6 +473,36 @@ export const SectionEditorBlock = forwardRef<SectionEditorHandle, SectionEditorB
       return { ok: true, applied: editsWithHash.length }
     }, [editor, workspaceState, workspaceDispatch, sectionKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
+    /**
+     * Move the viewport to a message's pending edit. Deliberately INDEPENDENT of
+     * materializePendingEdits: "Review in editor" is a navigation action and must
+     * scroll every time, but materializePendingEdits early-returns on its
+     * idempotency guard (above) whenever the edits are already live — which they
+     * always are, because propose_edit auto-materializes on arrival
+     * (AIChatPanel.tsx, the tool_result handler) using the SAME `${msgId}-${i}`
+     * edit ids the card re-mints. That early return skipped the scroll at the end
+     * of materializePendingEdits, so nothing moved. See
+     * docs/handoffs/2026-07-27-chat-suggestion-bugs-rootcause.md.
+     *
+     * Targets the edited paragraph's `data-id` anchor when present (edits carry
+     * paragraph_id; the pendingEdits decorations render `data-id` blocks), and
+     * falls back to the section root, which carries id={sectionKey} — the same
+     * primitive the ActionQueue CTA and sidebar navigation use. DOM-only, so it
+     * still works when the editor instance is not mounted.
+     */
+    const scrollToEdit = useCallback((messageId: string): boolean => {
+      const root = document.getElementById(sectionKey)
+      if (!root) return false
+      const edits = workspaceState.sections[sectionKey]?.pending_edits ?? []
+      const anchorId = edits.find((e) => e.message_id === messageId && e.paragraph_id)?.paragraph_id
+      const target = anchorId
+        ? root.querySelector(`[data-id=${JSON.stringify(anchorId)}]`)
+        : null
+      const el = (target as HTMLElement | null) ?? root
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      return true
+    }, [sectionKey, workspaceState])
+
     useImperativeHandle(ref, (): SectionEditorHandle => ({
       insertContentAt: (pos: number, content: string) => {
         editor?.commands.insertContentAt(pos, content)
@@ -485,7 +515,8 @@ export const SectionEditorBlock = forwardRef<SectionEditorHandle, SectionEditorB
       },
       saveNow: (html: string) => saveNow(html),
       materializePendingEdits,
-    }), [saveNow, materializePendingEdits]) // eslint-disable-line react-hooks/exhaustive-deps
+      scrollToEdit,
+    }), [saveNow, materializePendingEdits, scrollToEdit]) // eslint-disable-line react-hooks/exhaustive-deps
 
     const isEmpty = !editorState.content && !editorState.ai_action?.streaming
 
