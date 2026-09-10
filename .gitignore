@@ -52,3 +52,6 @@ CODEX-REVIEW.md
 
 # Regulatory starter-corpus PDFs (operator-supplied; folder structure documented, not the binaries)
 regulatory-docs/**/*.pdf
+
+# Personal ops checklist (points at .env for creds, not meant for the repo)
+docs/onboarding-steps.md
