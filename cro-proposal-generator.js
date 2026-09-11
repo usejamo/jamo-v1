@@ -536,6 +536,7 @@ export const THERAPEUTIC_AREAS = [
 ];
 
 export const STUDY_PHASES = [
+  'Drug Discovery',
   'Phase I (First-in-Human)',
   'Phase I/II',
   'Phase II',
