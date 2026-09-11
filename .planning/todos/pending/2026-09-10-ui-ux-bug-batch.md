@@ -106,11 +106,26 @@ systematic-debugging for bugs) when we pick it up.
   relaxation level 2->0. Remaining work is precision, not recall: see 13-15.
   _Type: investigation / tuning - RAG retrieval (retrieve-context)_
 
-- [ ] **6. Proposal status popover clipped by list container**
+- [x] **6. Proposal status popover clipped by list container**
   Clicking status opens the Draft/Lost/Submitted/etc. menu, but it's hidden
   behind the proposal-list container when few proposals are listed (no room to
   render). Needs portal / overflow fix so it always shows.
   _Type: bug - frontend (proposal list, overflow/z-index/portal)_
+  Shipped 2026-09-11. NOTE the reported cause was not the actual one: the
+  clipper is not the proposal-list container but the app shell's scroll area —
+  <main class="flex-1 overflow-y-auto"> inside <div class="h-screen
+  overflow-hidden">. The menu was `absolute`, so any trigger near the BOTTOM OF
+  THE VIEWPORT opened a menu that ran past that scroll container and was cut
+  off; row count is incidental. Measured before: menu bottom 846px vs container
+  bottom 730px, 116px invisible and unclickable.
+  Fixed by portalling the menu to document.body with fixed coordinates measured
+  from the trigger, flipping above the trigger when there is no room below, and
+  repositioning on scroll (capture phase, so inner scroll containers count) and
+  resize. Click-outside now checks the portal node too, or every menu click
+  would have read as a click-outside.
+  Verified in-browser: menu now 538-676 inside a 730 container, opens upward,
+  and elementFromPoint at its centre returns the menu itself (genuinely on top,
+  not merely positioned).
 
 - [ ] **7. Archive / delete / permanent-delete don't update list immediately**
   Archived proposal stays in Active AND Archive until page refresh.
