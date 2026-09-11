@@ -87,11 +87,18 @@ function ExportDropdown({ getSections, proposalTitle, templateFilePath }: Export
       const { data, error } = await supabase.storage
         .from('documents')
         .createSignedUrl(filePath, 3600)
-      if (error || !data?.signedUrl) return null
+      if (error || !data?.signedUrl) {
+        console.error('[fetchTemplateBlob] could not sign', filePath, error)
+        return null
+      }
       const resp = await fetch(data.signedUrl)
-      if (!resp.ok) return null
+      if (!resp.ok) {
+        console.error('[fetchTemplateBlob] fetch failed', filePath, resp.status)
+        return null
+      }
       return await resp.blob()
-    } catch {
+    } catch (err) {
+      console.error('[fetchTemplateBlob] network error', filePath, err)
       return null  // D-03: network error falls through to unstyled export
     }
   }
@@ -329,24 +336,51 @@ export default function ProposalDetail() {
   }, [id])
 
   useEffect(() => {
-    const templateId = (proposal as any)?.selected_template_id
-    if (!templateId) return
-    supabase
-      .from('templates')
-      .select('name, file_path, source')
-      .eq('id', templateId)
-      .single()
-      .then(({ data }) => {
-        if (data?.name) setTemplateName(data.name)
-        // D-11: only uploaded DOCX templates are eligible for style extraction
-        if (
-          data?.source === 'uploaded' &&
-          data?.file_path?.toLowerCase().endsWith('.docx')
-        ) {
-          setTemplateFilePath(data.file_path)
+    if (!id) return
+    let cancelled = false
+    ;(async () => {
+      // The wizard writes selected_template_id with a direct UPDATE that never reaches
+      // ProposalsContext, so the context row is still null when we land here straight
+      // from Generate. Fall back to reading the column off the proposal row itself —
+      // otherwise the whole style-swap step is skipped silently on that path.
+      let templateId = (proposal as any)?.selected_template_id as string | null | undefined
+      if (!templateId) {
+        const { data, error } = await supabase
+          .from('proposals')
+          .select('selected_template_id')
+          .eq('id', id)
+          .single()
+        if (error) {
+          console.error('[ProposalDetail] failed to read selected_template_id:', error)
+          return
         }
-      })
-  }, [(proposal as any)?.selected_template_id])
+        templateId = data?.selected_template_id
+      }
+      if (!templateId || cancelled) return
+
+      const { data, error } = await supabase
+        .from('templates')
+        .select('name, file_path, source')
+        .eq('id', templateId)
+        .single()
+      if (cancelled) return
+      if (error) {
+        console.error('[ProposalDetail] failed to load template', templateId, error)
+        return
+      }
+      if (data?.name) setTemplateName(data.name)
+      // D-11: only uploaded DOCX templates are eligible for style extraction
+      if (
+        data?.source === 'uploaded' &&
+        data?.file_path?.toLowerCase().endsWith('.docx')
+      ) {
+        setTemplateFilePath(data.file_path)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [id, (proposal as any)?.selected_template_id])
 
   // Phase 9: editor refs for chat injection
   const editorRefsMap = useRef<Map<string, SectionEditorHandle>>(new Map())

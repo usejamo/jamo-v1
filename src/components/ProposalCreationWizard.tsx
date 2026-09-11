@@ -33,7 +33,7 @@ function getInitialState(): WizardState {
 
 export function ProposalCreationWizard() {
   const { closeModal, isOpen } = useProposalModal()
-  const { createProposal } = useProposals()
+  const { createProposal, refetch } = useProposals()
   const { profile } = useAuth()
   const navigate = useNavigate()
   const [state, dispatch] = useReducer(wizardReducer, undefined, getInitialState)
@@ -177,6 +177,11 @@ export function ProposalCreationWizard() {
           console.error('[ProposalCreationWizard] Failed to create proposal sections:', insertError)
         }
       }
+
+      // createProposal's optimistic insert carries selected_template_id: null, and the
+      // UPDATE above bypasses the context entirely. Refresh before navigating so
+      // ProposalDetail sees the chosen template instead of a stale null.
+      await refetch()
 
       sessionStorage.removeItem(SESSION_KEY)
       closeModal()

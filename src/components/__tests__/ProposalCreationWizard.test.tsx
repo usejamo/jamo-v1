@@ -5,6 +5,7 @@ import { ProposalCreationWizard } from '../ProposalCreationWizard'
 const mockCloseModal = vi.fn()
 const mockCreateProposal = vi.fn()
 const mockNavigate = vi.fn()
+const mockRefetch = vi.fn().mockResolvedValue(undefined)
 
 vi.mock('../../lib/supabase', () => {
   const mockChain: any = {
@@ -58,6 +59,7 @@ vi.mock('../../context/ProposalsContext', () => ({
     createProposal: mockCreateProposal,
     updateProposal: vi.fn(),
     permanentlyDelete: vi.fn(),
+    refetch: mockRefetch,
   })),
 }))
 

@@ -35,7 +35,13 @@ export async function applyTemplateStyles(
       genZip.file(path, content)
     }
 
-    return await genZip.generateAsync({ type: 'blob' })
+    // Without an explicit mimeType JSZip stamps the blob 'application/zip', which
+    // makes the styled export disagree with the unstyled one Packer.toBlob produces.
+    return await genZip.generateAsync({
+      type: 'blob',
+      mimeType:
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    })
   } catch (err) {
     console.error('[applyTemplateStyles] failed, returning original:', err)
     return generated  // D-03: never fail the export
