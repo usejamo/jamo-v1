@@ -456,7 +456,7 @@ export default function Settings() {
           <div>
             <p className="text-sm font-semibold text-gray-800">Connected platforms</p>
             <p className="text-xs text-gray-500 mt-0.5">
-              Manage the tools jamo syncs with to keep your proposal data up to date.
+              Manage the tools Jamo syncs with to keep your proposal data up to date.
             </p>
           </div>
           <div className="grid grid-cols-3 gap-5">

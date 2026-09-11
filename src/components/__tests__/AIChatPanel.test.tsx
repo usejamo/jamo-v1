@@ -164,7 +164,7 @@ describe('AIChatPanel', () => {
     )
 
     // Submit a message to trigger streaming
-    const input = screen.getByPlaceholderText('Ask jamo to edit...')
+    const input = screen.getByPlaceholderText('Ask Jamo to edit...')
     fireEvent.change(input, { target: { value: 'Rewrite this section' } })
     await act(async () => {
       fireEvent.keyDown(input, { key: 'Enter' })
@@ -205,7 +205,7 @@ describe('AIChatPanel', () => {
       />
     )
 
-    const input = screen.getByPlaceholderText('Ask jamo to edit...')
+    const input = screen.getByPlaceholderText('Ask Jamo to edit...')
     fireEvent.change(input, { target: { value: 'Rewrite this section' } })
     await act(async () => {
       fireEvent.keyDown(input, { key: 'Enter' })
@@ -239,7 +239,7 @@ describe('AIChatPanel', () => {
 
     renderWithWorkspace(<AIChatPanel {...defaultProps} />)
 
-    const input = screen.getByPlaceholderText('Ask jamo to edit...')
+    const input = screen.getByPlaceholderText('Ask Jamo to edit...')
     fireEvent.change(input, { target: { value: 'Hello' } })
 
     await act(async () => {
@@ -278,7 +278,7 @@ describe('AIChatPanel', () => {
 
     renderWithWorkspace(<AIChatPanel {...defaultProps} />)
 
-    const input = screen.getByPlaceholderText('Ask jamo to edit...')
+    const input = screen.getByPlaceholderText('Ask Jamo to edit...')
     fireEvent.change(input, { target: { value: 'Test message' } })
 
     await act(async () => {

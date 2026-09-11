@@ -43,8 +43,8 @@ export default function ProposalContentsSidebar({ sections, generated }: Props) 
       {/* Brand */}
       <div className="p-6 border-b border-gray-200 shrink-0">
         <div className="flex items-center gap-3">
-          <img src={jamoLogo} alt="jamo" className="h-10 w-10" />
-          <span className="text-xl font-bold text-gray-900">jamo</span>
+          <img src={jamoLogo} alt="Jamo" className="h-10 w-10" />
+          <span className="text-xl font-bold text-gray-900">Jamo</span>
         </div>
       </div>
 

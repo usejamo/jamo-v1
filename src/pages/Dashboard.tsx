@@ -154,11 +154,11 @@ export default function Dashboard() {
         </button>
       </div>
 
-      {/* ── jamo Pulse — triage summary ── */}
+      {/* ── Jamo Pulse — triage summary ── */}
       <div className="bg-purple-50/50 border border-purple-100 rounded-xl px-5 py-3.5">
-        <span className="text-[10px] font-bold text-purple-400 uppercase tracking-widest">jamo Pulse</span>
+        <span className="text-[10px] font-bold text-purple-400 uppercase tracking-widest">Jamo Pulse</span>
         <p className="text-sm text-gray-700 mt-1">
-          <span className="font-semibold text-gray-800">jamo Insight:</span>{' '}
+          <span className="font-semibold text-gray-800">Jamo Insight:</span>{' '}
           {`${priorityItems.length} proposal${priorityItems.length !== 1 ? 's' : ''} require${priorityItems.length === 1 ? 's' : ''} immediate attention — review the Priority Focus list below.`}
         </p>
       </div>
