@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import type { WizardState, WizardAction, WizardAssumption } from '../../types/wizard'
+import { coerceAssumptionCategory } from '../../types/wizard'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import { FileUpload } from '../FileUpload'
@@ -87,7 +88,7 @@ export function Step2DocumentUpload({ state, dispatch, demoMode = false }: Step2
             source?: string
           }) => ({
             id: crypto.randomUUID(),
-            category: a.category,
+            category: coerceAssumptionCategory(a.category),
             value: a.value,
             confidence:
               a.confidence >= 0.8 ? 'high' : a.confidence >= 0.5 ? 'medium' : 'low',
@@ -105,7 +106,7 @@ export function Step2DocumentUpload({ state, dispatch, demoMode = false }: Step2
             const rows = (data.assumptions as Array<{ category: string; value: string; confidence: number; source?: string }>).map((a) => ({
               proposal_id: state.proposalId,
               org_id: profile?.org_id,
-              category: a.category,
+              category: coerceAssumptionCategory(a.category),
               content: a.value,
               confidence: a.confidence >= 0.8 ? 'high' : a.confidence >= 0.5 ? 'medium' : 'low',
               status: 'pending',

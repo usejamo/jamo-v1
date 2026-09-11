@@ -22,9 +22,57 @@ export type AssumptionStatus = 'pending' | 'approved' | 'rejected'
 export type ConfidenceLevel = 'high' | 'medium' | 'low'
 export type ExtractionStatus = 'idle' | 'extracting' | 'complete' | 'error' | 'no_content'
 
+// Assumption categories — the single source of truth.
+//
+// This list is NOT cosmetic. generate-proposal-section/promptAssembly.ts renders
+// each assumption to the model as `- [${category}] ${content}` under a
+// "## EXTRACTED ASSUMPTIONS" heading, so the category is an (uninstructed)
+// semantic tag the model reads. Nothing in the code branches on it.
+//
+// These five are what extract-assumptions/index.ts actually emits and what all
+// 950 production rows use. Three older comments disagreed with each other and
+// with production — the migration documented a 'missing' value that has never
+// existed, and omitted 'criteria', which is 12.6% of live rows. Prefer this
+// list over any of them. proposal_assumptions.category is bare TEXT with no
+// CHECK constraint; see coerceAssumptionCategory for why that is deliberate.
+export const ASSUMPTION_CATEGORIES = [
+  'sponsor_metadata',
+  'scope',
+  'timeline',
+  'budget',
+  'criteria',
+] as const
+
+export type AssumptionCategory = (typeof ASSUMPTION_CATEGORIES)[number]
+
+export const ASSUMPTION_CATEGORY_LABELS: Record<AssumptionCategory, string> = {
+  sponsor_metadata: 'Sponsor Info',
+  scope: 'Scope',
+  timeline: 'Timeline',
+  budget: 'Budget',
+  criteria: 'Eligibility Criteria',
+}
+
+export const DEFAULT_ASSUMPTION_CATEGORY: AssumptionCategory = 'scope'
+
+// Narrow an untrusted category into the union, falling back to 'scope'.
+//
+// The values coming out of extract-assumptions are produced by an LLM, and
+// Step2DocumentUpload batch-inserts them fire-and-forget behind a console.error.
+// A DB CHECK constraint would turn one hallucinated category into a failed
+// insert that silently loses the entire extraction batch, so validation lives
+// here at the ingest boundary instead.
+export function coerceAssumptionCategory(value: unknown): AssumptionCategory {
+  if (typeof value !== 'string') return DEFAULT_ASSUMPTION_CATEGORY
+  const normalized = value.trim().toLowerCase()
+  return (ASSUMPTION_CATEGORIES as readonly string[]).includes(normalized)
+    ? (normalized as AssumptionCategory)
+    : DEFAULT_ASSUMPTION_CATEGORY
+}
+
 export interface WizardAssumption {
   id: string           // temp UUID
-  category: string     // 'sponsor_metadata'|'scope'|'timeline'|'budget'|'criteria'
+  category: AssumptionCategory
   value: string        // assumption text (editable); maps to DB column 'content' on persist
   confidence: ConfidenceLevel
   source: string       // document filename or 'user-provided'
