@@ -148,7 +148,7 @@ export function ReferenceLibraryTab() {
           Reference Library
         </p>
         <p className="text-xs text-gray-500 mb-4">
-          Control which of your organization&apos;s past proposals jamo may draw on as reference
+          Control which of your organization&apos;s past proposals Jamo may draw on as reference
           material when generating new proposals. Draft proposals are never used as a reference
           for another proposal, regardless of these settings.
         </p>

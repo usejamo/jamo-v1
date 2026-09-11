@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import jamoMark from '../assets/svg/logo-icon.svg'
 import { supabase } from '../lib/supabase'
 import type { ChatMessage, ProposeEditPayload, ProposeEditState, AnswerWithCitationsPayload, CompliancePayload, AskUserPayload } from '../types/chat'
 import type { ToolDataEnvelope, ChatMessageType, OriginatingActionSnapshot, ResolvedItem } from '../types/chat'
@@ -96,36 +97,30 @@ function PanelCloseIcon() {
   )
 }
 
-function SparkleIcon({ className = 'w-4 h-4' }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="-3 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
-    </svg>
-  )
-}
-
-// ── Spectrum sparkle button (ROYGBIV pulse) ───────────────────────────────────
+// ── Jamo mark button ─────────────────────────────────────────────────────────
+//
+// Was a ROYGBIV gradient square with a generic sparkle glyph — a stock "AI"
+// signifier that looked like nothing else in the product. Now the Jamo rocket
+// mark, so the assistant is branded as Jamo rather than as generic AI.
+// Interaction is unchanged: same click target, hover/tap springs and pending
+// badge; only the visual is swapped, with the glow retinted to the brand purple
+// that the mark itself uses.
 
 function SpectrumSparkle({ onToggle, pendingActionsCount }: { onToggle: () => void; pendingActionsCount?: number }) {
   return (
     <div className="relative">
       <motion.div
         onClick={onToggle}
-        className="roygbiv-spin p-[1.5px] rounded-lg shrink-0 cursor-pointer"
-        style={{
-          background: 'linear-gradient(135deg, #ff0000, #ff7f00, #ffff00, #00cc44, #0066ff, #4b0082, #8b00ff)',
-          boxShadow: '0 0 8px 2px rgba(255, 80, 80, 0.35)',
-        }}
+        className="rounded-lg shrink-0 cursor-pointer bg-white flex items-center justify-center w-8 h-8"
+        style={{ boxShadow: '0 0 8px 2px rgba(109, 40, 217, 0.25)' }}
         whileHover={{
           scale: 1.08,
-          boxShadow: '0 0 16px 5px rgba(255, 80, 80, 0.55)',
+          boxShadow: '0 0 16px 5px rgba(109, 40, 217, 0.45)',
         }}
         whileTap={{ scale: 0.93 }}
         transition={{ type: 'spring', stiffness: 400, damping: 20 }}
       >
-        <div className="w-7 h-7 rounded-[6px] bg-white flex items-center justify-center">
-          <SparkleIcon className="w-3.5 h-3.5 text-red-500" />
-        </div>
+        <img src={jamoMark} alt="" aria-hidden="true" className="w-5 h-5 object-contain" />
       </motion.div>
       {pendingActionsCount != null && pendingActionsCount > 0 && (
         <span className="absolute -top-1 -right-1 min-w-[16px] h-4 rounded-full bg-orange-500 text-white text-[10px] font-bold flex items-center justify-center px-1 animate-pulse">
@@ -156,7 +151,7 @@ function Rail({ onExpand, processing, pendingActionsCount }: { onExpand: () => v
   return (
     <div
       onClick={onExpand}
-      title={`Open jamo AI (${SHORTCUT_LABEL})`}
+      title={`Open Jamo AI (${SHORTCUT_LABEL})`}
       className="flex flex-col items-center h-full pt-4 pb-3 gap-3 cursor-pointer hover:bg-black/[0.03] transition-colors"
     >
       <SpectrumSparkle onToggle={onExpand} pendingActionsCount={pendingActionsCount} />
@@ -169,7 +164,7 @@ function Rail({ onExpand, processing, pendingActionsCount }: { onExpand: () => v
           transition={{ duration: processing ? 0.8 : 2.5, repeat: Infinity, ease: 'easeInOut' }}
         />
         <span className="text-[9px] text-gray-400 font-medium tracking-wide" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>
-          jamo AI
+          Jamo AI
         </span>
       </div>
     </div>
@@ -908,7 +903,7 @@ export default function AIChatPanel({
                 <div className="flex items-center gap-2.5 px-4 py-3.5 border-b border-white/60 shrink-0">
                   <SpectrumSparkle onToggle={() => setExpanded(false)} pendingActionsCount={pendingActionsCount} />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-gray-900 leading-none">jamo AI</p>
+                    <p className="text-sm font-semibold text-gray-900 leading-none">Jamo AI</p>
                     <p className="text-xs text-gray-400 mt-0.5">Proposal assistant</p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
@@ -1460,7 +1455,7 @@ export default function AIChatPanel({
                     <input
                       ref={inputRef}
                       className="flex-1 bg-transparent text-xs text-gray-700 placeholder-gray-400 outline-none"
-                      placeholder="Ask jamo to edit..."
+                      placeholder="Ask Jamo to edit..."
                       value={input}
                       onChange={e => setInput(e.target.value)}
                       onKeyDown={e => { if (e.key === 'Enter') handleSendMessage(input) }}
