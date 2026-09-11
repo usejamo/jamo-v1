@@ -73,3 +73,35 @@ describe('Step1StudyInfo — Study Phase Other', () => {
     expect((screen.getByLabelText('Custom Study Phase') as HTMLInputElement).value).toBe('Adaptive Basket Design')
   })
 })
+
+describe('Step1StudyInfo — Therapeutic Area Other', () => {
+  it('adds Other as the last Therapeutic Area option', () => {
+    render(<Step1StudyInfo state={makeState()} dispatch={vi.fn()} />)
+    const select = screen.getByLabelText('Therapeutic Area') as HTMLSelectElement
+    const labels = Array.from(select.options).map((o) => o.textContent)
+    expect(labels[labels.length - 1]).toBe('Other')
+  })
+
+  it('reveals a freetext input and clears the value when Other is selected', () => {
+    const dispatch = vi.fn()
+    render(<Step1StudyInfo state={makeState({ therapeuticArea: 'Cardiovascular' })} dispatch={dispatch} />)
+    fireEvent.change(screen.getByLabelText('Therapeutic Area'), { target: { value: 'Other' } })
+    expect(dispatch).toHaveBeenCalledWith({ type: 'UPDATE_STUDY_INFO', field: 'therapeuticArea', value: '' })
+    expect(screen.getByLabelText('Custom Therapeutic Area')).toBeTruthy()
+  })
+
+  it('dispatches typed text directly as the Therapeutic Area value, not the literal "Other"', () => {
+    const dispatch = vi.fn()
+    render(<Step1StudyInfo state={makeState({ therapeuticArea: 'Cardiovascular' })} dispatch={dispatch} />)
+    fireEvent.change(screen.getByLabelText('Therapeutic Area'), { target: { value: 'Other' } })
+    fireEvent.change(screen.getByLabelText('Custom Therapeutic Area'), { target: { value: 'Rare Pediatric Metabolic Disorder' } })
+    expect(dispatch).toHaveBeenCalledWith({ type: 'UPDATE_STUDY_INFO', field: 'therapeuticArea', value: 'Rare Pediatric Metabolic Disorder' })
+  })
+
+  it('shows Therapeutic Area as Other with the value pre-filled when the persisted value is not a preset option', () => {
+    render(<Step1StudyInfo state={makeState({ therapeuticArea: 'Rare Pediatric Metabolic Disorder' })} dispatch={vi.fn()} />)
+    const select = screen.getByLabelText('Therapeutic Area') as HTMLSelectElement
+    expect(select.value).toBe('Other')
+    expect((screen.getByLabelText('Custom Therapeutic Area') as HTMLInputElement).value).toBe('Rare Pediatric Metabolic Disorder')
+  })
+})

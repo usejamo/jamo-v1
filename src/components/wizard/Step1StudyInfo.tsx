@@ -23,6 +23,10 @@ export function Step1StudyInfo({ state, dispatch }: Step1StudyInfoProps) {
     () => studyInfo.studyPhase !== '' && !STUDY_PHASES.includes(studyInfo.studyPhase)
   )
 
+  const [therapeuticAreaOther, setTherapeuticAreaOther] = useState(
+    () => studyInfo.therapeuticArea !== '' && !THERAPEUTIC_AREAS.includes(studyInfo.therapeuticArea)
+  )
+
   function handleStudyPhaseChange(value: string) {
     if (value === 'Other') {
       setStudyPhaseOther(true)
@@ -30,6 +34,16 @@ export function Step1StudyInfo({ state, dispatch }: Step1StudyInfoProps) {
     } else {
       setStudyPhaseOther(false)
       handleTextChange('studyPhase', value)
+    }
+  }
+
+  function handleTherapeuticAreaChange(value: string) {
+    if (value === 'Other') {
+      setTherapeuticAreaOther(true)
+      handleTextChange('therapeuticArea', '')
+    } else {
+      setTherapeuticAreaOther(false)
+      handleTextChange('therapeuticArea', value)
     }
   }
 
@@ -96,8 +110,8 @@ export function Step1StudyInfo({ state, dispatch }: Step1StudyInfoProps) {
         </label>
         <select
           id="therapeuticArea"
-          value={studyInfo.therapeuticArea}
-          onChange={(e) => handleTextChange('therapeuticArea', e.target.value)}
+          value={therapeuticAreaOther ? 'Other' : studyInfo.therapeuticArea}
+          onChange={(e) => handleTherapeuticAreaChange(e.target.value)}
           className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jamo-500"
           aria-label="Therapeutic Area"
         >
@@ -105,7 +119,18 @@ export function Step1StudyInfo({ state, dispatch }: Step1StudyInfoProps) {
           {THERAPEUTIC_AREAS.map((ta) => (
             <option key={ta} value={ta}>{ta}</option>
           ))}
+          <option value="Other">Other</option>
         </select>
+        {therapeuticAreaOther && (
+          <input
+            type="text"
+            value={studyInfo.therapeuticArea}
+            onChange={(e) => handleTextChange('therapeuticArea', e.target.value)}
+            placeholder="Enter therapeutic area"
+            className="mt-2 w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jamo-500"
+            aria-label="Custom Therapeutic Area"
+          />
+        )}
         {errors.therapeuticArea && (
           <p className="mt-1 text-xs text-red-600">{errors.therapeuticArea}</p>
         )}
