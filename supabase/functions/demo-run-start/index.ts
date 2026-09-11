@@ -404,7 +404,11 @@ Deno.serve(async (req) => {
       const assumptionRows = fixtureAssumptions.map((a) => ({
         proposal_id: proposalId,
         org_id: callerOrgId,
-        category: a.category ?? 'general', // proposal_assumptions.category is NOT NULL
+        // proposal_assumptions.category is NOT NULL. 'scope' is the shared
+        // fallback (see src/types/wizard.ts coerceAssumptionCategory); the
+        // 'general' this used to write is not one of the five real categories
+        // and has never appeared in the table.
+        category: a.category ?? 'scope',
         content: a.content,
         confidence: a.confidence ?? 'high',
         status: a.status ?? 'approved',

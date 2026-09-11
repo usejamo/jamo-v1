@@ -1,10 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { readFileSync } from 'fs'
+import { resolve } from 'path'
 import {
   generationReducer,
   readSSEStream,
   fetchRagChunks,
   buildRegulatoryQuery,
+  buildEnrichedContext,
 } from './useProposalGeneration'
+import { supabase } from '../lib/supabase'
 import type { GenerationState, SectionState } from '../types/generation'
 
 // ---------------------------------------------------------------------------
@@ -374,5 +378,97 @@ describe('useProposalGeneration Realtime', () => {
   })
   it.skip('dispatches SECTION_COMPLETE when Realtime delivers complete status', () => {
     expect(true).toBe(false)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// buildEnrichedContext — the assumptions enrichment both entry points must use
+// ---------------------------------------------------------------------------
+//
+// generateAll fetched approved assumptions and merged them into the context
+// before streaming. generateSection — the path behind "regenerate this
+// section" — did not, so a regenerated section was written with zero
+// assumptions while a full generation used them. ProposalDetail hands both
+// paths the same buildProposalInput() literal, whose `assumptions: []` is a
+// placeholder that only generateAll was replacing.
+describe('buildEnrichedContext', () => {
+  const baseContext = {
+    studyInfo: {
+      sponsorName: 'Acme',
+      therapeuticArea: 'Oncology',
+      indication: 'NSCLC',
+      investigationalProduct: '',
+      investigationalProductUndisclosed: false,
+      studyPhase: 'Phase II',
+      countries: ['US'],
+      dueDate: '',
+      services: [],
+    },
+    assumptions: [],
+    services: [],
+  } as any
+
+  function mockAssumptionRows(rows: any[]) {
+    vi.mocked(supabase.from).mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          eq: vi.fn().mockResolvedValue({ data: rows, error: null }),
+        }),
+      }),
+    } as any)
+  }
+
+  it('replaces the placeholder assumptions with the approved rows', async () => {
+    mockAssumptionRows([
+      { category: 'timeline', content: 'DB lock 6 weeks after LPLV', confidence: 'high' },
+    ])
+    const enriched = await buildEnrichedContext('p1', baseContext)
+    expect(enriched.assumptions).toEqual([
+      { category: 'timeline', value: 'DB lock 6 weeks after LPLV', confidence: 'high' },
+    ])
+  })
+
+  it('preserves the rest of the context untouched', async () => {
+    mockAssumptionRows([])
+    const enriched = await buildEnrichedContext('p1', baseContext)
+    expect(enriched.studyInfo).toEqual(baseContext.studyInfo)
+    expect(enriched.services).toEqual(baseContext.services)
+  })
+
+  it('yields an empty list when the proposal has no approved assumptions', async () => {
+    mockAssumptionRows([])
+    const enriched = await buildEnrichedContext('p1', baseContext)
+    expect(enriched.assumptions).toEqual([])
+  })
+})
+
+// A fence, not a description: the bug was that ONE of the two entry points
+// forgot to enrich. A behavioural test of generateSection would need the whole
+// hook rendered and streaming; this reads the committed source instead and
+// fails if either path streams a context it never enriched.
+describe('both generation entry points enrich the context', () => {
+  it('generateSection calls buildEnrichedContext before streaming', () => {
+    const src = readFileSync(
+      resolve(__dirname, 'useProposalGeneration.ts'),
+      'utf8'
+    )
+    const body = src.slice(
+      src.indexOf('const generateSection = useCallback'),
+      src.indexOf('const regenerateSection = useCallback')
+    )
+    expect(body).toContain('buildEnrichedContext')
+    expect(body).not.toMatch(/streamSection\([\s\S]*?\n\s*proposalContext,/)
+  })
+
+  it('generateAll calls buildEnrichedContext before streaming', () => {
+    const src = readFileSync(
+      resolve(__dirname, 'useProposalGeneration.ts'),
+      'utf8'
+    )
+    const body = src.slice(
+      src.indexOf('const generateAll = useCallback'),
+      src.indexOf('const generateSection = useCallback')
+    )
+    expect(body).toContain('buildEnrichedContext')
   })
 })

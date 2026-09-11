@@ -6,6 +6,7 @@ import {
   WIZARD_STEPS,
 } from '../types/wizard'
 import { wizardReducer } from '../lib/wizardReducer'
+import { replaceProposalAssumptions } from '../lib/assumptionPersistence'
 import { useProposalModal } from '../context/ProposalModalContext'
 import { useProposals } from '../context/ProposalsContext'
 import { useAuth } from '../context/AuthContext'
@@ -84,25 +85,16 @@ export function ProposalCreationWizard() {
     prevStepRef.current = state.step
 
     if (prevStep === 2 && state.step === 3 && state.proposalId && profile?.org_id) {
-      const approvedAssumptions = state.assumptions.filter((a) => a.status === 'approved')
-      if (approvedAssumptions.length > 0) {
-        supabase
-          .from('proposal_assumptions')
-          .upsert(
-            approvedAssumptions.map((a) => ({
-              proposal_id: state.proposalId as string,
-              org_id: profile.org_id,
-              category: a.category,
-              content: a.value,
-              confidence: a.confidence,
-              status: 'approved',
-              user_edited: a.source === 'user-provided',
-            }))
-          )
-          .then(({ error }) => {
-            if (error) console.error('Failed to save assumptions:', error)
-          })
-      }
+      // Replace the proposal's assumptions with the set the user just reviewed.
+      // See lib/assumptionPersistence for why this is not an upsert.
+      replaceProposalAssumptions(
+        supabase,
+        state.proposalId,
+        profile.org_id,
+        state.assumptions
+      ).then(({ error }) => {
+        if (error) console.error('Failed to save assumptions:', error)
+      })
     }
   }, [state.step])
 
