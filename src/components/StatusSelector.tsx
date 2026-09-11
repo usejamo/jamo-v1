@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import type { ProposalStatus } from '../types/proposal'
 
 export const STATUS_LABELS: Record<ProposalStatus, string> = {
@@ -30,15 +31,65 @@ export function StatusSelector({ status, onChange, variant, disabled }: StatusSe
   const [pending, setPending] = useState(false)
   const [confirmTarget, setConfirmTarget] = useState<ProposalStatus | null>(null)
   const ref = useRef<HTMLDivElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null)
+
+  // The menu is portalled to <body> and positioned with fixed coordinates taken
+  // from the trigger. It used to be an `absolute` child of this component, which
+  // meant the nearest scrolling ancestor clipped it: the app shell's <main> is
+  // `flex-1 overflow-y-auto` inside `h-screen overflow-hidden`, so a trigger near
+  // the bottom of the viewport opened a menu that ran past the scroll container
+  // and was cut off. Measured before this change: menu bottom 846px against a
+  // container bottom of 730px — 116px of the menu was invisible and unclickable.
+  //
+  // A portal also escapes any ancestor stacking context, which no z-index on an
+  // in-flow element can be relied upon to do.
+  const MENU_MARGIN = 4
+  const positionMenu = useCallback(() => {
+    const trigger = ref.current
+    const menu = menuRef.current
+    if (!trigger) return
+    const t = trigger.getBoundingClientRect()
+    const menuHeight = menu?.offsetHeight ?? 0
+    const menuWidth = menu?.offsetWidth ?? 140
+
+    // Flip above the trigger when there isn't room below.
+    const roomBelow = window.innerHeight - t.bottom
+    const openUp = menuHeight > 0 && roomBelow < menuHeight + MENU_MARGIN && t.top > menuHeight + MENU_MARGIN
+    const top = openUp ? t.top - menuHeight - MENU_MARGIN : t.bottom + MENU_MARGIN
+
+    // Keep it on screen horizontally too.
+    const left = Math.min(Math.max(MENU_MARGIN, t.left), window.innerWidth - menuWidth - MENU_MARGIN)
+
+    setMenuPos({ top, left })
+  }, [])
+
+  useLayoutEffect(() => {
+    if (!open) { setMenuPos(null); return }
+    positionMenu()
+  }, [open, positionMenu])
 
   useEffect(() => {
     if (!open) return
     const handler = (e: MouseEvent) => {
-      if (!ref.current?.contains(e.target as Node)) setOpen(false)
+      const target = e.target as Node
+      // The menu lives outside this subtree now, so it must be checked separately
+      // or every click on a menu item would be treated as a click-outside.
+      if (!ref.current?.contains(target) && !menuRef.current?.contains(target)) setOpen(false)
     }
+    // Reposition rather than drift: the trigger moves under a fixed menu when any
+    // ancestor scrolls, so listen in the capture phase to catch scrolls on inner
+    // containers, not just the window.
+    const reposition = () => positionMenu()
     document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [open])
+    window.addEventListener('scroll', reposition, true)
+    window.addEventListener('resize', reposition)
+    return () => {
+      document.removeEventListener('mousedown', handler)
+      window.removeEventListener('scroll', reposition, true)
+      window.removeEventListener('resize', reposition)
+    }
+  }, [open, positionMenu])
 
   async function handleSelect(next: ProposalStatus) {
     if (TERMINAL_STATUSES.includes(next)) {
@@ -88,8 +139,18 @@ export function StatusSelector({ status, onChange, variant, disabled }: StatusSe
         </button>
       )}
 
-      {open && (
-        <div className="absolute top-full left-0 mt-1 bg-white rounded-xl shadow-lg border border-gray-100 py-1 z-30 min-w-[140px]">
+      {open && createPortal(
+        <div
+          ref={menuRef}
+          data-testid="status-menu"
+          className="fixed bg-white rounded-xl shadow-lg border border-gray-100 py-1 z-50 min-w-[140px]"
+          style={{
+            top: menuPos?.top ?? 0,
+            left: menuPos?.left ?? 0,
+            // Avoid a first-paint flash at (0,0) before the measured position lands.
+            visibility: menuPos ? 'visible' : 'hidden',
+          }}
+        >
           {ALL_STATUSES.map(s => (
             <button
               key={s}
@@ -100,7 +161,8 @@ export function StatusSelector({ status, onChange, variant, disabled }: StatusSe
               {STATUS_LABELS[s]}
             </button>
           ))}
-        </div>
+        </div>,
+        document.body
       )}
 
       {confirmTarget && (
