@@ -233,4 +233,39 @@ describe('ProposalCreationWizard', () => {
       })
     )
   })
+
+  it('flows a custom ("Other") Study Phase / Therapeutic Area straight into the generated proposal payload', () => {
+    mockCreateProposal.mockResolvedValueOnce('proposal-456')
+    sessionStorage.setItem('jamo-wizard-state', JSON.stringify({
+      step: 3,
+      proposalId: null,
+      studyInfo: {
+        sponsorName: 'Vertex',
+        therapeuticArea: 'Rare Pediatric Metabolic Disorder',
+        indication: 'MPS Type II',
+        studyPhase: 'Adaptive Basket Design',
+        regions: [],
+        dueDate: '',
+        services: [],
+      },
+      errors: {},
+      submitting: false,
+      assumptions: [],
+      missingFields: [],
+      extractionStatus: 'idle',
+      selectedTemplateId: null,
+      stateVersion: 9,
+    }))
+    render(<ProposalCreationWizard />)
+    fireEvent.click(screen.getByTestId('generate-button'))
+    // The exact custom strings typed under "Other" — not the literal word "Other" — must
+    // reach the payload that becomes the proposal record and the generation prompt.
+    expect(mockCreateProposal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Vertex — MPS Type II (Adaptive Basket Design)',
+        therapeuticArea: 'Rare Pediatric Metabolic Disorder',
+        studyType: 'Adaptive Basket Design',
+      })
+    )
+  })
 })
