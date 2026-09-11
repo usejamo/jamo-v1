@@ -8,7 +8,7 @@ import { checkRegulatoryComplianceTool, handleCheckCompliance } from "./tools/ch
 import { askUserTool, handleAskUser } from "./tools/ask-user.ts"
 import { setFocusTool, handleSetFocus } from "./tools/set-focus.ts"
 import { buildSystemPrompt, buildHistory, buildActiveTaskContext } from "./context.ts"
-import { fetchRagContext, RAG_K, DEFAULT_RAG_K } from "./rag.ts"
+import { fetchRagContext, buildAssumptionsBlock, RAG_K, DEFAULT_RAG_K } from "./rag.ts"
 
 // ── Pure helpers (mirrored from src/chat/activeTaskBuilder.ts — Deno cannot import src/) ──
 
@@ -157,15 +157,33 @@ Deno.serve(async (req) => {
 
     // RAG retrieval runs in parallel with message assembly (AI-SPEC async-first pattern)
     // Use DEFAULT_RAG_K initially — model decides tool; K is for context richness, not routing
-    const [ragContext] = await Promise.all([
-      fetchRagContext(orgId, user_message, DEFAULT_RAG_K),
+    // proposal_id is REQUIRED here: without it retrieve-context scopes out the
+    // current proposal's own chunks entirely (see fetchRagContext).
+    const [ragContext, approvedAssumptions] = await Promise.all([
+      fetchRagContext(orgId, user_message, DEFAULT_RAG_K, proposal_id),
+      proposal_id
+        ? supabase
+            .from('proposal_assumptions')
+            .select('category, content')
+            .eq('proposal_id', proposal_id)
+            .eq('status', 'approved')
+            .then(({ data, error }: { data: Array<{ category: string; content: string }> | null; error: unknown }) => {
+              if (error) {
+                console.warn('[chat-with-jamo] assumptions fetch failed:', error)
+                return []
+              }
+              return data ?? []
+            })
+        : Promise.resolve([] as Array<{ category: string; content: string }>),
     ])
 
     const activeTaskBlock = buildActiveTaskContext(effectiveActiveTask)
+    const assumptionsBlock = buildAssumptionsBlock(approvedAssumptions)
     const baseSystemPrompt = buildSystemPrompt(tools, target_section, other_sections)
     const systemPrompt = [
       baseSystemPrompt,
       activeTaskBlock,
+      assumptionsBlock,
       ragContext.ragBlock,
     ].filter(Boolean).join("\n\n")
 

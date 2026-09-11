@@ -38,10 +38,14 @@ export default defineConfig({
       '**/e2e/**',
       'supabase/migrations/**',
       'supabase/tests/**',
-      'supabase/functions/!(generate-proposal-section|template-extract|demo-capture-fixture|analyze-proposal-gaps)/**',
+      'supabase/functions/!(generate-proposal-section|template-extract|demo-capture-fixture|analyze-proposal-gaps|chat-with-jamo)/**',
       'supabase/functions/generate-proposal-section/!(promptAssembly.test|truncationSignal.test).*',
       'supabase/functions/template-extract/!(coverage.test).*',
       'supabase/functions/demo-capture-fixture/!(proseScan.test).*',
+      // rag.test.ts is a pure Vitest spec for rag.ts (Deno.env and fetch are
+      // stubbed in the spec). chat-with-jamo/test.ts stays excluded — it is a
+      // Deno test, and tools/ holds more of the same.
+      'supabase/functions/chat-with-jamo/!(rag.test).*',
       // analyze-proposal-gaps/validation.test.ts is a pure Vitest spec for
       // validation.ts. Its __tests__/ dir must stay excluded explicitly: the
       // tier-2 pattern below only matches the function dir's top level, so
