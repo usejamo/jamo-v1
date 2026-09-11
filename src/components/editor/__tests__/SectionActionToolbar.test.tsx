@@ -149,3 +149,48 @@ describe('SectionActionToolbar', () => {
     expect(screen.getByPlaceholderText('What tone or angle are you going for?')).toBeTruthy()
   })
 })
+
+describe('SectionActionToolbar — title length must not move the buttons', () => {
+  // The toolbar row is `flex justify-between` with three children: the title,
+  // the action group and the icon group. Both groups are shrink-0, so the title
+  // was the only item whose width varied — and justify-between distributes free
+  // space BETWEEN items, which meant the action group slid horizontally as the
+  // section title got longer or shorter.
+  //
+  // The fix is to let the title absorb all the free space (flex-1) and allow it
+  // to shrink below its content width (min-w-0, since flex items default to
+  // min-width:auto, which also made `truncate` a no-op for long titles).
+  //
+  // jsdom has no layout engine, so position cannot be asserted here — this pins
+  // the class contract that produces the behaviour. The actual geometry was
+  // verified in a real browser by measuring getBoundingClientRect across short
+  // and very long titles.
+  it('lets the title flex and shrink so the action group stays pinned', () => {
+    const { container } = render(<SectionActionToolbar {...defaultProps} />)
+    const title = container.querySelector('span.truncate') as HTMLElement
+    expect(title).toBeTruthy()
+    expect(title.className).toContain('flex-1')
+    expect(title.className).toContain('min-w-0')
+  })
+
+  it('keeps both button groups non-shrinking', () => {
+    const { container } = render(<SectionActionToolbar {...defaultProps} />)
+    const row = container.firstElementChild as HTMLElement
+    const groups = Array.from(row.children).slice(1) as HTMLElement[]
+    expect(groups).toHaveLength(2)
+    groups.forEach(g => expect(g.className).toContain('shrink-0'))
+  })
+
+  it('renders the same toolbar structure for a short and a very long title', () => {
+    const short = render(<SectionActionToolbar {...defaultProps} sectionTitle="Budget" />)
+    const long = render(
+      <SectionActionToolbar
+        {...defaultProps}
+        sectionTitle="Scope of Work, Service Delivery and Clinical Operations Management Approach"
+      />
+    )
+    const shape = (r: ReturnType<typeof render>) =>
+      Array.from((r.container.firstElementChild as HTMLElement).children).map(c => c.tagName)
+    expect(shape(short)).toEqual(shape(long))
+  })
+})
