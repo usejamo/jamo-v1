@@ -33,6 +33,20 @@ describe('applyTemplateStyles', () => {
     expect(numXml).toBe('<numbering>template</numbering>')
   })
 
+  it('stamps the swapped Blob with the Word MIME type, not application/zip', async () => {
+    const generated = await buildMinimalDocx({
+      'word/styles.xml': '<styles>generated</styles>',
+      '[Content_Types].xml': '<Types/>',
+    })
+    const template = await buildMinimalDocx({
+      'word/styles.xml': '<styles>template</styles>',
+    })
+    const result = await applyTemplateStyles(generated, template)
+    expect(result.type).toBe(
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    )
+  })
+
   it('returns the original Blob when template has no word/styles.xml', async () => {
     const generated = await buildMinimalDocx({ 'word/styles.xml': '<styles>generated</styles>' })
     const template = await buildMinimalDocx({ 'word/document.xml': '<document/>' })
