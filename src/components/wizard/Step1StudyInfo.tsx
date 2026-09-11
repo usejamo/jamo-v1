@@ -10,9 +10,9 @@ interface Step1StudyInfoProps {
 function validateStep1(studyInfo: StudyInfo): Partial<Record<keyof StudyInfo, string>> {
   const errors: Partial<Record<keyof StudyInfo, string>> = {}
   if (!studyInfo.sponsorName.trim()) errors.sponsorName = 'Required'
-  if (!studyInfo.therapeuticArea) errors.therapeuticArea = 'Required'
+  if (!studyInfo.therapeuticArea.trim()) errors.therapeuticArea = 'Required'
   if (!studyInfo.indication.trim()) errors.indication = 'Required'
-  if (!studyInfo.studyPhase) errors.studyPhase = 'Required'
+  if (!studyInfo.studyPhase.trim()) errors.studyPhase = 'Required'
   return errors
 }
 

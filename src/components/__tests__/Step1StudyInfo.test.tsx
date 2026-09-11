@@ -105,3 +105,56 @@ describe('Step1StudyInfo — Therapeutic Area Other', () => {
     expect((screen.getByLabelText('Custom Therapeutic Area') as HTMLInputElement).value).toBe('Rare Pediatric Metabolic Disorder')
   })
 })
+
+describe('Step1StudyInfo — Required field validation with whitespace', () => {
+  it('rejects whitespace-only Study Phase value and dispatches Required error', () => {
+    const dispatch = vi.fn()
+    render(
+      <Step1StudyInfo
+        state={makeState({ studyPhase: '   ' })}
+        dispatch={dispatch}
+      />
+    )
+    fireEvent.click(screen.getByTestId('next-button'))
+    expect(dispatch).toHaveBeenCalledWith({
+      type: 'SET_ERRORS',
+      errors: expect.objectContaining({ studyPhase: 'Required' }),
+    })
+  })
+
+  it('rejects whitespace-only Therapeutic Area value and dispatches Required error', () => {
+    const dispatch = vi.fn()
+    render(
+      <Step1StudyInfo
+        state={makeState({ therapeuticArea: '   ' })}
+        dispatch={dispatch}
+      />
+    )
+    fireEvent.click(screen.getByTestId('next-button'))
+    expect(dispatch).toHaveBeenCalledWith({
+      type: 'SET_ERRORS',
+      errors: expect.objectContaining({ therapeuticArea: 'Required' }),
+    })
+  })
+
+  it('accepts non-whitespace Study Phase and proceeds without Required error', () => {
+    const dispatch = vi.fn()
+    render(
+      <Step1StudyInfo
+        state={makeState({
+          sponsorName: 'Pharma Inc',
+          therapeuticArea: 'Oncology',
+          indication: 'Cancer',
+          studyPhase: 'Phase II',
+        })}
+        dispatch={dispatch}
+      />
+    )
+    fireEvent.click(screen.getByTestId('next-button'))
+    // Verify SET_ERRORS was not called (or if it was, studyPhase is not in it)
+    const errorCalls = dispatch.mock.calls.filter((c) => c[0].type === 'SET_ERRORS')
+    if (errorCalls.length > 0) {
+      expect(errorCalls[0][0].errors.studyPhase).toBeUndefined()
+    }
+  })
+})
