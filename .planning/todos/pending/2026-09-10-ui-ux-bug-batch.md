@@ -133,23 +133,44 @@ systematic-debugging for bugs) when we pick it up.
   its correct list immediately and disappear from the old one at the same time.
   _Type: bug - frontend state / cache invalidation_
 
-- [ ] **8. Debug button visible to admins - restrict to super_admin only**
+- [x] **8. Debug button visible to admins - restrict to super_admin only**
   Admin users can currently see the debug button. It should be visible ONLY to
   super_admins. Remove for clients/admins.
   _Type: bug / access-control - frontend gating_
+  Shipped 2026-09-11. Extracted to a self-gating DebugModeToggle component
+  (matching SaveAsDemoFixtureButton/DemoRunSurface), gated on
+  profile?.role === 'super_admin', hidden while the profile is still loading.
+  Also clears a stranded jamo_debug_mode flag for non-super_admins: anyone who
+  had debug ON before the gate would otherwise keep getting 1-2 sentence
+  sections with the off switch now hidden. NOTE this is visibility, not access
+  control - the flag is localStorage and can still be set by hand; acceptable
+  because it only shortens generation.
 
 - [ ] **9. Resume button when generation is stopped**
   While generating, if Stop is pressed, swap the Stop button for a **Resume**
   button in the same spot. (Assess whether this is an easy change.)
   _Type: feature - frontend + generation backend_
 
-- [ ] **10. Capitalize "Jamo" everywhere**
+- [x] **10. Capitalize "Jamo" everywhere**
   Audit all user-facing copy - "Jamo" should always be capitalized.
   _Type: polish - global copy sweep_
+  Shipped 2026-09-11. 13 user-facing instances fixed across AIChatPanel,
+  ProposalContentsSidebar, SuggestedChange, Dashboard, ProposalsList, Settings
+  and ReferenceLibraryTab. Added src/__tests__/jamo-capitalization.test.ts as a
+  FENCE so it stays fixed - it scans every .tsx and fails on a standalone
+  lowercase 'jamo', while allowing technical identifiers (jamo-500, jamo-aurora,
+  chat-with-jamo, jamo_debug_mode, jamo-demo, jamoLogo). The fence found 5
+  instances a manual grep had missed.
 
-- [ ] **11. Replace Jamo AI rainbow-square icon with Jamo rocket**
+- [x] **11. Replace Jamo AI rainbow-square icon with Jamo rocket**
   Swap the rainbow/gradient AI square icon for the Jamo rocket mark.
   _Type: polish - frontend asset_
+  Shipped 2026-09-11. SpectrumSparkle's ROYGBIV gradient square and generic
+  sparkle glyph replaced with the Jamo rocket mark (src/assets/svg/logo-icon.svg,
+  previously unused anywhere). Interaction unchanged - same click target, hover/
+  tap springs and pending badge; glow retinted to the brand purple. Dead
+  SparkleIcon removed. Verified in-browser: mark renders at 20x20 from a 171x237
+  source, zero rainbow-gradient elements left.
 
 - [ ] **12. Generation continues when navigating away from page**
   While a proposal is generating, allow navigating away (e.g. to Settings) and
