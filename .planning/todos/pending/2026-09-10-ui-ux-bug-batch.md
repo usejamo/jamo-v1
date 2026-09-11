@@ -38,10 +38,20 @@ systematic-debugging for bugs) when we pick it up.
   category taxonomy comments. 17 duplicate approved rows cleaned from prod.
   See `docs/handoffs/2026-09-11-assumption-category-investigation.md`.
 
-- [ ] **4. Align Expand / Condense / Rewrite buttons**
+- [x] **4. Align Expand / Condense / Rewrite buttons**
   Buttons on the section panel shift position depending on section name length.
   Pin them so they stay aligned regardless of title length.
   _Type: polish - frontend (proposal editor panel)_
+  Shipped 2026-09-11. SectionActionToolbar's row is `flex justify-between` with
+  three children (title, action group, icon group). Both groups are shrink-0 and
+  the title sized to its content, so justify-between distributed the leftover
+  space BETWEEN them and the action group slid as the title changed length.
+  Title is now `flex-1 min-w-0`, absorbing the free space and pinning both
+  groups right; min-w-0 also makes the existing `truncate` actually work, since
+  flex items default to min-width:auto and a long title could push the buttons
+  instead of ellipsing.
+  Measured in-browser across 9 sections (12ch to 40ch titles): action-group left
+  edge spread 101px -> 0px.
 
 - [x] **5. Jamo AI Chat sidebar disconnected from context / RAG**
   Chat sidebar doesn't appear to see Context & Documents or the original

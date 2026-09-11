@@ -100,8 +100,15 @@ export function SectionActionToolbar({
       ref={containerRef}
       className="flex items-center justify-between px-4 py-2 border-b border-gray-100 bg-gray-50/50 rounded-t-lg"
     >
-      {/* Left: section title */}
-      <span className="text-base font-semibold text-gray-900 truncate mr-2">{sectionTitle}</span>
+      {/* Left: section title.
+          flex-1 makes the title absorb ALL the free space in the row, which is
+          what pins the two button groups to the right. Without it the row's
+          justify-between distributed free space BETWEEN the three children, so
+          the action group slid horizontally as the title got longer or shorter.
+          min-w-0 lets the title shrink below its content width — flex items
+          default to min-width:auto, which also made `truncate` a no-op and let
+          a long title push the buttons instead of ellipsing. */}
+      <span className="flex-1 min-w-0 text-base font-semibold text-gray-900 truncate mr-2">{sectionTitle}</span>
 
       {/* Center: action buttons + optional inline input */}
       <div className="flex flex-col items-center gap-1 shrink-0">
