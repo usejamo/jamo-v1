@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { AVAILABLE_SERVICES, groupServicesByCategory, THERAPEUTIC_AREAS, STUDY_PHASES } from '../../../cro-proposal-generator.js'
 import type { WizardState, WizardAction, StudyInfo } from '../../types/wizard'
 
@@ -9,14 +10,42 @@ interface Step1StudyInfoProps {
 function validateStep1(studyInfo: StudyInfo): Partial<Record<keyof StudyInfo, string>> {
   const errors: Partial<Record<keyof StudyInfo, string>> = {}
   if (!studyInfo.sponsorName.trim()) errors.sponsorName = 'Required'
-  if (!studyInfo.therapeuticArea) errors.therapeuticArea = 'Required'
+  if (!studyInfo.therapeuticArea.trim()) errors.therapeuticArea = 'Required'
   if (!studyInfo.indication.trim()) errors.indication = 'Required'
-  if (!studyInfo.studyPhase) errors.studyPhase = 'Required'
+  if (!studyInfo.studyPhase.trim()) errors.studyPhase = 'Required'
   return errors
 }
 
 export function Step1StudyInfo({ state, dispatch }: Step1StudyInfoProps) {
   const { studyInfo, errors } = state
+
+  const [studyPhaseOther, setStudyPhaseOther] = useState(
+    () => studyInfo.studyPhase !== '' && !STUDY_PHASES.includes(studyInfo.studyPhase)
+  )
+
+  const [therapeuticAreaOther, setTherapeuticAreaOther] = useState(
+    () => studyInfo.therapeuticArea !== '' && !THERAPEUTIC_AREAS.includes(studyInfo.therapeuticArea)
+  )
+
+  function handleStudyPhaseChange(value: string) {
+    if (value === 'Other') {
+      setStudyPhaseOther(true)
+      handleTextChange('studyPhase', '')
+    } else {
+      setStudyPhaseOther(false)
+      handleTextChange('studyPhase', value)
+    }
+  }
+
+  function handleTherapeuticAreaChange(value: string) {
+    if (value === 'Other') {
+      setTherapeuticAreaOther(true)
+      handleTextChange('therapeuticArea', '')
+    } else {
+      setTherapeuticAreaOther(false)
+      handleTextChange('therapeuticArea', value)
+    }
+  }
 
   const grouped = groupServicesByCategory(AVAILABLE_SERVICES)
 
@@ -81,8 +110,8 @@ export function Step1StudyInfo({ state, dispatch }: Step1StudyInfoProps) {
         </label>
         <select
           id="therapeuticArea"
-          value={studyInfo.therapeuticArea}
-          onChange={(e) => handleTextChange('therapeuticArea', e.target.value)}
+          value={therapeuticAreaOther ? 'Other' : studyInfo.therapeuticArea}
+          onChange={(e) => handleTherapeuticAreaChange(e.target.value)}
           className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jamo-500"
           aria-label="Therapeutic Area"
         >
@@ -90,7 +119,18 @@ export function Step1StudyInfo({ state, dispatch }: Step1StudyInfoProps) {
           {THERAPEUTIC_AREAS.map((ta) => (
             <option key={ta} value={ta}>{ta}</option>
           ))}
+          <option value="Other">Other</option>
         </select>
+        {therapeuticAreaOther && (
+          <input
+            type="text"
+            value={studyInfo.therapeuticArea}
+            onChange={(e) => handleTextChange('therapeuticArea', e.target.value)}
+            placeholder="Enter therapeutic area"
+            className="mt-2 w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jamo-500"
+            aria-label="Custom Therapeutic Area"
+          />
+        )}
         {errors.therapeuticArea && (
           <p className="mt-1 text-xs text-red-600">{errors.therapeuticArea}</p>
         )}
@@ -150,8 +190,8 @@ export function Step1StudyInfo({ state, dispatch }: Step1StudyInfoProps) {
         </label>
         <select
           id="studyPhase"
-          value={studyInfo.studyPhase}
-          onChange={(e) => handleTextChange('studyPhase', e.target.value)}
+          value={studyPhaseOther ? 'Other' : studyInfo.studyPhase}
+          onChange={(e) => handleStudyPhaseChange(e.target.value)}
           className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jamo-500"
           aria-label="Study Phase"
         >
@@ -159,7 +199,18 @@ export function Step1StudyInfo({ state, dispatch }: Step1StudyInfoProps) {
           {STUDY_PHASES.map((ph) => (
             <option key={ph} value={ph}>{ph}</option>
           ))}
+          <option value="Other">Other</option>
         </select>
+        {studyPhaseOther && (
+          <input
+            type="text"
+            value={studyInfo.studyPhase}
+            onChange={(e) => handleTextChange('studyPhase', e.target.value)}
+            placeholder="Enter study phase"
+            className="mt-2 w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jamo-500"
+            aria-label="Custom Study Phase"
+          />
+        )}
         {errors.studyPhase && (
           <p className="mt-1 text-xs text-red-600">{errors.studyPhase}</p>
         )}
