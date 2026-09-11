@@ -245,6 +245,24 @@ async function fetchAssumptions(
   }))
 }
 
+/**
+ * Merge the proposal's approved assumptions into a generation context.
+ *
+ * Callers build their context from the proposal row (ProposalDetail's
+ * buildProposalInput), which cannot know the assumptions — its `assumptions: []`
+ * is a placeholder. EVERY path that reaches streamSection must resolve it here
+ * first. generateAll did and generateSection did not, so regenerating a single
+ * section silently generated it with no assumptions at all while a full
+ * generation used them.
+ */
+export async function buildEnrichedContext(
+  proposalId: string,
+  proposalContext: GenerateSectionPayloadV2['proposalContext']
+): Promise<GenerateSectionPayloadV2['proposalContext']> {
+  const assumptions = await fetchAssumptions(proposalId)
+  return { ...proposalContext, assumptions }
+}
+
 // ---------------------------------------------------------------------------
 // Anchor extraction
 // ---------------------------------------------------------------------------
@@ -469,11 +487,7 @@ export function useProposalGeneration(proposalId: string) {
       abortControllerRef.current = abortController
       try {
         // Fetch approved assumptions for enriched context
-        const assumptions = await fetchAssumptions(proposalId)
-        const enrichedContext: GenerateSectionPayloadV2['proposalContext'] = {
-          ...proposalContext,
-          assumptions,
-        }
+        const enrichedContext = await buildEnrichedContext(proposalId, proposalContext)
 
         // Fetch sections ordered by position
         const { data: sectionRows } = await supabase
@@ -576,14 +590,18 @@ export function useProposalGeneration(proposalId: string) {
         error: null,
       }
 
+      // Same enrichment generateAll does. Without it a regenerated section is
+      // written as though the proposal had no approved assumptions.
+      const enrichedContext = await buildEnrichedContext(proposalId, proposalContext)
+
       const rag = await fetchRagChunks(
         profile?.org_id ?? '',
         proposalId,
         section.name,
-        proposalContext.studyInfo.therapeuticArea,
-        proposalContext.studyInfo.studyPhase,
-        proposalContext.studyInfo.countries,
-        proposalContext.studyInfo.indication
+        enrichedContext.studyInfo.therapeuticArea,
+        enrichedContext.studyInfo.studyPhase,
+        enrichedContext.studyInfo.countries,
+        enrichedContext.studyInfo.indication
       )
 
       return streamSection(
@@ -591,7 +609,7 @@ export function useProposalGeneration(proposalId: string) {
         row.description ?? null,
         [],
         state.consistencyAnchor,
-        proposalContext,
+        enrichedContext,
         rag
       )
     },

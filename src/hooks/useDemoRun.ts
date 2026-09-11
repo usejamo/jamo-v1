@@ -2,7 +2,7 @@ import { useCallback, useReducer, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { extractInvokeErrorMessage } from '../lib/invokeError'
 import { wizardReducer } from '../lib/wizardReducer'
-import { DEFAULT_WIZARD_STATE } from '../types/wizard'
+import { DEFAULT_WIZARD_STATE, coerceAssumptionCategory } from '../types/wizard'
 import type { WizardAssumption, ConfidenceLevel } from '../types/wizard'
 import { generationReducer } from './useProposalGeneration'
 import type { SectionState } from '../types/generation'
@@ -169,7 +169,7 @@ export function useDemoRun(options: UseDemoRunOptions = {}) {
       const assumptions: WizardAssumption[] = ((assumptionRows ?? []) as AssumptionRow[]).map(
         (a) => ({
           id: a.id,
-          category: a.category ?? 'scope',
+          category: coerceAssumptionCategory(a.category),
           value: a.content ?? '',
           confidence: toConfidence(a.confidence),
           source: 'Demo RFP',

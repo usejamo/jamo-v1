@@ -1,5 +1,14 @@
 import { useState } from 'react'
-import type { WizardState, WizardAction, WizardAssumption, MissingField, ConfidenceLevel } from '../../types/wizard'
+import type {
+  WizardState,
+  WizardAction,
+  WizardAssumption,
+  MissingField,
+  ConfidenceLevel,
+  AssumptionCategory,
+} from '../../types/wizard'
+import { ASSUMPTION_CATEGORIES, ASSUMPTION_CATEGORY_LABELS } from '../../types/wizard'
+import { humanizeFieldName } from '../../lib/wizardReducer'
 
 interface Step3Props {
   state: WizardState
@@ -67,7 +76,25 @@ function AssumptionCard({
   return (
     <div className={containerClass} data-testid="assumption-card">
       <div className="flex items-center gap-2 mb-2">
-        <span className="text-xs text-gray-500 uppercase">{assumption.category}</span>
+        <select
+          className="text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded px-1.5 py-0.5 hover:border-gray-300 focus:outline-none focus:ring-1 focus:ring-jamo-400"
+          value={assumption.category}
+          onChange={(e) =>
+            dispatch({
+              type: 'UPDATE_ASSUMPTION',
+              id: assumption.id,
+              updates: { category: e.target.value as AssumptionCategory },
+            })
+          }
+          data-testid="assumption-category-select"
+          aria-label="Assumption type"
+        >
+          {ASSUMPTION_CATEGORIES.map((c) => (
+            <option key={c} value={c}>
+              {ASSUMPTION_CATEGORY_LABELS[c]}
+            </option>
+          ))}
+        </select>
         <ConfidenceBadge confidence={assumption.confidence} />
         <span className="text-xs text-gray-400 ml-auto">{assumption.source}</span>
       </div>
@@ -135,10 +162,6 @@ function MissingFieldItem({
   const [inputValue, setInputValue] = useState(field.filledValue || '')
   const [saved, setSaved] = useState(!!field.filledValue)
 
-  function humanize(str: string) {
-    return str.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
-  }
-
   function handleSave() {
     if (inputValue.trim()) {
       dispatch({ type: 'FILL_MISSING', field: field.field, value: inputValue.trim() })
@@ -149,7 +172,7 @@ function MissingFieldItem({
   return (
     <div className="mb-3" data-testid="missing-field-item">
       <label className="block text-sm font-medium text-amber-800 mb-1">
-        {humanize(field.field)}
+        {humanizeFieldName(field.field)}
       </label>
       <p className="text-xs text-amber-700 mb-1">{field.description}</p>
       <div className="flex gap-2">

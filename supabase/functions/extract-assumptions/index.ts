@@ -183,6 +183,8 @@ serve(async (req) => {
     }
 
     // 6. Build system prompt
+    // The category enum below must stay in step with ASSUMPTION_CATEGORIES in
+    // src/types/wizard.ts — this prompt is what actually produces the values.
     const systemPrompt = `You are a clinical research assumption extractor. Extract key assumptions from CRO proposal documents. Return ONLY valid JSON matching this exact schema: { "assumptions": [{ "category": "sponsor_metadata|scope|timeline|budget|criteria", "value": "string", "confidence": 0.0-1.0, "source": "filename or inferred" }], "missing": [{ "field": "snake_case_field_name", "description": "human readable description" }] }`
 
     // 7. Call Anthropic claude-haiku via HTTP API

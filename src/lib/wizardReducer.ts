@@ -1,5 +1,12 @@
 import type { WizardState, WizardAction, WizardAssumption } from '../types/wizard'
-import { DEFAULT_WIZARD_STATE } from '../types/wizard'
+import { DEFAULT_WIZARD_STATE, DEFAULT_ASSUMPTION_CATEGORY } from '../types/wizard'
+
+// 'target_enrollment' -> 'Target Enrollment'. Shared with Step3AssumptionReview,
+// which uses it for the missing-field label, so the label the user answered and
+// the label the model sees are the same string.
+export function humanizeFieldName(field: string): string {
+  return field.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+}
 
 // ── wizardReducer ────────────────────────────────────────────────────────────
 //
@@ -51,7 +58,9 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
     case 'ADD_ASSUMPTION': {
       const newAssumption: WizardAssumption = {
         id: crypto.randomUUID(),
-        category: 'scope',
+        // Starting point only — the card renders a category select, so the user
+        // can re-file it without leaving Step 3.
+        category: DEFAULT_ASSUMPTION_CATEGORY,
         value: '',
         confidence: 'high',
         source: 'user-provided',
@@ -66,8 +75,11 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
     case 'FILL_MISSING': {
       const filledAssumption: WizardAssumption = {
         id: crypto.randomUUID(),
-        category: 'scope',
-        value: action.value,
+        category: DEFAULT_ASSUMPTION_CATEGORY,
+        // Keep the field name attached to the answer. Storing the bare value
+        // produced rows whose entire content was "2500" or "5%", reaching the
+        // model as "- [scope] 2500" with nothing to say what 2500 measured.
+        value: `${humanizeFieldName(action.field)}: ${action.value}`,
         confidence: 'high',
         source: 'user-provided',
         status: 'approved',

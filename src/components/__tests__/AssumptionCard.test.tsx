@@ -96,3 +96,61 @@ describe('AssumptionCard', () => {
     })
   })
 })
+
+describe('AssumptionCard category selector', () => {
+  it('renders the category as a select, not a static label', () => {
+    const state = makeState({ assumptions: [makeAssumption({ category: 'timeline' })] })
+    const dispatch = vi.fn()
+    const { getByTestId } = render(<Step3AssumptionReview state={state} dispatch={dispatch} />)
+    const select = getByTestId('assumption-category-select') as HTMLSelectElement
+    expect(select.tagName).toBe('SELECT')
+    expect(select.value).toBe('timeline')
+  })
+
+  it('offers all five categories with human-readable labels', () => {
+    const state = makeState({ assumptions: [makeAssumption()] })
+    const dispatch = vi.fn()
+    const { getByTestId } = render(<Step3AssumptionReview state={state} dispatch={dispatch} />)
+    const select = getByTestId('assumption-category-select') as HTMLSelectElement
+    const options = Array.from(select.options)
+    expect(options.map((o) => o.value)).toEqual([
+      'sponsor_metadata',
+      'scope',
+      'timeline',
+      'budget',
+      'criteria',
+    ])
+    expect(options.map((o) => o.textContent)).toEqual([
+      'Sponsor Info',
+      'Scope',
+      'Timeline',
+      'Budget',
+      'Eligibility Criteria',
+    ])
+  })
+
+  it('dispatches UPDATE_ASSUMPTION when the category is changed', () => {
+    const state = makeState({ assumptions: [makeAssumption({ id: 'a1', category: 'scope' })] })
+    const dispatch = vi.fn()
+    const { getByTestId } = render(<Step3AssumptionReview state={state} dispatch={dispatch} />)
+    fireEvent.change(getByTestId('assumption-category-select'), {
+      target: { value: 'budget' },
+    })
+    expect(dispatch).toHaveBeenCalledWith({
+      type: 'UPDATE_ASSUMPTION',
+      id: 'a1',
+      updates: { category: 'budget' },
+    })
+  })
+
+  it('is available on extracted assumptions, not just user-added ones', () => {
+    const state = makeState({
+      assumptions: [makeAssumption({ id: 'a1', source: 'protocol.pdf', category: 'criteria' })],
+    })
+    const dispatch = vi.fn()
+    const { getByTestId } = render(<Step3AssumptionReview state={state} dispatch={dispatch} />)
+    const select = getByTestId('assumption-category-select') as HTMLSelectElement
+    expect(select.disabled).toBe(false)
+    expect(select.value).toBe('criteria')
+  })
+})
