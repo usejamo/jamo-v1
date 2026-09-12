@@ -150,6 +150,30 @@ systematic-debugging for bugs) when we pick it up.
   While generating, if Stop is pressed, swap the Stop button for a **Resume**
   button in the same spot. (Assess whether this is an easy change.)
   _Type: feature - frontend + generation backend_
+  E2E VERIFIED 2026-09-12 on `feat/generation-resume` @ `a47120e`, real browser
+  against localhost:5182 + prod Supabase. Full evidence:
+  `.superpowers/sdd/2026-09-12-generation-resume/task-8-report.md`.
+  Stop now yields "Generation paused / N of M sections complete" with a Resume
+  button — not "Generated" with Export only. **Resume does not regenerate
+  finished work:** stopped at 4 of 9, resumed, and positions 1-4 kept their exact
+  `generated_at` (18:33:26.977 / 18:34:59.928 / 18:35:52.046 / 18:36:46.147)
+  while the run restarted at position 5. Four LLM calls saved.
+  Survives a hard refresh (44%, Resume works, zero stranded spinners — the
+  abandoned `status='generating'` row renders as Pending). Paused header reports
+  the true count, never "0 of 9 — 0%". Chat works in the paused phase (no
+  "generate the proposal draft first" refusal; it answered from the written
+  sections). Second-proposal guard fires the alert and starts no second loop,
+  with B's rows byte-identical while A advanced.
+  CAVEAT on the acceptance criterion: `updated_at` is useless as a "was this
+  regenerated" signal here. `useAutosave` writes `content` + `updated_at` on
+  every page view with no user edit — proved by a plain reload with no
+  generation bumping all 9 rows. First view of a generated proposal also
+  materially rewrites stored content (pos 10: 11,792 -> 21,799 chars) as TipTap
+  normalises markup. Pre-existing, not from this branch; needs its own triage.
+  ONE UNREPRODUCED ANOMALY: the first Stop press of the session was not honoured
+  (2 more sections completed); 3 later presses paused instantly. Could be a
+  synthetic-click race against the token-by-token re-render. Worth one manual
+  human attempt before shipping.
 
 - [x] **10. Capitalize "Jamo" everywhere**
   Audit all user-facing copy - "Jamo" should always be capitalized.
@@ -177,6 +201,32 @@ systematic-debugging for bugs) when we pick it up.
   back with generation still running or completed. Assess feasibility -
   likely needs server-side / background generation rather than client-driven.
   _Type: feature - architecture (generation lifecycle)_
+  E2E VERIFIED 2026-09-12 on `feat/generation-resume` @ `a47120e`. Evidence:
+  `.superpowers/sdd/2026-09-12-generation-resume/task-8-report.md`.
+  The "needs server-side / background generation" premise is REFUTED. No backend
+  change was required — the loop already survives unmount. Left a live
+  generation at 4 of 9 (section 5 streaming), navigated in-app to Settings via
+  the nav, idled 62s, navigated back: returned to "Generating section 8 of 9 /
+  7 of 9 sections / 78%" with a working Stop, then watched it reach "Generated".
+  Previously the loop kept running but the page came back claiming "Generated".
+  Also verified the cross-proposal state bugs introduced when the hook was
+  hoisted into a shared provider are closed:
+  - Stale-binding auto-trigger (the data-corruption path, no automated test
+    coverage — this was its only gate): with proposal A mounted and the provider
+    bound to it, an in-app route change (no reload; sentinel-proven) to a
+    different proposal's `?generate=true` URL generated into **B's** rows with
+    **B's** study context (hepatocellular carcinoma / Vericel / ADVANCE-301, zero
+    trace of A's nephrology / ACME-204), and all 9 of A's rows were byte-identical
+    by md5 afterwards. Note: driven by pushState+popstate, because no user gesture
+    in the app navigates to an existing proposal's `?generate=true` URL — the
+    creation-wizard path that does produce the flag was NOT exercised.
+  - Zero-section proposal no longer inherits the previous proposal's sections:
+    in-app nav from a 9-section proposal to a 0-section one rendered 0 sections,
+    no leaked content, and wrote nothing (`rows_now: 0`).
+  - While A generated, proposal B's page showed B's own paused header, not A's.
+  MINOR: Stop logs an uncaught `AbortError: BodyStreamBuffer was aborted`
+  (`useProposalGeneration.ts:515`) — cosmetic, but the deliberate abort should be
+  caught so it stops polluting the console.
 
 - [ ] **13. RAG golden set — BLOCKED on where the questions come from**
   The measurement instrument for 14/15/16. `scripts/rag-eval.ts` is BUILT and
