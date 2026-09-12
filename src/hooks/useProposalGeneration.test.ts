@@ -517,3 +517,43 @@ describe('both generation entry points enrich the context', () => {
     expect(body).toContain('buildEnrichedContext')
   })
 })
+
+// ---------------------------------------------------------------------------
+// Hydration effect: zero-row proposals
+//
+// The hook instance is shared and long-lived above the routes (GenerationProvider),
+// so hydration bailing on an empty result leaves the PREVIOUS proposal's sections in
+// the reducer and a zero-row proposal renders them as its own. ~30% of live proposals
+// have zero section rows, so this is a common path.
+//
+// Asserted against source rather than behaviour: the dispatch lives inside a useEffect
+// promise chain with no exported seam, and this file already uses source slicing for
+// exactly this kind of effect-internal invariant (see buildEnrichedContext tests above).
+// ---------------------------------------------------------------------------
+describe('hydration effect handles a zero-row proposal', () => {
+  const hydrationEffect = () => {
+    const src = readFileSync(resolve(__dirname, 'useProposalGeneration.ts'), 'utf8')
+    return src.slice(
+      src.indexOf('// Hydrate all sections from DB on mount'),
+      src.indexOf('// Supabase Realtime subscription')
+    )
+  }
+
+  it('clears the reducer instead of bailing', () => {
+    const body = hydrationEffect()
+    expect(body).toContain("dispatch({ type: 'RESET' })")
+    // The old bail — `if (!data || data.length === 0) return` — is what stranded the
+    // previous proposal's sections in shared state.
+    expect(body).not.toMatch(/data\.length === 0\)\s*return/)
+  })
+
+  it('cannot clear state mid-generation, nor for an unbound proposal', () => {
+    const body = hydrationEffect()
+    // generateAll/resumeGeneration set isGeneratingRef synchronously before their first
+    // await, so a late empty response cannot clobber a run that started meanwhile.
+    expect(body).toMatch(/if \(!isGeneratingRef\.current\) dispatch\(\{ type: 'RESET' \}\)/)
+    // The provider renders useProposalGeneration('') before any claim; that must not
+    // reach the query or the dispatch at all.
+    expect(body).toMatch(/if \(!proposalId\) return/)
+  })
+})

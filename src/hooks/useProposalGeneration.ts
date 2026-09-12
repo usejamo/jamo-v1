@@ -343,7 +343,22 @@ export function useProposalGeneration(proposalId: string) {
       .eq('proposal_id', proposalId)
       .order('position', { ascending: true })
       .then(({ data }) => {
-        if (!data || data.length === 0) return
+        if (!data || data.length === 0) {
+          // A zero-row proposal must clear the reducer, not leave it alone. This hook
+          // used to be mounted per-ProposalDetail, so every visit started from an empty
+          // initialState and bailing here was harmless; now the instance is shared and
+          // long-lived above the routes, so bailing leaves the PREVIOUS proposal's
+          // sections in state and the zero-row proposal renders them as its own.
+          //
+          // Guarded on isGeneratingRef, not state.isGenerating: generateAll and
+          // resumeGeneration both set that ref synchronously before their first await,
+          // so if generation started for this same proposal while this query was still
+          // in flight, the ref is already true and the late empty response cannot clobber
+          // the run. (proposalId itself cannot change mid-generation — claimGeneration
+          // refuses to move activeProposalId while a generation is running.)
+          if (!isGeneratingRef.current) dispatch({ type: 'RESET' })
+          return
+        }
         const sections: SectionState[] = (data as SectionRow[]).map(rowToSectionState)
         dispatch({ type: 'START_GENERATION', sections })
         // After building nav, mark as not generating (hydration only)
