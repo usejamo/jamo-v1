@@ -16,7 +16,7 @@ import { useAuth } from '../context/AuthContext'
 import { useSidebar } from '../context/SidebarContext'
 import Sidebar from '../components/Sidebar'
 import { useGeneration } from '../context/GenerationContext'
-import { derivePhase } from '../lib/generationProgress'
+import { derivePhase, hasContent, rowToSectionState } from '../lib/generationProgress'
 import { GenerationHeader } from '../components/GenerationHeader'
 import { GenerationControls } from '../components/GenerationControls'
 import type { GenerateSectionPayloadV2 } from '../types/generation'
@@ -392,7 +392,7 @@ export default function ProposalDetail() {
     return () => setSidebarNode(null)
   }, [pendingActionsCount, setSidebarNode])
 
-  const { claimGeneration, generatingProposalId, generation } = useGeneration()
+  const { activeProposalId, claimGeneration, generatingProposalId, generation } = useGeneration()
   const {
     state: genState,
     dispatch: genDispatch,
@@ -464,12 +464,63 @@ export default function ProposalDetail() {
     refetchSections()
   }, [id, genState?.completedCount, genState?.isGenerating, refetchSections])
 
-  const phase = derivePhase(genState.isGenerating, sortedGenSections, genState.totalCount)
+  // ── Which section data THIS proposal's view is derived from ──────────────────
+  //
+  // The shared generation state belongs to `activeProposalId`. Opening proposal B while
+  // A is mid-generation leaves B's claim refused (GenerationContext.claimGeneration),
+  // and the claim only ever runs post-render anyway — so reading genState unconditionally
+  // made B render A's phase: B's Export and workspace hidden behind a "generating" header
+  // describing work that is not B's. Spec D-4 requires a proposal opened while another
+  // generates to render its OWN data-derived view, so when the shared state isn't ours we
+  // fall back to this proposal's locally fetched rows with isGenerating false. Same
+  // content test either way (rowToSectionState/derivePhase both key off content).
+  const ownsGenerationState = activeProposalId === id
+  const localSectionStates = useMemo(
+    () => proposalSections.map(s => rowToSectionState({ ...s, role: null })),
+    [proposalSections]
+  )
+  const viewSections = ownsGenerationState ? sortedGenSections : localSectionStates
+  // The reducer state this view renders from: the shared one when it is ours, otherwise a
+  // content-derived stand-in built from this proposal's own rows, so nothing downstream —
+  // header, controls, or the streaming renderer — can display another proposal's sections.
+  const viewGenState = useMemo(
+    () =>
+      ownsGenerationState
+        ? genState
+        : {
+            ...genState,
+            isGenerating: false,
+            sections: Object.fromEntries(localSectionStates.map(s => [s.id, s])),
+            completedCount: localSectionStates.filter(s => hasContent(s.finalContent)).length,
+            totalCount: localSectionStates.length,
+          },
+    [ownsGenerationState, genState, localSectionStates]
+  )
+  const viewTotalCount = viewGenState.totalCount
+
+  const phase = derivePhase(viewGenState.isGenerating, viewSections, viewTotalCount)
+  // Progress for the generating/paused header. NOT genState.completedCount: hydration
+  // dispatches START_GENERATION (which hardcodes completedCount: 0) then
+  // GENERATION_COMPLETE (which never restores it), so after any reload a paused proposal
+  // announced "0 of 9 sections — 0%" next to its Resume button while derivePhase — which
+  // reads finalContent — correctly reported paused. Content is the truthful source.
+  // During an active generation this is identical to genState.completedCount: both move
+  // on SECTION_COMPLETE.
+  const completedSectionCount = viewSections.filter(s => hasContent(s.finalContent)).length
+  // Equivalent to `ownsGenerationState && genState.isGenerating` (derivePhase returns
+  // 'generating' exactly when its first argument is true), stated via phase so the header
+  // can never show A's Stop button over B.
+  const isGeneratingHere = phase === 'generating'
   // Derived from section content, not from a per-tab sessionStorage flag. The old flag
   // was set true whenever section ROWS existed — regardless of whether any of them had
   // content — which is why a stopped proposal reloaded announcing itself as "Generated"
   // with 8 of 9 sections empty and Export as its only control.
   const generated = phase === 'complete'
+  // What the chat panel actually needs to know: is there written content to edit? Gating
+  // it on `generated` (complete only) made AIChatPanel refuse every message in the paused
+  // phase with "generate the proposal draft first" — false for a proposal with real
+  // written sections, and the panel renders in that phase regardless.
+  const draftHasWrittenContent = phase === 'complete' || phase === 'paused'
   // Widened from `genState.isGenerating` alone. stopGeneration dispatches
   // GENERATION_COMPLETE, so without 'paused' the entire header — Resume included —
   // unmounts the instant Stop is pressed.
@@ -809,10 +860,10 @@ export default function ProposalDetail() {
             {isStreamingMode && (
               <>
                 <GenerationHeader
-                  isGenerating={genState.isGenerating}
+                  isGenerating={isGeneratingHere}
                   phase={phase}
-                  completedCount={genState.completedCount}
-                  totalCount={genState.totalCount}
+                  completedCount={completedSectionCount}
+                  totalCount={viewTotalCount}
                   onStop={stopGeneration}
                   onResume={() => {
                     if (!hasClaim) {
@@ -825,14 +876,14 @@ export default function ProposalDetail() {
                 <GenerationControls
                   tone={genState.tone}
                   onToneChange={(tone) => genDispatch({ type: 'SET_TONE', tone })}
-                  isGenerating={genState.isGenerating}
+                  isGenerating={isGeneratingHere}
                   onGenerate={handleGenerateOrStartOver}
-                  hasCompleted={genState.completedCount === genState.totalCount && !genState.isGenerating}
+                  hasCompleted={completedSectionCount === viewTotalCount && !isGeneratingHere}
                 />
                 <ProposalDraftRenderer
                   mode="streaming"
                   sections={draftSections}
-                  generationState={genState}
+                  generationState={viewGenState}
                   onRegenerate={handleRegenerate}
                   onRetry={handleRegenerate}
                   hideNav={false}
@@ -906,7 +957,7 @@ export default function ProposalDetail() {
 
       {/* ── Right: AI chat panel (self-sizing) ── */}
       <AIChatPanel
-        draftGenerated={generated}
+        draftGenerated={draftHasWrittenContent}
         proposalId={id ?? ''}
         orgId={profile?.org_id ?? user?.user_metadata?.org_id ?? ''}
         sections={proposalSections ?? []}
