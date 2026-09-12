@@ -10,6 +10,12 @@ import {
   AnchorPayload,
   RagChunk,
 } from '../types/generation'
+import {
+  partitionSections,
+  pickAnchorSource,
+  rowToSectionState,
+  type SectionRow,
+} from '../lib/generationProgress'
 
 // ---------------------------------------------------------------------------
 // Reducer
@@ -338,19 +344,7 @@ export function useProposalGeneration(proposalId: string) {
       .order('position', { ascending: true })
       .then(({ data }) => {
         if (!data || data.length === 0) return
-        const sections: SectionState[] = data.map((row: any) => ({
-          id: row.id,
-          name: row.name ?? row.section_key ?? 'Section',
-          position: row.position ?? 99,
-          role: row.role ?? null,
-          status: (
-            row.status === 'complete' ? 'complete' :
-            row.status === 'generating' ? 'generating' : 'pending'
-          ) as SectionStatus,
-          liveText: '',
-          finalContent: row.status === 'complete' ? (row.content ?? null) : null,
-          error: null,
-        }))
+        const sections: SectionState[] = (data as SectionRow[]).map(rowToSectionState)
         dispatch({ type: 'START_GENERATION', sections })
         // After building nav, mark as not generating (hydration only)
         dispatch({ type: 'GENERATION_COMPLETE' })
@@ -491,6 +485,56 @@ export function useProposalGeneration(proposalId: string) {
     [proposalId, session, state.tone]
   )
 
+  // The shared sequential loop. generateAll runs it over every section; resumeGeneration
+  // runs it over the unfinished ones only. Extracted so the two entry points cannot drift.
+  const runLoop = useCallback(
+    async (
+      toGenerate: SectionState[],
+      seedCompleted: Array<{ id: string; name: string; content: string }>,
+      seedAnchor: string,
+      rowsById: Map<string, SectionRow>,
+      enrichedContext: Awaited<ReturnType<typeof buildEnrichedContext>>,
+      isDebug: boolean,
+      abortController: AbortController
+    ) => {
+      const completedSections = [...seedCompleted]
+      let anchor = seedAnchor
+
+      for (const section of toGenerate) {
+        const rag = await fetchRagChunks(
+          profile?.org_id ?? '',
+          proposalId,
+          section.name,
+          enrichedContext.studyInfo.therapeuticArea,
+          enrichedContext.studyInfo.studyPhase,
+          enrichedContext.studyInfo.countries,
+          enrichedContext.studyInfo.indication
+        )
+        const sectionDescription = rowsById.get(section.id)?.description ?? null
+        const content = await streamSection(
+          section,
+          sectionDescription,
+          completedSections,
+          anchor,
+          enrichedContext,
+          rag,
+          isDebug,
+          abortController.signal
+        )
+        if (abortController.signal.aborted) break
+        if (content) {
+          completedSections.push({ id: section.id, name: section.name, content })
+          if (session) {
+            const newAnchor = await extractAnchor(content, session)
+            if (newAnchor) anchor = newAnchor
+            dispatch({ type: 'SET_ANCHOR', anchor })
+          }
+        }
+      }
+    },
+    [proposalId, session, profile, streamSection]
+  )
+
   // generateAll: position-ordered sequential loop (replaces wave-based orchestration)
   const generateAll = useCallback(
     async (
@@ -511,7 +555,7 @@ export function useProposalGeneration(proposalId: string) {
         // Fetch sections ordered by position
         const { data: sectionRows } = await supabase
           .from('proposal_sections')
-          .select('id, name, description, position, role, status, section_key')
+          .select('id, name, description, position, role, status, section_key, content')
           .eq('proposal_id', proposalId)
           .order('position', { ascending: true })
 
@@ -533,41 +577,10 @@ export function useProposalGeneration(proposalId: string) {
         }))
         dispatch({ type: 'START_GENERATION', sections })
 
-        const completedSections: Array<{ id: string; name: string; content: string }> = []
-        let anchor = ''
-
-        for (const section of sections) {
-          const rag = await fetchRagChunks(
-            profile?.org_id ?? '',
-            proposalId,
-            section.name,
-            enrichedContext.studyInfo.therapeuticArea,
-            enrichedContext.studyInfo.studyPhase,
-            enrichedContext.studyInfo.countries,
-            enrichedContext.studyInfo.indication
-          )
-          const sectionDescription = (sectionRows.find((r: any) => r.id === section.id) as any)?.description ?? null
-          const content = await streamSection(
-            section,
-            sectionDescription,
-            completedSections,
-            anchor,
-            enrichedContext,
-            rag,
-            isDebug,
-            abortController.signal
-          )
-          if (abortController.signal.aborted) break
-          if (content) {
-            completedSections.push({ id: section.id, name: section.name, content })
-            // Update anchor with latest content (after every section)
-            if (session) {
-              const newAnchor = await extractAnchor(content, session)
-              if (newAnchor) anchor = newAnchor
-              dispatch({ type: 'SET_ANCHOR', anchor })
-            }
-          }
-        }
+        const rowsById = new Map<string, SectionRow>(
+          (sectionRows as SectionRow[]).map(r => [r.id, r])
+        )
+        await runLoop(sections, [], '', rowsById, enrichedContext, isDebug, abortController)
         dispatch({ type: 'GENERATION_COMPLETE' })
       } catch (err) {
         console.error('[useProposalGeneration] generateAll error:', err)
@@ -577,7 +590,88 @@ export function useProposalGeneration(proposalId: string) {
         isGeneratingRef.current = false
       }
     },
-    [proposalId, session, profile, streamSection]
+    [proposalId, session, profile, streamSection, runLoop]
+  )
+
+  // Resume: pick up the unfinished sections without touching what is already written.
+  const resumeGeneration = useCallback(
+    async (
+      proposalContext: GenerateSectionPayloadV2['proposalContext'],
+      debug?: boolean
+    ) => {
+      // Same synchronous guard generateAll uses. Hoisted into GenerationContext so a
+      // remount cannot create a second guard and let two loops run over one proposal.
+      if (isGeneratingRef.current) return
+      isGeneratingRef.current = true
+      const isDebug = debug ?? localStorage.getItem('jamo_debug_mode') === 'true'
+      const abortController = new AbortController()
+      abortControllerRef.current = abortController
+      try {
+        const enrichedContext = await buildEnrichedContext(proposalId, proposalContext)
+
+        // Re-read at resume time, not from stale state: a section that was mid-flush
+        // when Stop landed may have completed since, and must then be skipped.
+        const { data: sectionRows } = await supabase
+          .from('proposal_sections')
+          .select('id, name, description, position, role, status, section_key, content')
+          .eq('proposal_id', proposalId)
+          .order('position', { ascending: true })
+
+        if (!sectionRows || sectionRows.length === 0) {
+          dispatch({ type: 'GENERATION_COMPLETE' })
+          return
+        }
+
+        const rows = sectionRows as SectionRow[]
+        const { done, todo } = partitionSections(rows)
+
+        if (todo.length === 0) {
+          dispatch({ type: 'GENERATION_COMPLETE' })
+          return
+        }
+
+        const allSections = rows.map(rowToSectionState)
+        dispatch({
+          type: 'RESUME_GENERATION',
+          sections: allSections,
+          completedCount: done.length,
+        })
+
+        const seedCompleted = done.map(r => ({
+          id: r.id,
+          name: r.name ?? r.section_key ?? 'Section',
+          content: r.content ?? '',
+        }))
+
+        // The anchor is memoryless — a summary of the previous section only — so one
+        // call on the last completed section reproduces the value the loop held exactly.
+        const anchorSource = pickAnchorSource(done)
+        let anchor = ''
+        if (anchorSource && session) {
+          anchor = await extractAnchor(anchorSource, session)
+          if (anchor) dispatch({ type: 'SET_ANCHOR', anchor })
+        }
+
+        const rowsById = new Map<string, SectionRow>(rows.map(r => [r.id, r]))
+        const todoStates = todo.map(rowToSectionState)
+        await runLoop(
+          todoStates,
+          seedCompleted,
+          anchor,
+          rowsById,
+          enrichedContext,
+          isDebug,
+          abortController
+        )
+        dispatch({ type: 'GENERATION_COMPLETE' })
+      } catch (err) {
+        console.error('[useProposalGeneration] resumeGeneration error:', err)
+        dispatch({ type: 'GENERATION_COMPLETE' })
+      } finally {
+        isGeneratingRef.current = false
+      }
+    },
+    [proposalId, session, profile, runLoop]
   )
 
   // generateSection: single section by UUID (REQ-4.7)
@@ -655,5 +749,5 @@ export function useProposalGeneration(proposalId: string) {
   // Sorted sections array for consumers (D-12)
   const sortedSections = Object.values(state.sections).sort((a, b) => a.position - b.position)
 
-  return { state, dispatch, generateAll, generateSection, regenerateSection, sortedSections, stopGeneration }
+  return { state, dispatch, generateAll, generateSection, regenerateSection, sortedSections, stopGeneration, resumeGeneration }
 }
