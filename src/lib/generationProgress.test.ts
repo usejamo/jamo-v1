@@ -1,6 +1,13 @@
 import { describe, it, expect } from 'vitest'
-import { hasContent, partitionSections, pickAnchorSource } from './generationProgress'
+import {
+  hasContent,
+  partitionSections,
+  pickAnchorSource,
+  rowToSectionState,
+  derivePhase,
+} from './generationProgress'
 import type { SectionRow } from './generationProgress'
+import type { SectionState } from '../types/generation'
 
 function makeRow(overrides?: Partial<SectionRow>): SectionRow {
   return {
@@ -79,5 +86,90 @@ describe('pickAnchorSource', () => {
 
   it('returns empty string when nothing is done', () => {
     expect(pickAnchorSource([])).toBe('')
+  })
+})
+
+function makeSectionState(overrides?: Partial<SectionState>): SectionState {
+  return {
+    id: 'sec-1',
+    name: 'Understanding of the Study',
+    position: 1,
+    role: null,
+    status: 'pending',
+    liveText: '',
+    finalContent: null,
+    error: null,
+    ...overrides,
+  }
+}
+
+describe('rowToSectionState', () => {
+  it('normalises a stranded generating row with no content to pending', () => {
+    // No loop is running behind it, so rendering it as in-progress would show a
+    // spinner that never resolves.
+    const state = rowToSectionState(makeRow({ status: 'generating', content: '' }))
+    expect(state.status).toBe('pending')
+    expect(state.finalContent).toBeNull()
+  })
+
+  it('maps a content-bearing generating row to complete', () => {
+    const state = rowToSectionState(makeRow({ status: 'generating', content: '<p>kept</p>' }))
+    expect(state.status).toBe('complete')
+    expect(state.finalContent).toBe('<p>kept</p>')
+  })
+
+  it('maps a complete row to complete with its content', () => {
+    const state = rowToSectionState(makeRow({ status: 'complete', content: '<p>done</p>' }))
+    expect(state.status).toBe('complete')
+    expect(state.finalContent).toBe('<p>done</p>')
+  })
+
+  it('falls back to section_key then a default for the name', () => {
+    expect(rowToSectionState(makeRow({ name: null, section_key: 'budget' })).name).toBe('budget')
+    expect(rowToSectionState(makeRow({ name: null, section_key: null })).name).toBe('Section')
+  })
+
+  it('defaults a null position to 99', () => {
+    expect(rowToSectionState(makeRow({ position: null })).position).toBe(99)
+  })
+})
+
+describe('derivePhase', () => {
+  it('is generating whenever the loop is running, regardless of counts', () => {
+    expect(derivePhase(true, [makeSectionState()], 1)).toBe('generating')
+  })
+
+  it('is not-started when nothing has content', () => {
+    expect(derivePhase(false, [makeSectionState(), makeSectionState({ id: 'b' })], 2))
+      .toBe('not-started')
+  })
+
+  it('is not-started when sections have not hydrated yet', () => {
+    expect(derivePhase(false, [], 0)).toBe('not-started')
+  })
+
+  it('is paused when some but not all sections have content', () => {
+    const sections = [
+      makeSectionState({ id: 'a', finalContent: '<p>x</p>', status: 'complete' }),
+      makeSectionState({ id: 'b' }),
+    ]
+    expect(derivePhase(false, sections, 2)).toBe('paused')
+  })
+
+  it('does not count liveText as done', () => {
+    // A section that only ever streamed into liveText was never persisted.
+    const sections = [
+      makeSectionState({ id: 'a', liveText: 'half a section', finalContent: null }),
+      makeSectionState({ id: 'b' }),
+    ]
+    expect(derivePhase(false, sections, 2)).toBe('not-started')
+  })
+
+  it('is complete when every section has content', () => {
+    const sections = [
+      makeSectionState({ id: 'a', finalContent: '<p>x</p>', status: 'complete' }),
+      makeSectionState({ id: 'b', finalContent: '<p>y</p>', status: 'complete' }),
+    ]
+    expect(derivePhase(false, sections, 2)).toBe('complete')
   })
 })

@@ -1,3 +1,5 @@
+import type { SectionState } from '../types/generation'
+
 /**
  * Pure progress derivation for proposal generation.
  *
@@ -55,4 +57,46 @@ export function pickAnchorSource(done: SectionRow[]): string {
   if (done.length === 0) return ''
   const last = [...done].sort(byPosition)[done.length - 1]
   return last.content ?? ''
+}
+
+/**
+ * Map a DB row to reducer state.
+ *
+ * A row stranded at 'generating' with no content is normalised to 'pending': no loop
+ * is running behind it, so presenting it as in-progress would show a spinner that
+ * never resolves. A row with content is 'complete' whatever its status column says.
+ */
+export function rowToSectionState(row: SectionRow): SectionState {
+  const complete = hasContent(row.content)
+  return {
+    id: row.id,
+    name: row.name ?? row.section_key ?? 'Section',
+    position: row.position ?? 99,
+    role: row.role ?? null,
+    status: complete ? 'complete' : 'pending',
+    liveText: '',
+    finalContent: complete ? row.content : null,
+    error: null,
+  }
+}
+
+export type GenerationPhase = 'not-started' | 'generating' | 'paused' | 'complete'
+
+/**
+ * Which generation UI to show. Derived from the data — never from sessionStorage,
+ * which is per-tab and goes stale the moment generation is interrupted.
+ *
+ * Reads SectionState.finalContent (NOT SectionRow.content, and never liveText,
+ * which is unpersisted streaming scratch).
+ */
+export function derivePhase(
+  isGenerating: boolean,
+  sections: SectionState[],
+  totalCount: number
+): GenerationPhase {
+  if (isGenerating) return 'generating'
+  if (totalCount === 0) return 'not-started'
+  const doneCount = sections.filter(s => hasContent(s.finalContent)).length
+  if (doneCount === 0) return 'not-started'
+  return doneCount < totalCount ? 'paused' : 'complete'
 }
