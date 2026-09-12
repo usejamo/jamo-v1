@@ -15,7 +15,8 @@ import { useProposalModal } from '../context/ProposalModalContext'
 import { useAuth } from '../context/AuthContext'
 import { useSidebar } from '../context/SidebarContext'
 import Sidebar from '../components/Sidebar'
-import { useProposalGeneration } from '../hooks/useProposalGeneration'
+import { useGeneration } from '../context/GenerationContext'
+import { derivePhase } from '../lib/generationProgress'
 import { GenerationHeader } from '../components/GenerationHeader'
 import { GenerationControls } from '../components/GenerationControls'
 import type { GenerateSectionPayloadV2 } from '../types/generation'
@@ -258,10 +259,8 @@ export default function ProposalDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
-  const DRAFT_KEY = `draft-generated-${id}`
   const OVERRIDES_KEY = `draft-overrides-${id}`
   const [generating] = useState(false)
-  const [generated, setGenerated] = useState(() => !!sessionStorage.getItem(DRAFT_KEY))
   const [_acceptedOverrides, setAcceptedOverrides] = useState<Record<string, ContentBlock[]>>(() => {
     try {
       const stored = sessionStorage.getItem(`draft-overrides-${id}`)
@@ -329,7 +328,6 @@ export default function ProposalDetail() {
         if (seq !== sectionsFetchSeqRef.current) return  // superseded by a newer fetch
         if (data && data.length > 0) {
           setProposalSections(data as any)
-          setGenerated(true)
         }
         setSectionsLoaded(true)
       })
@@ -394,7 +392,27 @@ export default function ProposalDetail() {
     return () => setSidebarNode(null)
   }, [pendingActionsCount, setSidebarNode])
 
-  const { state: genState, dispatch: genDispatch, generateAll, regenerateSection, stopGeneration } = useProposalGeneration(id ?? '')
+  const { claimGeneration, generatingProposalId, generation } = useGeneration()
+  const {
+    state: genState,
+    dispatch: genDispatch,
+    generateAll,
+    regenerateSection,
+    stopGeneration,
+    resumeGeneration,
+    sortedSections: sortedGenSections,
+  } = generation
+
+  // Bind the shared instance to this proposal. This MUST live in an effect, not in
+  // render or a useMemo — claimGeneration sets state in the provider, and calling it
+  // during render triggers "Cannot update a component while rendering a different
+  // component".
+  useEffect(() => {
+    if (id) claimGeneration(id)
+  }, [id, claimGeneration])
+
+  // Refused only while a *different* proposal is mid-generation.
+  const hasClaim = !generatingProposalId || generatingProposalId === id
 
   const sectionTitles = useMemo(() => {
     const map: Record<string, string> = {}
@@ -434,7 +452,6 @@ export default function ProposalDetail() {
         if (seq !== sectionsFetchSeqRef.current) return  // superseded by a newer fetch
         if (data && data.length > 0) {
           setProposalSections(data as any)
-          setGenerated(true)
         }
         setSectionsLoaded(true)
       })
@@ -447,7 +464,16 @@ export default function ProposalDetail() {
     refetchSections()
   }, [id, genState?.completedCount, genState?.isGenerating, refetchSections])
 
-const isStreamingMode = genState.isGenerating
+  const phase = derivePhase(genState.isGenerating, sortedGenSections, genState.totalCount)
+  // Derived from section content, not from a per-tab sessionStorage flag. The old flag
+  // was set true whenever section ROWS existed — regardless of whether any of them had
+  // content — which is why a stopped proposal reloaded announcing itself as "Generated"
+  // with 8 of 9 sections empty and Export as its only control.
+  const generated = phase === 'complete'
+  // Widened from `genState.isGenerating` alone. stopGeneration dispatches
+  // GENERATION_COMPLETE, so without 'paused' the entire header — Resume included —
+  // unmounts the instant Stop is pressed.
+  const isStreamingMode = phase === 'generating' || phase === 'paused'
   const existingDocs: MockDoc[] = id ? (docsByProposal[id] ?? []) : []
 
   const rfpDoc = existingDocs.find(d => d.type === 'rfp')?.name ?? 'RFP Document'
@@ -556,6 +582,25 @@ const isStreamingMode = genState.isGenerating
   function handleRegenerate(sectionId: string) {
     const input = buildProposalInput()
     regenerateSection(sectionId, input)
+  }
+
+  // Never regenerate a section that has content: Start-over confirms before
+  // overwriting written work; Resume (wired separately) does not need to, since it
+  // only ever loops over the still-empty sections.
+  function handleGenerateOrStartOver() {
+    if (!hasClaim) {
+      window.alert(
+        'Another proposal is still generating. Stop it before starting generation here.'
+      )
+      return
+    }
+    if (phase === 'paused' || phase === 'complete') {
+      const ok = window.confirm(
+        'Start over? This regenerates every section and replaces the ones already written. Use Resume to keep them.'
+      )
+      if (!ok) return
+    }
+    handleGenerate()
   }
 
   return (
@@ -719,7 +764,7 @@ const isStreamingMode = genState.isGenerating
               </div>
               {!isStreamingMode && !generated && (
                 <button
-                  onClick={handleGenerate}
+                  onClick={handleGenerateOrStartOver}
                   disabled={generating}
                   className="flex items-center gap-2 bg-jamo-500 hover:bg-jamo-600 disabled:opacity-60 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
                 >
@@ -765,15 +810,23 @@ const isStreamingMode = genState.isGenerating
               <>
                 <GenerationHeader
                   isGenerating={genState.isGenerating}
+                  phase={phase}
                   completedCount={genState.completedCount}
                   totalCount={genState.totalCount}
                   onStop={stopGeneration}
+                  onResume={() => {
+                    if (!hasClaim) {
+                      window.alert('Another proposal is still generating. Stop it first.')
+                      return
+                    }
+                    resumeGeneration(buildProposalInput())
+                  }}
                 />
                 <GenerationControls
                   tone={genState.tone}
                   onToneChange={(tone) => genDispatch({ type: 'SET_TONE', tone })}
                   isGenerating={genState.isGenerating}
-                  onGenerate={handleGenerate}
+                  onGenerate={handleGenerateOrStartOver}
                   hasCompleted={genState.completedCount === genState.totalCount && !genState.isGenerating}
                 />
                 <ProposalDraftRenderer
