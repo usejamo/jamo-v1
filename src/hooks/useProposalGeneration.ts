@@ -334,15 +334,30 @@ export function useProposalGeneration(proposalId: string) {
   // ref is set BEFORE any await so the second call bails immediately.
   const isGeneratingRef = useRef(false)
 
+  // Fetch-race guard for the hydration effect below, mirroring ProposalDetail's
+  // sectionsFetchSeqRef. This hook instance is shared and long-lived above the routes,
+  // so navigating A -> B changes proposalId with BOTH queries still in flight against
+  // ONE reducer, and whichever response lands last wins. If A's lands last it dispatches
+  // A's sections into the state B is reading — and nothing re-fetches afterwards, so B
+  // shows A's sections persistently, not transiently. (Before the hook was hoisted, A's
+  // ProposalDetail unmounted and its instance died, so the late response dispatched into
+  // a dead reducer while B mounted a fresh one; no bleed was possible.) Only the response
+  // matching the CURRENT sequence number is applied.
+  const hydrateSeqRef = useRef(0)
+
   // Hydrate all sections from DB on mount (builds nav, restores completed state)
   useEffect(() => {
     if (!proposalId) return
+    const seq = ++hydrateSeqRef.current
     supabase
       .from('proposal_sections')
       .select('id, content, status, name, position, role, section_key')
       .eq('proposal_id', proposalId)
       .order('position', { ascending: true })
       .then(({ data }) => {
+        // Ahead of BOTH branches: a stale empty response must be dropped too, or it
+        // would RESET away the sections the newer proposal just hydrated.
+        if (seq !== hydrateSeqRef.current) return  // superseded by a newer fetch
         if (!data || data.length === 0) {
           // A zero-row proposal must clear the reducer, not leave it alone. This hook
           // used to be mounted per-ProposalDetail, so every visit started from an empty
