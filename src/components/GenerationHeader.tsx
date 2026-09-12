@@ -1,10 +1,13 @@
 import { motion } from 'framer-motion'
+import type { GenerationPhase } from '../lib/generationProgress'
 
 interface GenerationHeaderProps {
   isGenerating: boolean
   completedCount: number
   totalCount: number
   onStop?: () => void
+  phase?: GenerationPhase
+  onResume?: () => void
 }
 
 function ProgressBar({ completedCount, totalCount, isGenerating }: { completedCount: number; totalCount: number; isGenerating: boolean }) {
@@ -33,11 +36,16 @@ export function GenerationHeader({
   completedCount,
   totalCount,
   onStop,
+  phase,
+  onResume,
 }: GenerationHeaderProps) {
   const safeCompleted = Math.min(completedCount, totalCount)
+  const isPaused = phase === 'paused'
 
   const headingText = isGenerating
     ? 'Generating Proposal'
+    : isPaused
+    ? 'Generation paused'
     : safeCompleted === totalCount && totalCount > 0
     ? `${totalCount} sections complete. Review your proposal below.`
     : 'Ready to generate'
@@ -62,6 +70,14 @@ export function GenerationHeader({
               className="px-3 py-1.5 text-sm font-medium text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 hover:text-gray-800 transition-colors"
             >
               Stop
+            </button>
+          )}
+          {!isGenerating && isPaused && onResume && (
+            <button
+              onClick={onResume}
+              className="px-3 py-1.5 text-sm font-medium text-white bg-jamo-500 rounded-md hover:bg-jamo-600 transition-colors"
+            >
+              Resume
             </button>
           )}
           <ProgressBar completedCount={completedCount} totalCount={totalCount} isGenerating={isGenerating} />
