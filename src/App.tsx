@@ -11,6 +11,7 @@ import ResetPassword from './pages/ResetPassword'
 import AdminPanel from './pages/admin/AdminPanel'
 import { DemoRunSurface } from './components/demo/DemoRunSurface'
 import { AuthProvider } from './context/AuthContext'
+import { GenerationProvider } from './context/GenerationContext'
 import { ArchivedProvider } from './context/ArchivedContext'
 import { ProposalsProvider } from './context/ProposalsContext'
 import { DeletedProvider } from './context/DeletedContext'
@@ -39,40 +40,42 @@ export default function App() {
             <ArchivedProvider>
               <ProposalModalProvider>
                 <BrowserRouter>
-                  <Routes>
-                    {/* Public routes */}
-                    <Route path="/login" element={<Login />} />
-                    <Route path="/accept-invite" element={<AcceptInvite />} />
-                    <Route path="/forgot-password" element={<ForgotPassword />} />
-                    <Route path="/reset-password" element={<ResetPassword />} />
+                  <GenerationProvider>
+                    <Routes>
+                      {/* Public routes */}
+                      <Route path="/login" element={<Login />} />
+                      <Route path="/accept-invite" element={<AcceptInvite />} />
+                      <Route path="/forgot-password" element={<ForgotPassword />} />
+                      <Route path="/reset-password" element={<ResetPassword />} />
 
-                    {/* Protected routes */}
-                    <Route element={<ProtectedRoute />}>
-                      <Route element={<Layout />}>
-                        <Route path="/" element={<Dashboard />} />
-                        <Route path="/proposals" element={<ProposalsList />} />
-                        <Route path="/proposals/:id" element={<ProposalDetail />} />
-                        <Route path="/settings" element={<Settings />} />
-                      </Route>
-
-                      {/* Super-admin-only routes */}
-                      <Route element={<SuperAdminRoute />}>
-                        <Route path="/admin" element={<AdminPanel />} />
-                        {/*
-                          Demo run surface (16-08). Inside Layout so the demo
-                          runs in the real app chrome. SuperAdminRoute is the
-                          route guard; DemoRunSurface additionally renders null
-                          unless the caller's OWN org is the demo org, and
-                          demo-run-start re-checks both server-side.
-                        */}
+                      {/* Protected routes */}
+                      <Route element={<ProtectedRoute />}>
                         <Route element={<Layout />}>
-                          <Route path="/demo" element={<DemoRunSurface />} />
+                          <Route path="/" element={<Dashboard />} />
+                          <Route path="/proposals" element={<ProposalsList />} />
+                          <Route path="/proposals/:id" element={<ProposalDetail />} />
+                          <Route path="/settings" element={<Settings />} />
+                        </Route>
+
+                        {/* Super-admin-only routes */}
+                        <Route element={<SuperAdminRoute />}>
+                          <Route path="/admin" element={<AdminPanel />} />
+                          {/*
+                            Demo run surface (16-08). Inside Layout so the demo
+                            runs in the real app chrome. SuperAdminRoute is the
+                            route guard; DemoRunSurface additionally renders null
+                            unless the caller's OWN org is the demo org, and
+                            demo-run-start re-checks both server-side.
+                          */}
+                          <Route element={<Layout />}>
+                            <Route path="/demo" element={<DemoRunSurface />} />
+                          </Route>
                         </Route>
                       </Route>
-                    </Route>
-                  </Routes>
-                  <ProposalEditorModal />
-                  <GlobalToast />
+                    </Routes>
+                    <ProposalEditorModal />
+                    <GlobalToast />
+                  </GenerationProvider>
                 </BrowserRouter>
               </ProposalModalProvider>
             </ArchivedProvider>
