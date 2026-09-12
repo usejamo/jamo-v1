@@ -25,6 +25,7 @@ export interface GenerationState {
 export type GenerationAction =
   | { type: 'SET_TONE'; tone: ToneOption }
   | { type: 'START_GENERATION'; sections: SectionState[] }
+  | { type: 'RESUME_GENERATION'; sections: SectionState[]; completedCount: number }
   | { type: 'SECTION_GENERATING'; sectionId: string }
   | { type: 'SECTION_TOKEN'; sectionId: string; token: string }
   | { type: 'SECTION_COMPLETE'; sectionId: string; content: string }

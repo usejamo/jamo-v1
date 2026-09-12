@@ -48,6 +48,25 @@ export function generationReducer(
       }
     }
 
+    case 'RESUME_GENERATION': {
+      // Deliberately unlike START_GENERATION: sections arrive at their true statuses
+      // and completedCount is carried in, so already-written work is neither reset
+      // nor regenerated. creditsExhausted clears so a top-up can be retried without
+      // a full regenerate; a still-exhausted balance re-raises it on the next 402.
+      const sections = action.sections.reduce<Record<string, SectionState>>(
+        (acc, s) => ({ ...acc, [s.id]: s }),
+        {}
+      )
+      return {
+        ...state,
+        isGenerating: true,
+        completedCount: action.completedCount,
+        totalCount: action.sections.length,
+        sections,
+        creditsExhausted: false,
+      }
+    }
+
     case 'CREDITS_EXHAUSTED':
       return { ...state, creditsExhausted: true }
 

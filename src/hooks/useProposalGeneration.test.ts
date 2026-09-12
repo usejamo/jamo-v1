@@ -97,6 +97,51 @@ describe('generationReducer', () => {
     expect(next.completedCount).toBe(0)
   })
 
+  it('RESUME_GENERATION preserves completed sections instead of resetting them', () => {
+    // This is the regression the whole feature exists to prevent. START_GENERATION
+    // resets every section to pending; if RESUME did the same it would regenerate
+    // and overwrite work the user already has.
+    const state = makeInitialState()
+    const sections = [
+      makeSectionState({ id: 'a', position: 1, status: 'complete', finalContent: '<p>kept</p>' }),
+      makeSectionState({ id: 'b', position: 2, status: 'pending' }),
+    ]
+    const next = generationReducer(state, {
+      type: 'RESUME_GENERATION',
+      sections,
+      completedCount: 1,
+    })
+    expect(next.sections['a'].status).toBe('complete')
+    expect(next.sections['a'].finalContent).toBe('<p>kept</p>')
+    expect(next.sections['b'].status).toBe('pending')
+  })
+
+  it('RESUME_GENERATION does NOT zero completedCount the way START_GENERATION does', () => {
+    const state = makeInitialState()
+    const sections = [
+      makeSectionState({ id: 'a', position: 1, status: 'complete', finalContent: '<p>x</p>' }),
+      makeSectionState({ id: 'b', position: 2 }),
+    ]
+    const next = generationReducer(state, {
+      type: 'RESUME_GENERATION',
+      sections,
+      completedCount: 1,
+    })
+    expect(next.completedCount).toBe(1)
+    expect(next.totalCount).toBe(2)
+  })
+
+  it('RESUME_GENERATION sets isGenerating and clears creditsExhausted for a fresh attempt', () => {
+    const state = { ...makeInitialState(), creditsExhausted: true }
+    const next = generationReducer(state, {
+      type: 'RESUME_GENERATION',
+      sections: [makeSectionState()],
+      completedCount: 0,
+    })
+    expect(next.isGenerating).toBe(true)
+    expect(next.creditsExhausted).toBe(false)
+  })
+
   it('SECTION_GENERATING sets section status to generating', () => {
     const section = makeSectionState()
     const state = makeInitialState([section])
