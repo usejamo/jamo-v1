@@ -407,9 +407,14 @@ export default function ProposalDetail() {
   // render or a useMemo — claimGeneration sets state in the provider, and calling it
   // during render triggers "Cannot update a component while rendering a different
   // component".
+  // `generatingProposalId` is in the deps so a REFUSED claim is retried. claimGeneration
+  // returns false while a different proposal is mid-generation, and without this the
+  // refusal was permanent for the life of the page: the effect would not re-run, so this
+  // proposal could never take the binding even after the other generation finished. A
+  // re-claim by the proposal that already holds it is a no-op (`prev === proposalId`).
   useEffect(() => {
     if (id) claimGeneration(id)
-  }, [id, claimGeneration])
+  }, [id, claimGeneration, generatingProposalId])
 
   // Refused only while a *different* proposal is mid-generation.
   const hasClaim = !generatingProposalId || generatingProposalId === id
@@ -572,7 +577,18 @@ export default function ProposalDetail() {
   // Auto-trigger generation when navigated from wizard with ?generate=true
   // Must be before early returns to satisfy Rules of Hooks
   useEffect(() => {
-    if (searchParams.get('generate') === 'true' && proposal && !genState.isGenerating && genState.completedCount === 0) {
+    // `ownsGenerationState` is the load-bearing guard, not a nicety. `generateAll` closes
+    // over the provider's `activeProposalId`, so until the claim for THIS proposal has
+    // committed it is still bound to whichever proposal was viewed before. Firing then
+    // fetched that proposal's rows and streamed this proposal's study context into them —
+    // overwriting sections it had already completed. The gate and the callback are read
+    // from the same render, so the trigger can only fire on a render where `generateAll`
+    // is bound here; it does not depend on this effect running after the claim effect.
+    //
+    // A refused claim (another proposal genuinely generating) skips the whole block,
+    // ?generate=true included — the intent is held in the URL, not swallowed, and the
+    // claim effect above retries when that generation ends.
+    if (ownsGenerationState && searchParams.get('generate') === 'true' && proposal && !genState.isGenerating && genState.completedCount === 0) {
       const input = buildProposalInput()
       generateAll(input)
       // Clear ?generate=true through the router (NOT window.history.replaceState, which
@@ -581,7 +597,7 @@ export default function ProposalDetail() {
       // hook's own re-entrancy guard is the primary defence; this is defence-in-depth.
       setSearchParams({}, { replace: true })
     }
-  }, [proposal, searchParams, setSearchParams, buildProposalInput, generateAll, genState.isGenerating, genState.completedCount])
+  }, [ownsGenerationState, proposal, searchParams, setSearchParams, buildProposalInput, generateAll, genState.isGenerating, genState.completedCount])
 
   const handleSuggestionAccepted = useCallback((commandKey: string) => {
     const command = COMMAND_MAP[commandKey]
