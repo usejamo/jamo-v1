@@ -480,6 +480,17 @@ export default function ProposalDetail() {
   // fall back to this proposal's locally fetched rows with isGenerating false. Same
   // content test either way (rowToSectionState/derivePhase both key off content).
   const ownsGenerationState = activeProposalId === id
+  // The single predicate every generation entry point gates on.
+  //
+  // The three guards on this branch were each added to close the defect in front of it,
+  // so they diverged: the auto-trigger tested binding identity (`ownsGenerationState`)
+  // while Generate and Resume tested global busy-ness (`hasClaim`). The two agree in
+  // every steady state, and the window where they disagree is sub-frame — but "agree in
+  // practice" is not the same property as "cannot disagree", and a later reader has no
+  // way to tell which term was the load-bearing one at each site. Both terms are needed:
+  // `ownsGenerationState` says the shared instance is bound HERE (so `generateAll` will
+  // fetch this proposal's rows), `hasClaim` says nothing else is mid-run.
+  const canDriveGeneration = ownsGenerationState && hasClaim
   const localSectionStates = useMemo(
     () => proposalSections.map(s => rowToSectionState({ ...s, role: null })),
     [proposalSections]
@@ -577,7 +588,8 @@ export default function ProposalDetail() {
   // Auto-trigger generation when navigated from wizard with ?generate=true
   // Must be before early returns to satisfy Rules of Hooks
   useEffect(() => {
-    // `ownsGenerationState` is the load-bearing guard, not a nicety. `generateAll` closes
+    // `canDriveGeneration`'s ownership term is the load-bearing guard, not a nicety.
+    // `generateAll` closes
     // over the provider's `activeProposalId`, so until the claim for THIS proposal has
     // committed it is still bound to whichever proposal was viewed before. Firing then
     // fetched that proposal's rows and streamed this proposal's study context into them —
@@ -588,7 +600,7 @@ export default function ProposalDetail() {
     // A refused claim (another proposal genuinely generating) skips the whole block,
     // ?generate=true included — the intent is held in the URL, not swallowed, and the
     // claim effect above retries when that generation ends.
-    if (ownsGenerationState && searchParams.get('generate') === 'true' && proposal && !genState.isGenerating && genState.completedCount === 0) {
+    if (canDriveGeneration && searchParams.get('generate') === 'true' && proposal && !genState.isGenerating && genState.completedCount === 0) {
       const input = buildProposalInput()
       generateAll(input)
       // Clear ?generate=true through the router (NOT window.history.replaceState, which
@@ -597,7 +609,7 @@ export default function ProposalDetail() {
       // hook's own re-entrancy guard is the primary defence; this is defence-in-depth.
       setSearchParams({}, { replace: true })
     }
-  }, [ownsGenerationState, proposal, searchParams, setSearchParams, buildProposalInput, generateAll, genState.isGenerating, genState.completedCount])
+  }, [canDriveGeneration, proposal, searchParams, setSearchParams, buildProposalInput, generateAll, genState.isGenerating, genState.completedCount])
 
   const handleSuggestionAccepted = useCallback((commandKey: string) => {
     const command = COMMAND_MAP[commandKey]
@@ -655,7 +667,7 @@ export default function ProposalDetail() {
   // overwriting written work; Resume (wired separately) does not need to, since it
   // only ever loops over the still-empty sections.
   function handleGenerateOrStartOver() {
-    if (!hasClaim) {
+    if (!canDriveGeneration) {
       window.alert(
         'Another proposal is still generating. Stop it before starting generation here.'
       )
@@ -882,7 +894,7 @@ export default function ProposalDetail() {
                   totalCount={viewTotalCount}
                   onStop={stopGeneration}
                   onResume={() => {
-                    if (!hasClaim) {
+                    if (!canDriveGeneration) {
                       window.alert('Another proposal is still generating. Stop it first.')
                       return
                     }
@@ -893,6 +905,13 @@ export default function ProposalDetail() {
                   tone={genState.tone}
                   onToneChange={(tone) => genDispatch({ type: 'SET_TONE', tone })}
                   isGenerating={isGeneratingHere}
+                  // Tone is the one control that reads and writes the SHARED reducer
+                  // directly. `isGeneratingHere` is false on a page that does not own the
+                  // run, so without the ownership term the toggle stayed live on proposal
+                  // B while A generated — and state.tone is a streamSection dependency
+                  // that goes into the payload, so flipping it here restyled A's
+                  // remaining sections mid-run.
+                  toneDisabled={isGeneratingHere || !ownsGenerationState}
                   onGenerate={handleGenerateOrStartOver}
                   hasCompleted={completedSectionCount === viewTotalCount && !isGeneratingHere}
                 />

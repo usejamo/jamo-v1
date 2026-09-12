@@ -345,6 +345,35 @@ export function useProposalGeneration(proposalId: string) {
   // matching the CURRENT sequence number is applied.
   const hydrateSeqRef = useRef(0)
 
+  // The proposal this shared instance is bound to RIGHT NOW, readable from a callback
+  // that was scheduled under an earlier binding. Kept in step with `proposalId` by the
+  // effect below, which runs before any timer it is guarding could usefully fire.
+  const boundProposalIdRef = useRef(proposalId)
+
+  // Every in-flight 10s "complete from local text" fallback timer (see streamSection).
+  // The timers outlive the binding that scheduled them, so they are tracked here and
+  // cancelled wholesale when proposalId moves.
+  const fallbackTimersRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set())
+
+  // Rebind, and cancel every fallback timer left over from the previous proposal.
+  //
+  // The Realtime subscription below is already proposal-scoped — its channel filters on
+  // proposal_id and removeChannel runs on change — but the fallback timer was not. A run
+  // that finished (or was Stopped) leaves up to one timer per section pending for 10s; if
+  // the user opens another proposal inside that window the claim succeeds (no loop is
+  // running), proposalId moves, and the timer would dispatch the OLD proposal's streamed
+  // text under the OLD proposal's section id into the NEW proposal's reducer — the
+  // reducer spreads `state.sections[id]`, which is undefined there, so it materialises a
+  // phantom complete section with no name or position and inflates completedCount.
+  useEffect(() => {
+    boundProposalIdRef.current = proposalId
+    const timers = fallbackTimersRef.current
+    return () => {
+      for (const timer of timers) clearTimeout(timer)
+      timers.clear()
+    }
+  }, [proposalId])
+
   // Hydrate all sections from DB on mount (builds nav, restores completed state)
   useEffect(() => {
     if (!proposalId) return
@@ -370,7 +399,9 @@ export function useProposalGeneration(proposalId: string) {
           // so if generation started for this same proposal while this query was still
           // in flight, the ref is already true and the late empty response cannot clobber
           // the run. (proposalId itself cannot change mid-generation — claimGeneration
-          // refuses to move activeProposalId while a generation is running.)
+          // consults this same synchronous signal via `isLoopRunning`, so it refuses to
+          // move activeProposalId from the moment the loop starts, not from the moment
+          // state.isGenerating catches up two awaits later.)
           if (!isGeneratingRef.current) dispatch({ type: 'RESET' })
           return
         }
@@ -505,10 +536,17 @@ export function useProposalGeneration(proposalId: string) {
         return ''
       }
 
-      // Fallback: if Realtime hasn't confirmed within 10s, dispatch complete from local text
-      setTimeout(() => {
+      // Fallback: if Realtime hasn't confirmed within 10s, dispatch complete from local text.
+      // Scoped to the proposal this call was bound to. The effect above cancels these on a
+      // proposal switch; the id check is the second line of defence for a timer that fires
+      // in the same tick the binding moves, before the cleanup has run.
+      const boundProposalId = proposalId
+      const timer = setTimeout(() => {
+        fallbackTimersRef.current.delete(timer)
+        if (boundProposalIdRef.current !== boundProposalId) return
         dispatch({ type: 'SECTION_COMPLETE', sectionId: section.id, content: fullText })
       }, 10000)
+      fallbackTimersRef.current.add(timer)
 
       return fullText
     },
@@ -776,8 +814,22 @@ export function useProposalGeneration(proposalId: string) {
     dispatch({ type: 'GENERATION_COMPLETE' })
   }, [])
 
+  /**
+   * Is a generation loop running RIGHT NOW, for this instance?
+   *
+   * `state.isGenerating` is not that signal: generateAll and resumeGeneration set
+   * isGeneratingRef synchronously but only dispatch START_GENERATION/RESUME_GENERATION
+   * after two awaited round-trips (assumptions + the sections select). Anything that has
+   * to decide *whether the loop owns the instance* — above all GenerationProvider's
+   * claimGeneration — must read this and not the reducer, or it will hand the binding to
+   * another proposal inside that window while the loop is genuinely live.
+   *
+   * Stable identity, so consumers can hold it in a dependency array.
+   */
+  const isLoopRunning = useCallback(() => isGeneratingRef.current, [])
+
   // Sorted sections array for consumers (D-12)
   const sortedSections = Object.values(state.sections).sort((a, b) => a.position - b.position)
 
-  return { state, dispatch, generateAll, generateSection, regenerateSection, sortedSections, stopGeneration, resumeGeneration }
+  return { state, dispatch, generateAll, generateSection, regenerateSection, sortedSections, stopGeneration, resumeGeneration, isLoopRunning }
 }

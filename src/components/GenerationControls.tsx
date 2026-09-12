@@ -4,6 +4,17 @@ interface GenerationControlsProps {
   tone: ToneOption
   onToneChange: (tone: ToneOption) => void
   isGenerating: boolean
+  /**
+   * Disables the tone toggle independently of `isGenerating`.
+   *
+   * `isGenerating` is scoped to THIS page ("is the run on screen mine?"), but tone is
+   * read from and written to the one shared generation state. On a page that does not
+   * own the run, `isGenerating` is false while another proposal's loop is live — and
+   * `state.tone` feeds every remaining section's request payload, so an enabled toggle
+   * here silently rewrites the tone the OTHER proposal streams in. Defaults to
+   * `isGenerating` so callers that do not share state behave as before.
+   */
+  toneDisabled?: boolean
   onGenerate: () => void
   hasCompleted: boolean
 }
@@ -14,9 +25,11 @@ export function GenerationControls({
   tone,
   onToneChange,
   isGenerating,
+  toneDisabled,
   onGenerate,
   hasCompleted,
 }: GenerationControlsProps) {
+  const isToneDisabled = toneDisabled ?? isGenerating
   return (
     <div className="flex flex-col md:flex-row items-center gap-3 mb-6">
       {/* Tone selector — 3-button toggle group */}
@@ -28,14 +41,14 @@ export function GenerationControls({
         {TONE_OPTIONS.map((t) => (
           <button
             key={t}
-            className={`px-3 py-2 text-sm font-medium transition-colors ${
+            className={`px-3 py-2 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
               tone === t
                 ? 'bg-jamo-500 text-white'
                 : 'bg-white text-gray-600 hover:bg-gray-50'
             }`}
             onClick={() => onToneChange(t)}
             aria-pressed={tone === t}
-            disabled={isGenerating}
+            disabled={isToneDisabled}
           >
             {t.charAt(0).toUpperCase() + t.slice(1)}
           </button>

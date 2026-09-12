@@ -29,23 +29,41 @@ const GenerationContext = createContext<GenerationContextValue | null>(null)
 export function GenerationProvider({ children }: { children: ReactNode }) {
   const [activeProposalId, setActiveProposalId] = useState<string | null>(null)
   const generation = useProposalGeneration(activeProposalId ?? '')
+  const { isLoopRunning } = generation
 
-  // Mirrors isGenerating without making claimGeneration depend on render timing.
+  // The binding, readable synchronously. `activeProposalId` is React state, so within the
+  // tick claimGeneration runs it still holds the PREVIOUS value; this is the one
+  // claimGeneration itself compares against. claimGeneration is the ONLY writer of
+  // activeProposalId, so keeping the ref in step there (rather than during render) is
+  // sufficient and cannot regress on a re-render that carries older state.
+  const activeProposalIdRef = useRef<string | null>(null)
+
+  // Mirrors the loop's OWN synchronous guard, not state.isGenerating. The reducer flag
+  // only flips two awaited round-trips into generateAll/resumeGeneration, and during that
+  // window the loop is genuinely live — reading state.isGenerating here reported "nobody
+  // is generating" and let another proposal take the binding out from under a running
+  // loop. This value is still render-derived (it is exposed to consumers as a render
+  // value); the authority for a refusal is the isLoopRunning() call inside claimGeneration.
   const generatingIdRef = useRef<string | null>(null)
-  if (generation.state.isGenerating && activeProposalId) {
+  const loopRunning = isLoopRunning()
+  if (loopRunning && activeProposalId) {
     generatingIdRef.current = activeProposalId
-  } else if (!generation.state.isGenerating) {
+  } else if (!loopRunning) {
     generatingIdRef.current = null
   }
 
   const claimGeneration = useCallback(
     (proposalId: string) => {
-      const busyWith = generatingIdRef.current
+      // Refuse from the instant the loop starts, not from the instant the reducer
+      // notices. Both operands are read synchronously at call time so the answer cannot
+      // be stale by a render.
+      const busyWith = isLoopRunning() ? activeProposalIdRef.current : null
       if (busyWith && busyWith !== proposalId) return false
+      activeProposalIdRef.current = proposalId
       setActiveProposalId(prev => (prev === proposalId ? prev : proposalId))
       return true
     },
-    []
+    [isLoopRunning]
   )
 
   return (
