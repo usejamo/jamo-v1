@@ -127,11 +127,50 @@ systematic-debugging for bugs) when we pick it up.
   and elementFromPoint at its centre returns the menu itself (genuinely on top,
   not merely positioned).
 
-- [ ] **7. Archive / delete / permanent-delete don't update list immediately**
+- [x] **7. Archive / delete / permanent-delete don't update list immediately**
   Archived proposal stays in Active AND Archive until page refresh.
   Delete / permanent-delete are finicky and unreliable. Proposal should move to
   its correct list immediately and disappear from the old one at the same time.
   _Type: bug - frontend state / cache invalidation_
+  Shipped 2026-09-12 as two units: 41bcb63 (RLS migration) + 54bd8e9 (frontend).
+  This was TWO root causes, not one, and it was NOT frontend-only.
+
+  (a) Four sources of truth, none invalidating the others: ProposalsContext,
+  ArchivedContext's archivedIds, DeletedContext's deletedIds, and ProposalsList's
+  own tab-scoped refetch. Note ProposalsList never read the two id Sets at all —
+  it rendered the context array for Active and its own fetches for the other
+  tabs, which is why the Dashboard (the only component that does read the Sets)
+  was the one that behaved. Fixed by making ProposalsContext own one array of all
+  rows and derive the three lists from is_archived/deleted_at; the other two
+  contexts keep their APIs as thin mutators over it. Measured symptoms, all now
+  gone: archive left the row in Active as well as Archived; restore left it in
+  Archived AND missing from Active; soft delete left it in Active.
+
+  (b) **proposals had no DELETE policy at all.** RLS on + DELETE granted at the
+  table level + no policy = every client delete matched zero rows and returned
+  no error, so permanentlyDelete() resolved and the UI said "permanently
+  deleted" while the row stayed in the database. Permanent delete had never
+  worked for anyone; "finicky and unreliable" was it failing 100% of the time and
+  lying about it. Needed a migration (20260912000001), applied live and verified
+  with supabase/migrations/verify/proposals-delete-policy.sql.
+
+  Also fixed in passing: Delete Forever fired two DELETEs for one click
+  (permanentlyDelete + purgeFromTrash); row actions were fire-and-forget with an
+  unconditional success toast, so a failed write still claimed success and left
+  an unhandled rejection; ProposalsList's duplicate mapRow had drifted (dropped
+  geography and reference_override); the unreachable 'Delete' row-action branch
+  is gone (soft delete lives in the edit modal, not the row).
+
+- [ ] **13. Opening an archived proposal shows "Proposal not found"**
+  Found while fixing #7, pre-existing and deliberately left alone there.
+  ProposalDetail resolves its proposal with `proposals.find(...)` against the
+  ACTIVE-only list (src/pages/ProposalDetail.tsx:280), so clicking any row in the
+  Archived tab navigates to /proposals/:id and renders "Proposal not found."
+  ProposalsContext now holds archived rows already, so the fix is to look the
+  proposal up across active + archived (deliberately still excluding trashed
+  ones) rather than adding another fetch. Kept out of #7 because it is a
+  behaviour change to the detail page, not a list-staleness bug.
+  _Type: bug - frontend routing / state_
 
 - [x] **8. Debug button visible to admins - restrict to super_admin only**
   Admin users can currently see the debug button. It should be visible ONLY to
