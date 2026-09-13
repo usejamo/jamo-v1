@@ -146,7 +146,7 @@ systematic-debugging for bugs) when we pick it up.
   control - the flag is localStorage and can still be set by hand; acceptable
   because it only shortens generation.
 
-- [ ] **9. Resume button when generation is stopped**
+- [x] **9. Resume button when generation is stopped**
   While generating, if Stop is pressed, swap the Stop button for a **Resume**
   button in the same spot. (Assess whether this is an easy change.)
   _Type: feature - frontend + generation backend_
@@ -196,7 +196,7 @@ systematic-debugging for bugs) when we pick it up.
   SparkleIcon removed. Verified in-browser: mark renders at 20x20 from a 171x237
   source, zero rainbow-gradient elements left.
 
-- [ ] **12. Generation continues when navigating away from page**
+- [x] **12. Generation continues when navigating away from page**
   While a proposal is generating, allow navigating away (e.g. to Settings) and
   back with generation still running or completed. Assess feasibility -
   likely needs server-side / background generation rather than client-driven.
@@ -286,3 +286,85 @@ systematic-debugging for bugs) when we pick it up.
   Find where the stripping happens and why the ids mismatch before assuming 14
   fixes it.
   _Type: bug - chat citations_
+
+---
+
+## Discovered while building 9 + 12 (2026-09-12)
+
+Everything below was found during the resume work and is **out of scope for it** —
+none is a regression from `feat/generation-resume` unless stated. Ordered by what
+I would fix first. Full evidence in `.superpowers/sdd/2026-09-12-generation-resume/`.
+
+- [ ] **18. `useAutosave` rewrites section content on a bare page VIEW**
+  Opening a proposal writes `content` + `updated_at` on every section with no user
+  edit — proved by a plain reload bumping all 9 rows. Worse, the first view
+  substantially rewrites the content: one section went **11,792 → 21,799 characters**
+  just from being looked at. Almost certainly the placeholder-migration / parseHTML
+  round-trip re-serialising on load, but that is a guess — reproduce and measure before
+  designing the fix.
+  This is a silent data-mutation path on real proposals and it is why the resume spec's
+  own `updated_at` acceptance criterion turned out to be unsatisfiable on any branch
+  (`generated_at` was used instead, which is the correct marker anyway).
+  _Type: bug - data integrity (HIGH)_
+
+- [ ] **19. Edge function turns a failed profile lookup into a null-pointer shown to the user**
+  `supabase/functions/generate-proposal-section/index.ts:224`:
+  `const { data: profile } = await ...single(); const orgId = profile!.org_id`
+  The query's `error` is discarded and `profile!` asserts non-null, so any failure of
+  that one lookup surfaces as `Generation failed — {"error":"Cannot read properties of
+  null (reading 'org_id')"}`. Observed live once on 2026-09-12. Ruled out: missing
+  profile row, duplicate rows, deployed-vs-repo drift (deployed v29 matches the source).
+  Check the `error` and fail with a real message. Edge-function change — needs a deploy.
+  _Type: bug - error handling / edge function_
+
+- [ ] **20. `generateSection` / `regenerateSection` are not ownership-gated**
+  Both read `state.consistencyAnchor` from the shared generation state with no
+  `ownsGenerationState` check, so a per-section Regenerate on proposal B while A is
+  generating uses A's anchor. Reachable today via the per-section Regenerate control.
+  Stays below the merge line only because the anchor is a style hint and the section id
+  still targets the correct row — misrender, not a misdirected write. This is the
+  **top-priority remaining item** from the shared-provider work.
+  _Type: bug - cross-proposal state_
+
+- [ ] **21. `consistencyAnchor` is memoryless despite its name**
+  Typed and commented as a cross-section consistency device, but it is only ever a
+  ~500-token summary of the *immediately preceding* section, replaced rather than
+  accumulated (`anchor = newAnchor`), and the server prompt is handed one section's text
+  with no prior anchor. Accumulated continuity actually comes from `priorSections`.
+  Either rename it to match what it does, or make it genuinely cumulative and measure
+  whether that improves cross-section consistency.
+  _Type: tech debt / possible quality win_
+
+- [ ] **22. Cancelling a stream logs an event-loop error and an uncaught AbortError**
+  Server: `anthropicResp.body.pipeTo(writable)` has no `.catch`, so every Stop logs
+  `event loop error: Http: connection closed before message completed` in the edge
+  function. Client: uncaught `AbortError` at `useProposalGeneration.ts:515`. Both
+  cosmetic, both pre-existing, both make real errors harder to spot in the logs.
+  _Type: chore - log hygiene_
+
+- [ ] **23. Backfill 43 rows stranded at `status='generating'` in production**
+  39 have no content and are safe to reset to `pending`. **4 carry real content with
+  `generated_at` null** — content written by a non-flush path (editor autosave) — and
+  must be reconciled by hand, not batch-updated. That 4-row case is exactly why the
+  resume partition keys on content rather than status; do not "fix" them by trusting
+  the status column.
+  _Type: chore - data cleanup_
+
+- [ ] **24. Refused-claim UX is a bare `window.alert`, below spec**
+  Spec §4.1 called for naming the other proposal and offering confirm-and-take-over
+  ("<title> is still generating. Stop it and start here?"). Shipped as an unnamed
+  `window.alert`. Also the only native `alert`/`confirm` in `src/` — the codebase builds
+  purpose-made modals elsewhere (e.g. `ExportBlockedModal.tsx`). Known deviation,
+  recorded rather than hidden.
+  _Type: polish - UX / spec gap_
+
+- [ ] **25. Remaining shared-generation-state globals**
+  `SET_TONE` / `SET_ANCHOR` write one global slot (the tone *control* is now disabled on
+  a non-owning page, but the state is still global, so a future consumer dispatching
+  `SET_TONE` reopens the bug through a third door); `creditsExhausted` renders from raw
+  `genState` so A's banner can show over B (arguably fine — credits are org-level); the
+  provider's context value is unmemoized, which is a no-op to fix today because the hook
+  returns a fresh object literal, but matters once a control-only consumer (e.g. a nav
+  badge) exists. Keying generation state by proposal id is the systematic fix if this
+  area is revisited.
+  _Type: tech debt - architecture_
