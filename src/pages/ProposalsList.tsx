@@ -6,28 +6,14 @@ import { useProposals } from '../context/ProposalsContext'
 import { useDeleted } from '../context/DeletedContext'
 import { useProposalModal } from '../context/ProposalModalContext'
 import { supabase } from '../lib/supabase'
-import { useAuth } from '../context/AuthContext'
 import { DebugModeToggle } from '../components/DebugModeToggle'
 import { StatusSelector, STATUS_LABELS } from '../components/StatusSelector'
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function mapRow(row: Record<string, any>): Proposal {
-  return {
-    id: row.id,
-    title: row.title,
-    client: row.client_name ?? '',
-    studyType: row.study_type ?? '',
-    therapeuticArea: row.therapeutic_area ?? '',
-    status: row.status,
-    dueDate: row.due_date ?? '',
-    value: row.estimated_value ?? 0,
-    createdAt: row.created_at?.slice(0, 10) ?? '',
-    updatedAt: row.updated_at ?? row.created_at ?? '',
-    indication: row.indication ?? '',
-    description: row.description ?? '',
-    selected_template_id: row.selected_template_id ?? null,
-  }
-}
+// This page used to carry its own mapRow plus a tab-scoped refetch of the archived and
+// deleted rows, which made it a fourth source of truth that no mutation invalidated.
+// All three lists now come from ProposalsContext, so archiving or deleting a proposal
+// moves it between tabs in the same render. (The local mapRow had also drifted: it
+// dropped geography and reference_override.)
 
 const STATUS_FILTER_OPTIONS: { label: string; value: ProposalStatus | null }[] = [
   { label: 'All Statuses', value: null },
@@ -70,14 +56,16 @@ export default function ProposalsList() {
   const [permanentDeleteTarget, setPermanentDeleteTarget] = useState<Proposal | null>(null)
 
   const { archive, restore } = useArchived()
-  const { proposals, updateStatus, permanentlyDelete } = useProposals()
-  const { deleteProposal, restoreFromTrash, purgeFromTrash } = useDeleted()
+  const {
+    proposals,
+    archivedProposals,
+    deletedProposals,
+    loading: listLoading,
+    updateStatus,
+    permanentlyDelete,
+  } = useProposals()
+  const { restoreFromTrash } = useDeleted()
   const { openModal, showToast } = useProposalModal()
-  const { session, profile } = useAuth()
-
-  const [archivedProposals, setArchivedProposals] = useState<Proposal[]>([])
-  const [deletedProposals, setDeletedProposals] = useState<Proposal[]>([])
-  const [tabLoading, setTabLoading] = useState(false)
 
   const [templateNames, setTemplateNames] = useState<Record<string, string>>({})
 
@@ -100,36 +88,6 @@ export default function ProposalsList() {
         setTemplateNames(names)
       })
   }, [proposals])
-
-  useEffect(() => {
-    if (!session || !profile?.org_id) return
-    if (view === 'archived') {
-      setTabLoading(true)
-      supabase
-        .from('proposals')
-        .select('*')
-        .eq('org_id', profile.org_id)
-        .eq('is_archived', true)
-        .is('deleted_at', null)
-        .order('updated_at', { ascending: false })
-        .then(({ data, error }) => {
-          setTabLoading(false)
-          if (!error && data) setArchivedProposals(data.map(mapRow))
-        })
-    } else if (view === 'deleted') {
-      setTabLoading(true)
-      supabase
-        .from('proposals')
-        .select('*')
-        .eq('org_id', profile.org_id)
-        .not('deleted_at', 'is', null)
-        .order('updated_at', { ascending: false })
-        .then(({ data, error }) => {
-          setTabLoading(false)
-          if (!error && data) setDeletedProposals(data.map(mapRow))
-        })
-    }
-  }, [view, session, profile?.org_id])
 
   // Escape closes the permanent-delete confirmation
   useEffect(() => {
@@ -295,12 +253,12 @@ export default function ProposalsList() {
         </div>
 
         {/* Empty state */}
-        {tabLoading && (
+        {listLoading && (
           <div className="px-6 py-10 text-center text-sm text-gray-400">
             Loading…
           </div>
         )}
-        {!tabLoading && filtered.length === 0 && (
+        {!listLoading && filtered.length === 0 && (
           <div className="px-6 py-10 text-center text-sm text-gray-400">
             No proposals match the current filters.
           </div>
@@ -371,24 +329,31 @@ export default function ProposalsList() {
                         return (
                           <button
                             key={action}
-                            onClick={e => {
+                            onClick={async e => {
                               e.stopPropagation()
                               if (action === 'Edit') {
                                 openModal(p)
-                              } else if (action === 'Archive') {
-                                archive(p.id)
-                                showToast('Proposal Archived')
-                              } else if (action === 'Restore' && view === 'archived') {
-                                restore(p.id)
-                                showToast('Proposal Restored')
-                              } else if (action === 'Restore' && view === 'deleted') {
-                                restoreFromTrash(p.id)
-                                showToast('Proposal Restored')
-                              } else if (action === 'Delete') {
-                                deleteProposal(p.id)
-                                showToast('Proposal moved to Trash')
-                              } else if (action === 'Permanently Delete') {
+                                return
+                              }
+                              if (action === 'Permanently Delete') {
                                 setPermanentDeleteTarget(p)
+                                return
+                              }
+                              // Await the write and only then confirm it. These used to
+                              // be fire-and-forget with an unconditional toast, so a
+                              // rejected write still said "Proposal Archived" and left
+                              // an unhandled rejection behind.
+                              try {
+                                if (action === 'Archive') {
+                                  await archive(p.id)
+                                  showToast('Proposal Archived')
+                                } else if (action === 'Restore') {
+                                  if (view === 'archived') await restore(p.id)
+                                  else await restoreFromTrash(p.id)
+                                  showToast('Proposal Restored')
+                                }
+                              } catch {
+                                showToast(`Could not ${action.toLowerCase()} — please try again`)
                               }
                             }}
                             className={`inline-flex items-center text-xs font-medium px-2.5 py-1 rounded-lg transition-colors ${colorClass}`}
@@ -462,8 +427,10 @@ export default function ProposalsList() {
             <button
               onClick={async () => {
                 try {
+                  // One call only. This used to also call purgeFromTrash, which when
+                  // both contexts owned their own state meant two DELETEs for one
+                  // click; they are the same operation on the same array now.
                   await permanentlyDelete(permanentDeleteTarget.id)
-                  purgeFromTrash(permanentDeleteTarget.id)
                   showToast('Proposal permanently deleted')
                 } catch {
                   showToast('Delete failed — please try again')

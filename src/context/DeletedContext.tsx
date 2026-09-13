@@ -1,7 +1,6 @@
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useMemo } from 'react'
 import type { ReactNode } from 'react'
-import { supabase } from '../lib/supabase'
-import { useAuth } from './AuthContext'
+import { useProposals } from './ProposalsContext'
 
 // Utility used by ProposalsList to show "X days remaining in trash"
 export function isWithin30Days(date: Date): boolean {
@@ -21,90 +20,37 @@ interface DeletedContextValue {
 
 const DeletedContext = createContext<DeletedContextValue | null>(null)
 
+/**
+ * Thin wrapper over ProposalsContext — it owns no rows of its own. Same story as
+ * ArchivedContext: this kept its own ids behind its own fetch, so a soft-deleted
+ * proposal stayed in the Active list until a refresh.
+ *
+ * The Trash list is still role-gated, just by RLS rather than by a separate query —
+ * proposals_select_deleted only returns trashed rows to admin/super_admin, so for
+ * everyone else these come back empty.
+ *
+ * Must be rendered inside ProposalsProvider (see App.tsx).
+ */
 export function DeletedProvider({ children }: { children: ReactNode }) {
-  const { session } = useAuth()
-  const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set())
-  const [deletedAt, setDeletedAt] = useState<Record<string, string>>({})
+  const { deletedProposals, setDeleted, permanentlyDelete } = useProposals()
 
-  useEffect(() => {
-    if (!session) {
-      setDeletedIds(new Set())
-      setDeletedAt({})
-      return
+  const value = useMemo<DeletedContextValue>(() => {
+    const dates: Record<string, string> = {}
+    for (const p of deletedProposals) {
+      if (p.deletedAt) dates[p.id] = p.deletedAt
     }
+    return {
+      deletedIds: new Set(deletedProposals.map((p) => p.id)),
+      deletedAt: dates,
+      deleteProposal: (id: string) => setDeleted(id, true),
+      restoreFromTrash: (id: string) => setDeleted(id, false),
+      // Permanent delete is one operation on one array, so purging is just the
+      // hard delete. Kept on this API because ProposalsList calls it.
+      purgeFromTrash: (id: string) => permanentlyDelete(id),
+    }
+  }, [deletedProposals, setDeleted, permanentlyDelete])
 
-    // Fetch proposals that are soft-deleted (deleted_at IS NOT NULL)
-    // Select both id and deleted_at so UI can show "X days remaining"
-    // Note: the main proposals_select RLS policy filters deleted_at IS NULL,
-    // so we need the proposals_select_deleted policy (admin/super_admin only in MVP)
-    supabase
-      .from('proposals')
-      .select('id, deleted_at')
-      .not('deleted_at', 'is', null)
-      .then(({ data }) => {
-        const ids = new Set<string>()
-        const dates: Record<string, string> = {}
-        for (const row of data ?? []) {
-          ids.add(row.id)
-          if (row.deleted_at) dates[row.id] = row.deleted_at
-        }
-        setDeletedIds(ids)
-        setDeletedAt(dates)
-      })
-  }, [session])
-
-  async function deleteProposal(id: string): Promise<void> {
-    const now = new Date().toISOString()
-    const { error } = await supabase
-      .from('proposals')
-      .update({ deleted_at: now })
-      .eq('id', id)
-    if (error) throw new Error(error.message)
-    // Optimistic update — add to both local state values immediately
-    setDeletedIds((prev) => new Set([...prev, id]))
-    setDeletedAt((prev) => ({ ...prev, [id]: now }))
-  }
-
-  async function restoreFromTrash(id: string): Promise<void> {
-    const { error } = await supabase
-      .from('proposals')
-      .update({ deleted_at: null })
-      .eq('id', id)
-    if (error) throw new Error(error.message)
-    setDeletedIds((prev) => {
-      const next = new Set(prev)
-      next.delete(id)
-      return next
-    })
-    setDeletedAt((prev) => {
-      const next = { ...prev }
-      delete next[id]
-      return next
-    })
-  }
-
-  async function purgeFromTrash(id: string): Promise<void> {
-    const { error } = await supabase.from('proposals').delete().eq('id', id)
-    if (error) throw new Error(error.message)
-    setDeletedIds((prev) => {
-      const next = new Set(prev)
-      next.delete(id)
-      return next
-    })
-    setDeletedAt((prev) => {
-      const next = { ...prev }
-      delete next[id]
-      return next
-    })
-  }
-
-  return (
-    <DeletedContext.Provider
-      value={{ deletedIds, deletedAt, deleteProposal, restoreFromTrash, purgeFromTrash }}
-    >
-      {children}
-    </DeletedContext.Provider>
-  )
+  return <DeletedContext.Provider value={value}>{children}</DeletedContext.Provider>
 }
 
 export function useDeleted() {
