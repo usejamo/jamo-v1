@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { readEmailLinkParams, verifyEmailLink, LINK_NO_LONGER_VALID } from '../lib/emailLink'
 
 // This page is identified purely by its ROUTE (/reset-password), never by inspecting
 // auth state or onAuthStateChange event type. Recovery links (implicit flow) establish a
@@ -14,6 +15,10 @@ export default function ResetPassword() {
   const [checkingSession, setCheckingSession] = useState(true)
   const [hasSession, setHasSession] = useState(false)
   const navigate = useNavigate()
+  const { search } = useLocation()
+  const { tokenHash, type } = readEmailLinkParams(search)
+  const hasRecoveryToken = tokenHash !== null && type === 'recovery'
+  const canSetPassword = hasSession || hasRecoveryToken
 
   useEffect(() => {
     let cancelled = false
@@ -41,6 +46,15 @@ export default function ResetPassword() {
     setLoading(true)
 
     try {
+      if (!hasSession && tokenHash) {
+        const verified = await verifyEmailLink(tokenHash, 'recovery')
+        if (!verified.ok) {
+          setError(verified.message)
+          setLoading(false)
+          return
+        }
+      }
+
       const { error: updateError } = await supabase.auth.updateUser({ password })
 
       if (updateError) {
@@ -61,12 +75,10 @@ export default function ResetPassword() {
       <div className="bg-white rounded-xl shadow-lg p-8 max-w-md w-full">
         {checkingSession ? (
           <div className="text-gray-500 text-sm">Loading...</div>
-        ) : !hasSession ? (
+        ) : !canSetPassword ? (
           <>
             <h1 className="text-2xl font-semibold text-gray-900 mb-6">Set New Password</h1>
-            <p className="text-sm text-gray-700">
-              This reset link is invalid or has expired. Request a new one below.
-            </p>
+            <p className="text-sm text-gray-700">{LINK_NO_LONGER_VALID}</p>
             <Link to="/forgot-password" className="text-sm text-jamo-600 hover:text-jamo-700 mt-4 inline-block">
               Request a new link
             </Link>
