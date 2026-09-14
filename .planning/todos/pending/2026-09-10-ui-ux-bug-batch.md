@@ -161,7 +161,7 @@ systematic-debugging for bugs) when we pick it up.
   geography and reference_override); the unreachable 'Delete' row-action branch
   is gone (soft delete lives in the edit modal, not the row).
 
-- [x] **13. Opening an archived proposal shows "Proposal not found"**
+- [x] **26. Opening an archived proposal shows "Proposal not found"**
   Found while fixing #7, pre-existing and deliberately left alone there.
   ProposalDetail resolves its proposal with `proposals.find(...)` against the
   ACTIVE-only list (src/pages/ProposalDetail.tsx:280), so clicking any row in the
@@ -182,10 +182,31 @@ systematic-debugging for bugs) when we pick it up.
   trashed still not-found; active unaffected; no console errors.
 
   NOT done, and worth a decision before anyone assumes it: an archived proposal
-  now opens the FULL detail page — editable, generate button live. Nothing stops
-  a user editing or regenerating an archived proposal. If archived should be
-  read-only (or show a "this is archived — restore it to edit" banner), that is
-  a separate UX call, not a bug fix.
+  now opens the FULL detail page — editable, generate button live. See #27.
+
+- [ ] **27. Decide what an archived proposal is allowed to do**
+  Product decision, deferred from #26. Since #26, opening an archived proposal
+  renders the normal detail page with nothing gated: you can edit sections, run
+  Generate, change status, and autosave writes straight back to a proposal the
+  user has explicitly put out of the way. That was true of the edit modal before
+  #26 too (the Archived tab has always had an Edit action), so this is a
+  pre-existing question that #26 just made easy to reach.
+
+  What needs deciding — what does "archived" MEAN here:
+  - Read-only? View sections, no editing, no generation, with a banner offering
+    "Restore to edit". Strongest signal, biggest change.
+  - Soft warning? Fully editable, but a persistent "This proposal is archived"
+    bar so nobody edits one by accident.
+  - Nothing? Archive is purely a list filter and editing it is fine. Cheapest,
+    and defensible — but then the Archived tab is just a saved view, and we
+    should stop implying otherwise in the UI.
+
+  Worth checking before deciding: whether archived proposals should still count
+  toward Dashboard stats and RAG proposal-history retrieval, since those answer
+  the same "is this still real work?" question. Note generation is already
+  live-guarded per proposal (see #25 / GenerationContext), so gating generation
+  on archived status is a UI concern, not a state-machine one.
+  _Type: product decision - then frontend gating_
 
 - [x] **8. Debug button visible to admins - restrict to super_admin only**
   Admin users can currently see the debug button. It should be visible ONLY to
