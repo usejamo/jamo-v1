@@ -1,16 +1,22 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
+import AcceptInviteCmp from './AcceptInvite'
 
 const invoke = vi.fn().mockResolvedValue({ error: null })
 const updateUser = vi.fn().mockResolvedValue({ error: null })
 const getSession = vi.fn().mockResolvedValue({ data: { session: { user: { id: 'u1' } } } })
+const verifyOtp = vi.fn().mockResolvedValue({ error: null })
 const navigate = vi.fn()
 const refreshProfile = vi.fn().mockResolvedValue(undefined)
 
 vi.mock('../lib/supabase', () => ({
   supabase: {
-    auth: { getSession: () => getSession(), updateUser: (a: unknown) => updateUser(a) },
+    auth: {
+      getSession: () => getSession(),
+      updateUser: (a: unknown) => updateUser(a),
+      verifyOtp: (a: unknown) => verifyOtp(a),
+    },
     functions: { invoke: (name: string, opts: unknown) => invoke(name, opts) },
   },
 }))
@@ -82,5 +88,87 @@ describe('AcceptInvite', () => {
     await screen.findByText(/enter your name/i)
     expect(updateUser).not.toHaveBeenCalled()
     expect(invoke).not.toHaveBeenCalled()
+  })
+})
+
+describe('AcceptInvite — token_hash link (scanner-safe path)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    invoke.mockResolvedValue({ error: null })
+    updateUser.mockResolvedValue({ error: null })
+    verifyOtp.mockResolvedValue({ error: null })
+    refreshProfile.mockResolvedValue(undefined)
+  })
+
+  function renderWithToken() {
+    return render(
+      <MemoryRouter initialEntries={['/accept-invite?token_hash=tok123&type=invite']}>
+        <AcceptInviteCmp />
+      </MemoryRouter>
+    )
+  }
+
+  it('verifies the token on submit, not on page load', async () => {
+    getSession.mockResolvedValue({ data: { session: null } })
+    renderWithToken()
+    const name = await screen.findByLabelText(/full name/i)
+
+    // The whole point: merely opening the page must not spend the token.
+    expect(verifyOtp).not.toHaveBeenCalled()
+
+    fireEvent.change(name, { target: { value: 'Ada Lovelace' } })
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'secret123' } })
+    fireEvent.change(screen.getByLabelText(/confirm password/i), { target: { value: 'secret123' } })
+    fireEvent.click(screen.getByRole('button', { name: /set password/i }))
+
+    await waitFor(() =>
+      expect(verifyOtp).toHaveBeenCalledWith({ token_hash: 'tok123', type: 'invite' })
+    )
+    await waitFor(() => expect(updateUser).toHaveBeenCalledWith({ password: 'secret123' }))
+  })
+
+  it('does not set a password when the token is already spent', async () => {
+    getSession.mockResolvedValue({ data: { session: null } })
+    verifyOtp.mockResolvedValue({ error: { message: 'Token has expired or is invalid' } })
+    renderWithToken()
+
+    const name = await screen.findByLabelText(/full name/i)
+    fireEvent.change(name, { target: { value: 'Ada Lovelace' } })
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'secret123' } })
+    fireEvent.change(screen.getByLabelText(/confirm password/i), { target: { value: 'secret123' } })
+    fireEvent.click(screen.getByRole('button', { name: /set password/i }))
+
+    await screen.findByText(/no longer valid/i)
+    expect(updateUser).not.toHaveBeenCalled()
+    expect(invoke).not.toHaveBeenCalled()
+  })
+
+  it('skips verifyOtp when a session already exists (old-style link)', async () => {
+    getSession.mockResolvedValue({ data: { session: { user: { id: 'u1' } } } })
+    render(
+      <MemoryRouter initialEntries={['/accept-invite']}>
+        <AcceptInviteCmp />
+      </MemoryRouter>
+    )
+    const name = await screen.findByLabelText(/full name/i)
+    fireEvent.change(name, { target: { value: 'Ada Lovelace' } })
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'secret123' } })
+    fireEvent.change(screen.getByLabelText(/confirm password/i), { target: { value: 'secret123' } })
+    fireEvent.click(screen.getByRole('button', { name: /set password/i }))
+
+    await waitFor(() => expect(updateUser).toHaveBeenCalled())
+    expect(verifyOtp).not.toHaveBeenCalled()
+  })
+
+  it('shows the invalid-link state with a sign-in exit when there is neither session nor token', async () => {
+    getSession.mockResolvedValue({ data: { session: null } })
+    render(
+      <MemoryRouter initialEntries={['/accept-invite']}>
+        <AcceptInviteCmp />
+      </MemoryRouter>
+    )
+    await screen.findByText(/no longer valid/i)
+    expect(screen.queryByLabelText(/full name/i)).toBeNull()
+    expect(screen.getByRole('link', { name: /sign in/i })).toHaveAttribute('href', '/login')
   })
 })

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
+import { readEmailLinkParams, verifyEmailLink, LINK_NO_LONGER_VALID } from '../lib/emailLink'
 
 // This page is identified purely by its ROUTE (/accept-invite), never by inspecting
 // auth state or onAuthStateChange event type. Invite links (implicit flow) establish a
@@ -16,6 +17,13 @@ export default function AcceptInvite() {
   const [checkingSession, setCheckingSession] = useState(true)
   const [hasSession, setHasSession] = useState(false)
   const navigate = useNavigate()
+  const { search } = useLocation()
+  // Read once per render from the URL; the page does NOT act on it until submit.
+  const { tokenHash, type } = readEmailLinkParams(search)
+  const hasInviteToken = tokenHash !== null && type === 'invite'
+  // Either input shape gets the form: a session (old-style link already in flight) or a
+  // token we can spend on submit.
+  const canSetPassword = hasSession || hasInviteToken
   const { refreshProfile } = useAuth()
 
   useEffect(() => {
@@ -49,6 +57,17 @@ export default function AcceptInvite() {
     setLoading(true)
 
     try {
+      // Spend the one-time token HERE — only ever as part of a submit carrying a
+      // password the user typed. A link scanner cannot reach this.
+      if (!hasSession && tokenHash) {
+        const verified = await verifyEmailLink(tokenHash, 'invite')
+        if (!verified.ok) {
+          setError(verified.message)
+          setLoading(false)
+          return
+        }
+      }
+
       const { error: updateError } = await supabase.auth.updateUser({ password })
 
       if (updateError) {
@@ -86,11 +105,16 @@ export default function AcceptInvite() {
       <div className="bg-white rounded-xl shadow-lg p-8 max-w-md w-full">
         {checkingSession ? (
           <div className="text-gray-500 text-sm">Loading...</div>
-        ) : !hasSession ? (
+        ) : !canSetPassword ? (
           <>
             <h1 className="text-2xl font-semibold text-gray-900 mb-6">Set Your Password</h1>
-            <p className="text-sm text-gray-700">
-              This invite link is invalid or has expired. Ask your admin to resend it.
+            <p className="text-sm text-gray-700">{LINK_NO_LONGER_VALID}</p>
+            <p className="text-sm text-gray-700 mt-3">
+              Already set a password?{' '}
+              <Link to="/login" className="text-jamo-600 hover:text-jamo-700">
+                Sign in
+              </Link>
+              . Otherwise ask your admin to resend your invitation.
             </p>
           </>
         ) : (
