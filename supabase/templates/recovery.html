@@ -6,6 +6,14 @@
   Copy note: a reset email has to be safe to receive when you did NOT ask for it,
   so it states plainly that ignoring it leaves the password unchanged. That line
   is the difference between a confused user and a support ticket.
+
+  Deliberately NOT using the ConfirmationURL template variable: it points at
+  the Supabase /auth/v1/verify endpoint, which spends the one-time token on
+  the first GET. Microsoft Safe Links (and other link scanners) pre-fetch
+  every URL in inbound mail, so that link gets consumed before the recipient
+  ever clicks it. Links below use .SiteURL + .TokenHash to point at our own
+  /reset-password page instead, which only verifies on submit. See
+  docs/superpowers/specs/2026-09-14-invite-link-scanner-hardening-design.md.
 -->
 <!DOCTYPE html>
 <html lang="en">
@@ -54,7 +62,7 @@
                 <table role="presentation" cellpadding="0" cellspacing="0" border="0">
                   <tr>
                     <td align="center" bgcolor="#6c29df" style="border-radius:8px;">
-                      <a href="{{ .ConfirmationURL }}" target="_blank"
+                      <a href="{{ .SiteURL }}/reset-password?token_hash={{ .TokenHash }}&type=recovery" target="_blank"
                          style="display:inline-block; padding:14px 30px; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:15px; font-weight:600; line-height:1; color:#ffffff; text-decoration:none; border-radius:8px;">
                         Reset password
                       </a>
@@ -76,7 +84,7 @@
               <td style="padding:20px 40px 0 40px; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:13px; line-height:1.6; color:#6b6b76;">
                 <p style="margin:0 0 6px 0;">If the button doesn't work, paste this link into your browser:</p>
                 <p style="margin:0; word-break:break-all;">
-                  <a href="{{ .ConfirmationURL }}" style="color:#6c29df; text-decoration:underline;">{{ .ConfirmationURL }}</a>
+                  <a href="{{ .SiteURL }}/reset-password?token_hash={{ .TokenHash }}&type=recovery" style="color:#6c29df; text-decoration:underline;">{{ .SiteURL }}/reset-password?token_hash={{ .TokenHash }}&type=recovery</a>
                 </p>
               </td>
             </tr>

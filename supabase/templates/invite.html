@@ -11,15 +11,23 @@
     * The logo is an absolute https URL. Relative paths and local assets cannot
       resolve in an inbox. Images are blocked by default in many clients, so the
       alt text is styled to still read as the Jamo wordmark when it does not load.
-    * The raw {{ .ConfirmationURL }} is repeated as text. Corporate mail gateways
-      rewrite or break buttons; the pasteable URL is the escape hatch, and the
-      stock template had it for exactly this reason.
+    * The raw accept-invite URL below is repeated as text. Corporate mail
+      gateways rewrite or break buttons; the pasteable URL is the escape
+      hatch, and the stock template had it for exactly this reason.
     * Keep the whole file under ~100KB or Gmail clips it and hides the footer.
 
   Available template variables here: .ConfirmationURL, .SiteURL, .Email, .Token,
   .TokenHash, .RedirectTo. NOT the organisation or the inviter's name — those
   would need _shared/invites.ts to pass a `data` payload to inviteUserByEmail
   (see the personalization todo), so this copy is deliberately generic.
+
+  Deliberately NOT using the ConfirmationURL template variable: it points at
+  the Supabase /auth/v1/verify endpoint, which spends the one-time token on
+  the first GET. Microsoft Safe Links (and other link scanners) pre-fetch
+  every URL in inbound mail, so that link gets consumed before the recipient
+  ever clicks it. Links below use .SiteURL + .TokenHash to point at our own
+  /accept-invite page instead, which only verifies on submit. See
+  docs/superpowers/specs/2026-09-14-invite-link-scanner-hardening-design.md.
 
   Deliberately NOT stating "expires in 1 hour": mailer_otp_exp is config, and
   hardcoding the duration here would silently go stale the day it changes.
@@ -83,7 +91,7 @@
                 <table role="presentation" cellpadding="0" cellspacing="0" border="0">
                   <tr>
                     <td align="center" bgcolor="#6c29df" style="border-radius:8px;">
-                      <a href="{{ .ConfirmationURL }}" target="_blank"
+                      <a href="{{ .SiteURL }}/accept-invite?token_hash={{ .TokenHash }}&type=invite" target="_blank"
                          style="display:inline-block; padding:14px 30px; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:15px; font-weight:600; line-height:1; color:#ffffff; text-decoration:none; border-radius:8px;">
                         Accept your invitation
                       </a>
@@ -107,7 +115,7 @@
               <td style="padding:20px 40px 0 40px; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:13px; line-height:1.6; color:#6b6b76;">
                 <p style="margin:0 0 6px 0;">If the button doesn't work, paste this link into your browser:</p>
                 <p style="margin:0; word-break:break-all;">
-                  <a href="{{ .ConfirmationURL }}" style="color:#6c29df; text-decoration:underline;">{{ .ConfirmationURL }}</a>
+                  <a href="{{ .SiteURL }}/accept-invite?token_hash={{ .TokenHash }}&type=invite" style="color:#6c29df; text-decoration:underline;">{{ .SiteURL }}/accept-invite?token_hash={{ .TokenHash }}&type=invite</a>
                 </p>
               </td>
             </tr>
