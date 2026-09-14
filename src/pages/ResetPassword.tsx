@@ -53,6 +53,13 @@ export default function ResetPassword() {
           setLoading(false)
           return
         }
+        // Verify succeeded and the token is now spent — the client holds a real
+        // session. Flip this immediately so a retry after a failed updateUser below
+        // (e.g. a too-short password) skips straight to updateUser instead of
+        // re-entering this branch with an already-spent token. hasSession/tokenHash
+        // from render won't reflect this on their own: history.replaceState in
+        // verifyEmailLink isn't observed by useLocation.
+        setHasSession(true)
       }
 
       const { error: updateError } = await supabase.auth.updateUser({ password })

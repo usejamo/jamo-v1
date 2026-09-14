@@ -107,4 +107,30 @@ describe('ResetPassword', () => {
       '/forgot-password'
     )
   })
+
+  it('lets a retry after a failed updateUser proceed without re-spending the token', async () => {
+    getSession.mockResolvedValue({ data: { session: null } })
+    updateUser
+      .mockResolvedValueOnce({ error: { message: 'Password should be at least 6 characters' } })
+      .mockResolvedValueOnce({ error: null })
+    render(
+      <MemoryRouter initialEntries={['/reset-password?token_hash=rec123&type=recovery']}>
+        <ResetPassword />
+      </MemoryRouter>
+    )
+    await screen.findByLabelText('Password')
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'abc' } })
+    fireEvent.change(screen.getByLabelText(/confirm password/i), { target: { value: 'abc' } })
+    fireEvent.click(screen.getByRole('button', { name: /set new password/i }))
+
+    await screen.findByText(/at least 6 characters/i)
+
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'newsecret1' } })
+    fireEvent.change(screen.getByLabelText(/confirm password/i), { target: { value: 'newsecret1' } })
+    fireEvent.click(screen.getByRole('button', { name: /set new password/i }))
+
+    await waitFor(() => expect(updateUser).toHaveBeenCalledTimes(2))
+    expect(verifyOtp).toHaveBeenCalledTimes(1)
+    expect(screen.queryByText(/no longer valid/i)).toBeNull()
+  })
 })

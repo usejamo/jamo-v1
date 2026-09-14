@@ -171,4 +171,28 @@ describe('AcceptInvite — token_hash link (scanner-safe path)', () => {
     expect(screen.queryByLabelText(/full name/i)).toBeNull()
     expect(screen.getByRole('link', { name: /sign in/i })).toHaveAttribute('href', '/login')
   })
+
+  it('lets a retry after a failed updateUser proceed without re-spending the token', async () => {
+    getSession.mockResolvedValue({ data: { session: null } })
+    updateUser
+      .mockResolvedValueOnce({ error: { message: 'Password should be at least 6 characters' } })
+      .mockResolvedValueOnce({ error: null })
+    renderWithToken()
+
+    const name = await screen.findByLabelText(/full name/i)
+    fireEvent.change(name, { target: { value: 'Ada Lovelace' } })
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'abc' } })
+    fireEvent.change(screen.getByLabelText(/confirm password/i), { target: { value: 'abc' } })
+    fireEvent.click(screen.getByRole('button', { name: /set password/i }))
+
+    await screen.findByText(/at least 6 characters/i)
+
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'secret123' } })
+    fireEvent.change(screen.getByLabelText(/confirm password/i), { target: { value: 'secret123' } })
+    fireEvent.click(screen.getByRole('button', { name: /set password/i }))
+
+    await waitFor(() => expect(updateUser).toHaveBeenCalledTimes(2))
+    expect(verifyOtp).toHaveBeenCalledTimes(1)
+    expect(screen.queryByText(/no longer valid/i)).toBeNull()
+  })
 })
