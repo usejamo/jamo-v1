@@ -161,7 +161,7 @@ systematic-debugging for bugs) when we pick it up.
   geography and reference_override); the unreachable 'Delete' row-action branch
   is gone (soft delete lives in the edit modal, not the row).
 
-- [ ] **13. Opening an archived proposal shows "Proposal not found"**
+- [x] **13. Opening an archived proposal shows "Proposal not found"**
   Found while fixing #7, pre-existing and deliberately left alone there.
   ProposalDetail resolves its proposal with `proposals.find(...)` against the
   ACTIVE-only list (src/pages/ProposalDetail.tsx:280), so clicking any row in the
@@ -171,6 +171,21 @@ systematic-debugging for bugs) when we pick it up.
   ones) rather than adding another fetch. Kept out of #7 because it is a
   behaviour change to the detail page, not a list-staleness bug.
   _Type: bug - frontend routing / state_
+  Shipped 2026-09-14 in 8cf5a06. Reproduced first in-browser (archived proposal
+  0d4ccbba… rendered "Proposal not found." by direct URL). Added
+  `findProposal(id)` to ProposalsContext — searches the one row array, excludes
+  only trashed rows — and ProposalDetail now resolves through it. The rule lives
+  in the context so the next detail view cannot reintroduce the bug by searching
+  the wrong list. A trashed proposal still shows "Proposal not found." on
+  purpose: that message is load-bearing as the "deleted_at is set" signal.
+  Verified: archived opens by URL and by clicking its row in the Archived tab;
+  trashed still not-found; active unaffected; no console errors.
+
+  NOT done, and worth a decision before anyone assumes it: an archived proposal
+  now opens the FULL detail page — editable, generate button live. Nothing stops
+  a user editing or regenerating an archived proposal. If archived should be
+  read-only (or show a "this is archived — restore it to edit" banner), that is
+  a separate UX call, not a bug fix.
 
 - [x] **8. Debug button visible to admins - restrict to super_admin only**
   Admin users can currently see the debug button. It should be visible ONLY to
