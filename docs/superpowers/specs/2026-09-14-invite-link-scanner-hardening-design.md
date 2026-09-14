@@ -192,6 +192,46 @@ Pass condition for all three: the token is still unspent afterwards (`confirmed_
 Level 3 is a *stronger* guarantee than a real Safe Links check, because it proves the
 token survives even a scanner that runs our JS — which a `curl`-level test cannot show.
 
+## Verified against a live scanner replay — 2026-09-14
+
+**The fix works. This is measured, not argued.**
+
+Run against the frontend at commit `9ea901c`, deployed to a Netlify draft URL (production
+deploys were blocked that evening by an exhausted Netlify credit balance — a billing state,
+unrelated to this work). A probe invite was minted with `generate_link`, which sends no
+email, and the new-shape URL `…/accept-invite?token_hash=<hashed_token>&type=invite` was
+attacked at three escalating fidelities. State after each, from `auth.users` and
+`auth.sessions`:
+
+| Level | What it does | Result |
+|---|---|---|
+| 1 | Plain GET, `redirect: 'manual'` | token intact |
+| 2 | GET following the full redirect chain | token intact |
+| 3 | Headless browser: renders the page, runs our JS, form appears, no submit | token intact |
+
+"Intact" is the full unspent state each time: `confirmed_at` NULL, `last_sign_in_at` NULL,
+`confirmation_token` present, 0 sessions.
+
+Then the human path: filled the form, submitted once. `confirmed_at` and a session appeared
+**only then**, `confirmation_token` cleared, the `invites` row flipped to `accepted`, and a
+`user_profiles` row was created with the right org, role and name. `token_hash` and `type`
+were stripped from the address bar on success, leaving `/accept-invite` — the URL-leak
+constraint, confirmed live rather than only in jsdom.
+
+**The control that makes this meaningful.** A passing test proves nothing if the measurement
+cannot detect failure, so the identical plain GET was replayed against a second probe's
+OLD-style `action_link`. It burned it: HTTP 303 to `…#access_token=…`, `confirmed_at` set,
+`last_sign_in_at` set, `confirmation_token` cleared, 1 session — the exact state the real
+client's account was found in. Same request, same query, opposite outcome. The method
+detects a spent token; the new flow simply does not spend one.
+
+All probe users, invite rows and profiles were deleted afterwards; residue verified zero.
+
+What this does NOT yet cover: the email templates had not been applied to the live project
+when this ran, so the URL was constructed by hand from the `hashed_token`. That exercises
+the page, which is where the vulnerability lived, but the end-to-end "Supabase renders the
+template and sends it" path still needs one live invite after rollout.
+
 ## Risks and open questions
 
 - **Residual gap: link rewriting and stripping.** The synthetic scanner models fetching,
@@ -203,6 +243,8 @@ token survives even a scanner that runs our JS — which a `curl`-level test can
   work; recorded here so nobody assumes it is.
 - The first real enterprise invite after this ships should still be watched: confirm the
   token is unspent before the client clicks, using the same query as the synthetic test.
+  This is now the ONLY unverified link in the chain — the page is proven, the template
+  rendering is not.
 - `uri_allow_list` already contains `https://app.usejamo.com/accept-invite` and
   `/reset-password`. Query parameters do not affect allow-list matching, so no change is
   needed — but worth re-checking if links ever 400.
