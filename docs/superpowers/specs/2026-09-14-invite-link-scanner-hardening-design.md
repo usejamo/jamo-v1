@@ -151,16 +151,58 @@ everything else only proves we did not break the happy path.
 
 Templates before frontend would break every new invite.
 
+## Reproduced without Microsoft — 2026-09-14
+
+A link scanner is not special: it is an HTTP GET on the URL before the human. That is
+reproducible with `fetch`, so **no Microsoft 365 mailbox is needed** to demonstrate the
+bug or to test the fix. Neither is an inbox: `POST /auth/v1/admin/generate_link` returns
+the link without sending mail.
+
+Run against the live project, one plain GET with no redirect following and no JavaScript:
+
+| | before the GET | after |
+|---|---|---|
+| `confirmed_at` | null | **set** |
+| `last_sign_in_at` | null | **set** |
+| `confirmation_token` | present | **cleared** |
+| `auth.sessions` | 0 | **1** |
+
+The response was a 303 to `https://app.usejamo.com/...#access_token=…`. This is exactly
+the state the real client's account was in at 17:06:56. **The diagnosis is demonstrated,
+not inferred.**
+
+`generate_link` also settled the other open question: it returns `hashed_token` (so
+`{{ .TokenHash }}` is real and populated) and `email_otp` (so the deferred 6-digit
+fallback is available whenever it is wanted). `action_link` is
+`https://<ref>.supabase.co/auth/v1/verify`, confirming the link is the verify endpoint.
+
+### How to test the fix (replaces the "live Microsoft 365 test")
+
+Replay the scanner synthetically at three escalating fidelities against the NEW flow:
+
+1. **Plain GET** on the emailed URL — what most scanners do. This is the exact request
+   proven above to burn the old link.
+2. **GET following redirects** — the full chain.
+3. **Headless browser page load (Playwright)** — covers a scanner sandbox that renders the
+   page and executes our JavaScript.
+
+Pass condition for all three: the token is still unspent afterwards (`confirmed_at` null,
+0 sessions, `confirmation_token` still present), and a subsequent real form submit works.
+
+Level 3 is a *stronger* guarantee than a real Safe Links check, because it proves the
+token survives even a scanner that runs our JS — which a `curl`-level test cannot show.
+
 ## Risks and open questions
 
-- **`{{ .TokenHash }}` availability must be confirmed empirically before the templates go
-  live.** It is documented for exactly this pattern, but this codebase has a history of
-  plausible assumptions that did not survive contact, so the first implementation step is a
-  test send that renders the variable — not a code change.
-- **The scanner diagnosis is strong but circumstantial** (Azure IP, Windows UA, timing).
-  The live Microsoft 365 test above is what turns it into a proven one. If that test shows
-  the token surviving *before* any fix, the diagnosis is wrong and this design should be
-  reconsidered rather than shipped.
+- **Residual gap: link rewriting and stripping.** The synthetic scanner models fetching,
+  redirect-following and JS execution, which is the mechanism. It does not model a gateway
+  that *rewrites* links (Safe Links wraps them in `safelinks.protection.outlook.com`) or
+  strips them entirely. Rewriting does not defeat this design — the wrapped URL still
+  lands on our page — but a gateway that removes links altogether would, and that is the
+  standing argument for eventually adding the `email_otp` fallback. Not closed by this
+  work; recorded here so nobody assumes it is.
+- The first real enterprise invite after this ships should still be watched: confirm the
+  token is unspent before the client clicks, using the same query as the synthetic test.
 - `uri_allow_list` already contains `https://app.usejamo.com/accept-invite` and
   `/reset-password`. Query parameters do not affect allow-list matching, so no change is
   needed — but worth re-checking if links ever 400.

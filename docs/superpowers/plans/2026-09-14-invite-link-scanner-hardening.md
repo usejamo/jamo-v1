@@ -37,9 +37,38 @@
 
 ---
 
-### Task 1: Confirm `{{ .TokenHash }}` actually renders
+### Task 1: ~~Confirm `{{ .TokenHash }}` actually renders~~ — DONE 2026-09-14
 
-The whole design rests on this variable existing in Supabase invite emails. It is documented, but the spec requires proving it before any code is written. **If this fails, stop and re-open the design.**
+**This task is already complete. Do not redo it. Read this and move to Task 2.**
+
+`POST /auth/v1/admin/generate_link` (service-role key, `{type:'invite', email}`) was run
+against the live project and returned:
+
+- `hashed_token` — populated. This is what `{{ .TokenHash }}` renders, so the design's
+  core assumption holds.
+- `email_otp` — populated, so the deferred 6-digit fallback is available if ever wanted.
+- `action_link` — `https://fuuvdcvbliijffogjnwg.supabase.co/auth/v1/verify?...`,
+  confirming the emailed link IS the verify endpoint.
+
+**The bug was also reproduced deterministically in the same run.** One plain `fetch` GET
+on `action_link` (no redirect following, no JavaScript) flipped the user from
+`confirmed_at: null` / 0 sessions / token present to `confirmed_at` set / 1 session /
+token cleared, answering 303 to `app.usejamo.com/...#access_token=…`. That is the exact
+state the real client's account was in. The diagnosis is demonstrated, not inferred.
+
+The probe user and invite row were deleted; no residue.
+
+**Two consequences for the rest of this plan:**
+1. No human and no inbox are needed anywhere. `generate_link` produces links without
+   sending mail.
+2. The old "invite a Microsoft 365 mailbox" acceptance test is replaced by a synthetic
+   scanner replay — see Task 6 Step 5. Aaron has no Safe Links mailbox, and one is not
+   needed: a scanner is just a GET.
+
+The steps below are retained only as the reproducible recipe, e.g. if you need a fresh
+probe link while developing. Note `invites.invited_by` FKs to `auth.users(id)` — NOT
+`user_profiles.id` — and a pending `invites` row must exist first or the
+`handle_new_user` trigger rejects the user with `no pending invite for <email>`.
 
 **Files:** none (verification only)
 
@@ -47,61 +76,41 @@ The whole design rests on this variable existing in Supabase invite emails. It i
 - Consumes: nothing
 - Produces: a confirmed-working template variable name for Task 5
 
-- [ ] **Step 1: Temporarily add the variable to the live invite template**
+#### Recipe: make a probe invite link without sending email
 
-Send a PATCH containing ONLY `mailer_templates_invite_content`, appending a probe line to the current template. Get the sbp_ token from the `SUPABASE_ACCESS_TOKEN` line of `.env`.
-
-```js
-const fs = require('fs')
-const tok = fs.readFileSync('.env','utf8').split(/\r?\n/)
-  .find(l => l.startsWith('SUPABASE_ACCESS_TOKEN=')).split('=')[1].trim()
-const REF = 'fuuvdcvbliijffogjnwg'
-const cur = await (await fetch(`https://api.supabase.com/v1/projects/${REF}/config/auth`,
-  { headers: { Authorization: `Bearer ${tok}` } })).json()
-const probe = cur.mailer_templates_invite_content +
-  '\n<p>PROBE token_hash=[{{ .TokenHash }}] site=[{{ .SiteURL }}]</p>'
-const r = await fetch(`https://api.supabase.com/v1/projects/${REF}/config/auth`, {
-  method: 'PATCH',
-  headers: { Authorization: `Bearer ${tok}`, 'Content-Type': 'application/json' },
-  body: JSON.stringify({ mailer_templates_invite_content: probe }),
-})
-console.log('patch status', r.status)
-```
-
-Send ONLY `mailer_*` keys. Never include `uri_allow_list` in a partial payload.
-
-- [ ] **Step 2: Send one invite to an address you control**
-
-Use the app's own invite UI, or `inviteUserByEmail` with the service-role key, to an address that is NOT a client's. Then open the received email.
-
-Expected: the probe line reads `PROBE token_hash=[<a long hex string>] site=[https://app.usejamo.com]`.
-Failure: it renders literally as `{{ .TokenHash }}` or empty — STOP, the design's core assumption is wrong.
-
-- [ ] **Step 3: Restore the template**
+Used by Task 6 Step 5. Needs `SUPABASE_SERVICE_ROLE_KEY` and `SUPABASE_ACCESS_TOKEN` from `.env`.
 
 ```js
-// same preamble as Step 1
-await fetch(`https://api.supabase.com/v1/projects/${REF}/config/auth`, {
-  method: 'PATCH',
-  headers: { Authorization: `Bearer ${tok}`, 'Content-Type': 'application/json' },
-  body: JSON.stringify({ mailer_templates_invite_content: cur.mailer_templates_invite_content }),
-})
+// 1. a pending invites row must exist first, or handle_new_user rejects the user
+//    with "no pending invite for <email>". invited_by FKs to auth.users(id) and is
+//    nullable — omit it rather than passing a user_profiles.id.
+await sql(`delete from invites where email='${EMAIL}';`)
+await sql(`insert into invites (email, org_id, role, status)
+           values ('${EMAIL}','00000000-0000-0000-0000-000000000001','user','pending');`)
+
+// 2. generate the link. This does NOT send an email.
+const link = await (await fetch(`${URL}/auth/v1/admin/generate_link`, {
+  method: 'POST',
+  headers: { apikey: SRK, Authorization: `Bearer ${SRK}`, 'Content-Type': 'application/json' },
+  body: JSON.stringify({ type: 'invite', email: EMAIL }),
+})).json()
+// link.hashed_token  -> what {{ .TokenHash }} renders
+// link.email_otp     -> the 6-digit code, if the fallback is ever added
+// link.action_link   -> the OLD-style verify URL
+
+// 3. state probe, before and after whatever you are testing
+const q = `select confirmed_at, last_sign_in_at, (confirmation_token<>'') as token_present,
+  (select count(*) from auth.sessions s where s.user_id=u.id) as sessions
+  from auth.users u where email='${EMAIL}';`
+
+// 4. ALWAYS clean up: delete the auth user (profile cascades), then the invite row
+const [u] = await sql(`select id from auth.users where email='${EMAIL}';`)
+await fetch(`${URL}/auth/v1/admin/users/${u.id}`,
+  { method: 'DELETE', headers: { apikey: SRK, Authorization: `Bearer ${SRK}` } })
+await sql(`delete from invites where email='${EMAIL}';`)
 ```
 
-Re-read the config ~20s later and confirm the probe line is gone — reads lag writes on this endpoint.
-
-- [ ] **Step 4: Delete the probe auth user**
-
-The test invite created a real `auth.users` row plus a `user_profiles` row and an `invites` row. Remove all three so they do not pollute the org, using the service-role Admin API for the auth user (the profile cascades) and a SQL delete for the invite row.
-
-- [ ] **Step 5: Record the outcome in the spec**
-
-Add one line under "Risks and open questions" stating the variable was confirmed on 2026-XX-XX, and commit:
-
-```bash
-git add docs/superpowers/specs/2026-09-14-invite-link-scanner-hardening-design.md
-git commit -m "docs(spec): confirm TokenHash renders in live invite emails"
-```
+Use an address that cannot reach a real person (`scanner-probe@example.com` was used on 2026-09-14). Verify cleanup left no residue: zero matching `auth.users`, zero `invites`, and zero orphaned `user_profiles`.
 
 ---
 
@@ -755,7 +764,7 @@ git commit -m "feat(email): link invites and resets to our own pages, not the ve
 
 ---
 
-### Task 6: Roll out in order and prove it against a real scanner
+### Task 6: Roll out in order and prove it against a replayed scanner
 
 Order matters: the frontend accepts both link shapes, so it is safe to ship first. Templates before frontend would break every new invite.
 
@@ -843,24 +852,40 @@ git add supabase/config.toml
 git commit -m "chore(auth): raise email link lifetime to 24h"
 ```
 
-- [ ] **Step 5: THE ACCEPTANCE TEST — invite a Microsoft 365 mailbox**
+- [ ] **Step 5: THE ACCEPTANCE TEST — synthetic scanner replay**
 
 This is the only step that actually proves the fix. Everything before it proves only that the happy path still works.
 
-Send an invite to a mailbox behind Microsoft 365 / Defender (a BioDuro contact who agrees, or any M365 account). Then, **before anyone clicks the link**, wait two minutes and check the token is still unspent:
+No Microsoft mailbox is needed: a scanner is an HTTP GET before the human, and that is reproducible. This exact GET was proven on 2026-09-14 to burn the OLD link (see Task 1), so this is a real regression test, not a simulation of one.
 
-```sql
-select u.email, u.confirmed_at, u.last_sign_in_at,
-       (u.confirmation_token <> '') as token_still_present,
-       (select count(*) from auth.sessions s where s.user_id = u.id) as sessions
-from auth.users u where u.email = '<the test address>';
+Create a probe invite with `generate_link` (recipe in Task 1), then build the NEW URL shape from the returned `hashed_token`:
+
+```
+https://app.usejamo.com/accept-invite?token_hash=<hashed_token>&type=invite
 ```
 
-Expected: `confirmed_at` NULL, `last_sign_in_at` NULL, `token_still_present` true, `sessions` 0 — i.e. the scanner fetched the page and spent nothing.
+Replay a scanner against it at three escalating fidelities, re-checking state after each:
 
-Then have the human open the link and set a password. Expected: it works first time, and only now do `confirmed_at` and a session appear.
+```js
+const q = `select confirmed_at, last_sign_in_at, (confirmation_token<>'') as token_present,
+  (select count(*) from auth.sessions s where s.user_id=u.id) as sessions
+  from auth.users u where email='<probe address>';`
 
-If the token is already spent before the human clicks, the scanner is defeating this design too — stop, and reopen the spec rather than patching.
+// 1. plain GET — what most scanners do, and what burned the old link
+await fetch(newUrl, { redirect: 'manual' })
+// 2. GET following the full redirect chain
+await fetch(newUrl, { redirect: 'follow' })
+// 3. headless browser that RENDERS the page and runs our JavaScript
+//    (Playwright: navigate to newUrl, wait for the form to appear, do NOT submit)
+```
+
+Pass condition after all three: `confirmed_at` NULL, `last_sign_in_at` NULL, `token_present` true, `sessions` 0 — nothing was spent.
+
+Then complete the flow as a human would: load the page, fill the form, submit. Expected: it succeeds, and only now do `confirmed_at` and a session appear. Delete the probe user afterwards.
+
+Level 3 matters most, and is a stronger guarantee than a real Safe Links test would give: it proves the token survives a scanner that executes our JavaScript, which a curl-level check cannot show.
+
+If any level spends the token, stop and reopen the spec rather than patching.
 
 - [ ] **Step 6: Record the result and close the todos**
 

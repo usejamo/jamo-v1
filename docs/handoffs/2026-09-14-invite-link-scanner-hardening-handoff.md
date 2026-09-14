@@ -28,32 +28,46 @@ carrying `{{ .TokenHash }}`, keep that page inert on load, and call `verifyOtp` 
 the password submit, so the token can only be spent by a request carrying a typed
 password.
 
-## START HERE: Task 1 needs a human
+## START HERE: Task 1 is already done — start at Task 2
 
-**Task 1 is a gate and you cannot complete it alone.** It sends a real invite email and
-requires someone to open an inbox and report what a probe line rendered. Ask Aaron to
-do the send/read half. Do not skip it, do not "reason" your way past it, and do not
-start Task 2 until the probe confirms `{{ .TokenHash }}` renders as a real hex string.
+**Task 1 was completed on 2026-09-14. Do not redo it.** Read its block in the plan for
+the results, then begin at Task 2.
 
-If it renders literally or empty, **stop**. The design's core assumption is wrong and
-the right move is to reopen the spec, not to patch around it.
+What it established, against the live project:
 
-Task 1 also creates a real `auth.users` row — clean it up (Step 4) or it pollutes the org.
+- `{{ .TokenHash }}` is real — `POST /auth/v1/admin/generate_link` returns a populated
+  `hashed_token`. It also returns `email_otp`, so the deferred 6-digit fallback is
+  available whenever it is wanted.
+- The emailed link genuinely is the verify endpoint: `action_link` is
+  `https://<ref>.supabase.co/auth/v1/verify?…`.
+- **The bug was reproduced deterministically.** One plain `fetch` GET on that link — no
+  browser, no JavaScript, no redirect following — flipped the probe user from
+  `confirmed_at: null` / 0 sessions / token present to confirmed, 1 session, token
+  cleared. That is the exact state the real client's account was in.
 
-## DO NOT TRUST THE STATED CAUSE — INCLUDING MINE
+**No human, inbox, or Microsoft 365 mailbox is needed anywhere in this plan.**
+`generate_link` produces links without sending mail, and a scanner is just a GET.
 
-The scanner diagnosis is strong but **circumstantial**: the session that consumed the
-invitation came from `57.155.170.192` (a Microsoft Azure IP) on **Windows** 61 seconds
-after send, while the invited user was on a **Mac**. That is compelling, not proven.
+## The diagnosis is PROVEN — but the fix is not
 
-**Task 6 Step 5 is the only step that proves the fix works**: invite a Microsoft 365
-mailbox and verify the token is STILL unspent before any human clicks. Every test before
-it only proves the happy path survived. If the token is spent before the human clicks,
-the design is defeated — stop and reopen the spec.
+The scanner diagnosis started circumstantial (an Azure IP on Windows, while the invited
+user was on a Mac) and is now demonstrated by the reproduction above. You do not need to
+re-litigate the cause.
+
+What is still unproven is that **the fix works**. Task 6 Step 5 replays that same GET —
+plus a redirect-following GET, plus a headless browser that renders the page and runs our
+JavaScript — against the NEW flow, and requires the token to survive all three. Every
+test before it only proves the happy path survived. If any level spends the token, stop
+and reopen the spec rather than patching.
+
+Known residual gap, recorded in the spec and not closed by this work: a gateway that
+*strips* links entirely would still defeat this. Link *rewriting* (Safe Links wrapping
+URLs) does not.
 
 This codebase has a history of confident wrong diagnoses. In the session that produced
 this plan alone: a "frontend-only" bug turned out to need an RLS migration, and a
-"double-click" theory for this very issue was wrong until session IPs were checked.
+"double-click" theory for this very issue was wrong until session IPs were checked. The
+lesson is not to distrust this diagnosis — it is to run the experiment rather than argue.
 
 ## Environment traps that cost real time
 
@@ -120,8 +134,12 @@ this plan alone: a "frontend-only" bug turned out to need an RLS migration, and 
 ## Suggested opening moves
 
 1. Read the spec, then the plan. They argue from each other.
-2. Confirm the repo is at `ff1e29f` and the working tree is clean.
+2. Confirm the working tree is clean and you are on `master`.
 3. Invoke `superpowers:subagent-driven-development`.
-4. Do Task 1 **with Aaron** — you send/prepare, he reads the inbox and reports the probe
-   line verbatim. Get the actual rendered string, not a paraphrase.
-5. Only then start Task 2.
+4. **Start at Task 2.** Task 1 is done; its block in the plan is now a recipe for making
+   probe invite links without sending email, which Task 6 Step 5 depends on.
+
+Useful trap, learned the hard way while building that recipe: `invites.invited_by` FKs to
+`auth.users(id)`, NOT `user_profiles.id`, and it is nullable — omit it. A pending
+`invites` row must exist before an auth user can be created at all, or `handle_new_user`
+rejects it with `no pending invite for <email>`.
