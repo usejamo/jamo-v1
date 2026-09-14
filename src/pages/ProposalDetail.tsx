@@ -273,11 +273,14 @@ export default function ProposalDetail() {
   const [pendingSuggestion, setPendingSuggestion] = useState<PendingSuggestion | null>(null)
   const [_lastResolution, setLastResolution] = useState<'accepted' | 'declined' | null>(null)
 
-  const { proposals, loading: proposalsLoading, updateStatus } = useProposals()
+  const { findProposal, loading: proposalsLoading, updateStatus } = useProposals()
   const { openModal, showToast } = useProposalModal()
   const { profile, user } = useAuth()
   const { setSidebarNode } = useSidebar()
-  const proposal = proposals.find(p => p.id === id)
+  // Archived proposals are viewable: this used to search the Active list only, so
+  // every row opened from the Archived tab rendered "Proposal not found." Trashed
+  // proposals still resolve to undefined and still show that message.
+  const proposal = findProposal(id)
 
   // Fetch proposal_sections from Supabase for SectionWorkspace
   const [proposalSections, setProposalSections] = useState<Array<{

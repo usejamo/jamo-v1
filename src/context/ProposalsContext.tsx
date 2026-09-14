@@ -53,6 +53,9 @@ interface ProposalsContextValue {
   archivedProposals: Proposal[]
   /** In Trash. Empty for roles that proposals_select_deleted does not cover. */
   deletedProposals: Proposal[]
+  /** Look up one proposal by id for a detail view: active or archived, never trashed.
+   *  Use this instead of `proposals.find(...)`, which misses archived rows. */
+  findProposal: (id: string | undefined) => Proposal | undefined
   loading: boolean
   error: string | null
   /** Re-load the proposal list from the DB. Needed after a proposal is created
@@ -109,6 +112,17 @@ export function ProposalsProvider({ children }: { children: ReactNode }) {
   const proposals = useMemo(() => allProposals.filter(isActive), [allProposals])
   const archivedProposals = useMemo(() => allProposals.filter(isArchivedLive), [allProposals])
   const deletedProposals = useMemo(() => allProposals.filter(isDeleted), [allProposals])
+
+  // Detail views resolve through here rather than searching one list. ProposalDetail
+  // used to do proposals.find(...) against the Active list, so every row in the
+  // Archived tab opened as "Proposal not found." Archiving is reversible and does not
+  // make a proposal unviewable — but a trashed one stays not-found on purpose, so that
+  // message keeps meaning "deleted_at is set" when something goes wrong.
+  const findProposal = useCallback(
+    (id: string | undefined) =>
+      id ? allProposals.find((p) => p.id === id && !isDeleted(p)) : undefined,
+    [allProposals]
+  )
 
   // One helper for every lifecycle write: persist first, then patch the single array.
   // Persisting first means a rejected write leaves all three lists untouched rather
@@ -209,6 +223,7 @@ export function ProposalsProvider({ children }: { children: ReactNode }) {
         proposals,
         archivedProposals,
         deletedProposals,
+        findProposal,
         loading,
         error,
         refetch: loadProposals,

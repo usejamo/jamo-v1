@@ -192,6 +192,43 @@ describe('proposal list routing (todo #7)', () => {
     expect([...c.archived.archivedIds].sort()).toEqual(['p-active', 'p-arch'])
   })
 
+  // Todo #13. ProposalDetail resolved its proposal out of the ACTIVE list, so opening
+  // anything from the Archived tab rendered "Proposal not found." even though the row
+  // was right there in the list you clicked it from. findProposal owns the rule in one
+  // place: archived rows resolve, trashed ones deliberately do not.
+  it('findProposal resolves an archived proposal', async () => {
+    const c = await mount()
+    expect(c.proposals.findProposal('p-arch')?.title).toBe('Archived one')
+  })
+
+  it('findProposal resolves an active proposal', async () => {
+    const c = await mount()
+    expect(c.proposals.findProposal('p-active')?.title).toBe('Active one')
+  })
+
+  it('findProposal does NOT resolve a trashed proposal', async () => {
+    // "Proposal not found" is the intended answer for something in the Trash — that
+    // signal is load-bearing when debugging (it means deleted_at is set, not an RLS
+    // failure). Restoring it from the Deleted tab is what makes it reachable again.
+    const c = await mount()
+    expect(c.proposals.findProposal('p-del')).toBeUndefined()
+  })
+
+  it('findProposal returns undefined for an unknown id', async () => {
+    const c = await mount()
+    expect(c.proposals.findProposal('no-such-id')).toBeUndefined()
+  })
+
+  it('findProposal follows the row as it moves between lists', async () => {
+    const c = await mount()
+    // Archiving must not make an open detail page fall back to "not found"...
+    await act(async () => { await c.archived.archive('p-active') })
+    expect(c.proposals.findProposal('p-active')?.title).toBe('Active one')
+    // ...but trashing it must.
+    await act(async () => { await c.deleted.deleteProposal('p-active') })
+    expect(c.proposals.findProposal('p-active')).toBeUndefined()
+  })
+
   it('surfaces a failed write instead of moving the row', async () => {
     // A rejected mutation must leave the lists alone — an optimistic move that is
     // never rolled back is how "it looked like it worked" happened for permanent
