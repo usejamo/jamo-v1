@@ -234,10 +234,32 @@ pass = "env(RESEND_SMTP_PASSWORD)"
 admin_email = "notifications@usejamo.com"
 sender_name = "Jamo"
 
-# Uncomment to customize email template
-# [auth.email.template.invite]
-# subject = "You have been invited"
-# content_path = "./supabase/templates/invite.html"
+# Branded auth email templates (supabase/templates/*.html).
+#
+# IMPORTANT: these blocks configure the LOCAL stack (`supabase start`). The
+# hosted project reads its templates from its own remote auth config, so
+# editing these files does NOT change what a real client receives. Applying
+# them is a separate, deliberate step: PATCH /v1/projects/<ref>/config/auth
+# with the mailer_templates_*_content and mailer_subjects_* fields.
+#
+# When you do that PATCH, send ONLY mailer_* keys — never include
+# uri_allow_list in a partial payload, and re-read the config ~20s later to
+# verify, because reads lag writes on that endpoint.
+[auth.email.template.invite]
+subject = "You're invited to Jamo"
+content_path = "./supabase/templates/invite.html"
+
+[auth.email.template.recovery]
+subject = "Reset your Jamo password"
+content_path = "./supabase/templates/recovery.html"
+
+[auth.email.template.confirmation]
+subject = "Confirm your Jamo account"
+content_path = "./supabase/templates/confirmation.html"
+
+[auth.email.template.email_change]
+subject = "Confirm your email change"
+content_path = "./supabase/templates/email-change.html"
 
 # Uncomment to customize notification email template
 # [auth.email.notification.password_changed]

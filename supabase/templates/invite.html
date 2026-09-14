@@ -1,0 +1,136 @@
+<!--
+  Jamo invite email — the first thing a new client ever sees from us.
+
+  Replaces Supabase's stock template ("You have been invited to create a user on
+  https://app.usejamo.com"), which was unbranded and never said what Jamo is.
+
+  EMAIL HTML RULES — this is not a web page, do not "modernise" it:
+    * Tables for layout. No flex, no grid, no float — Outlook renders none of them.
+    * Inline styles only. A <style> block is stripped or partially applied by
+      Gmail, Outlook.com and most mobile clients.
+    * The logo is an absolute https URL. Relative paths and local assets cannot
+      resolve in an inbox. Images are blocked by default in many clients, so the
+      alt text is styled to still read as the Jamo wordmark when it does not load.
+    * The raw {{ .ConfirmationURL }} is repeated as text. Corporate mail gateways
+      rewrite or break buttons; the pasteable URL is the escape hatch, and the
+      stock template had it for exactly this reason.
+    * Keep the whole file under ~100KB or Gmail clips it and hides the footer.
+
+  Available template variables here: .ConfirmationURL, .SiteURL, .Email, .Token,
+  .TokenHash, .RedirectTo. NOT the organisation or the inviter's name — those
+  would need _shared/invites.ts to pass a `data` payload to inviteUserByEmail
+  (see the personalization todo), so this copy is deliberately generic.
+
+  Deliberately NOT stating "expires in 1 hour": mailer_otp_exp is config, and
+  hardcoding the duration here would silently go stale the day it changes.
+-->
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <title>You're invited to Jamo</title>
+  </head>
+  <body style="margin:0; padding:0; background-color:#f6f5fb; -webkit-font-smoothing:antialiased;">
+
+    <!-- Preheader: the grey preview line next to the subject in the inbox list.
+         Hidden in the body itself. Without one, clients preview the alt text or
+         the first stray words, which reads like spam. -->
+    <div style="display:none; max-height:0; overflow:hidden; opacity:0; visibility:hidden; mso-hide:all;">
+      Accept your invitation to set up your Jamo account.
+    </div>
+
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f6f5fb; margin:0; padding:24px 12px;">
+      <tr>
+        <td align="center">
+
+          <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:100%; max-width:600px; background-color:#ffffff; border:1px solid #ececf3; border-radius:12px;">
+
+            <!-- Logo -->
+            <tr>
+              <td style="padding:32px 40px 0 40px;">
+                <img src="https://app.usejamo.com/email-logo-wordmark.png" width="112" alt="Jamo"
+                     style="width:112px; max-width:112px; height:auto; display:block; border:0; color:#6c29df; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:22px; font-weight:700;" />
+              </td>
+            </tr>
+
+            <!-- Heading -->
+            <tr>
+              <td style="padding:28px 40px 0 40px; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+                <h1 style="margin:0; font-size:24px; line-height:1.3; font-weight:700; color:#18181b;">
+                  You're invited to Jamo
+                </h1>
+              </td>
+            </tr>
+
+            <!-- Body -->
+            <tr>
+              <td style="padding:16px 40px 0 40px; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.6; color:#4b4b55;">
+                <p style="margin:0 0 16px 0;">
+                  Jamo helps clinical research teams draft, review and deliver study proposals in a fraction of the usual time.
+                </p>
+                <p style="margin:0;">
+                  Your account is ready to set up. Use the button below to accept your invitation and choose a password.
+                </p>
+              </td>
+            </tr>
+
+            <!-- CTA. Bulletproof pattern: colour on the <td>, padding on the <a>,
+                 so Outlook still paints a filled button. -->
+            <tr>
+              <td style="padding:28px 40px 0 40px;">
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                  <tr>
+                    <td align="center" bgcolor="#6c29df" style="border-radius:8px;">
+                      <a href="{{ .ConfirmationURL }}" target="_blank"
+                         style="display:inline-block; padding:14px 30px; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:15px; font-weight:600; line-height:1; color:#ffffff; text-decoration:none; border-radius:8px;">
+                        Accept your invitation
+                      </a>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <!-- Single-use / expiry note, without naming a duration -->
+            <tr>
+              <td style="padding:24px 40px 0 40px; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:13px; line-height:1.6; color:#6b6b76;">
+                <p style="margin:0;">
+                  This invitation is single-use and expires for security. If it no longer works, ask your Jamo contact to send a new one.
+                </p>
+              </td>
+            </tr>
+
+            <!-- Pasteable fallback URL -->
+            <tr>
+              <td style="padding:20px 40px 0 40px; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:13px; line-height:1.6; color:#6b6b76;">
+                <p style="margin:0 0 6px 0;">If the button doesn't work, paste this link into your browser:</p>
+                <p style="margin:0; word-break:break-all;">
+                  <a href="{{ .ConfirmationURL }}" style="color:#6c29df; text-decoration:underline;">{{ .ConfirmationURL }}</a>
+                </p>
+              </td>
+            </tr>
+
+            <!-- Footer -->
+            <tr>
+              <td style="padding:28px 40px 32px 40px;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                  <tr><td style="border-top:1px solid #ececf3; font-size:0; line-height:0; height:1px;">&nbsp;</td></tr>
+                </table>
+                <p style="margin:18px 0 0 0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:12px; line-height:1.6; color:#8a8a95;">
+                  You received this because someone at Jamo invited you to collaborate. If you weren't expecting it, you can safely ignore this email.
+                </p>
+                <p style="margin:10px 0 0 0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:12px; line-height:1.6; color:#8a8a95;">
+                  Jamo &middot; <a href="{{ .SiteURL }}" style="color:#8a8a95; text-decoration:underline;">{{ .SiteURL }}</a>
+                </p>
+              </td>
+            </tr>
+
+          </table>
+
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

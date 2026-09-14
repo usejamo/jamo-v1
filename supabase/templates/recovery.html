@@ -1,0 +1,100 @@
+<!--
+  Jamo password reset email. Shares the layout of invite.html — see that file for
+  the email-HTML constraints (tables, inline styles, absolute image URL, the
+  pasteable fallback link, the ~100KB Gmail clipping limit).
+
+  Copy note: a reset email has to be safe to receive when you did NOT ask for it,
+  so it states plainly that ignoring it leaves the password unchanged. That line
+  is the difference between a confused user and a support ticket.
+-->
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <title>Reset your Jamo password</title>
+  </head>
+  <body style="margin:0; padding:0; background-color:#f6f5fb; -webkit-font-smoothing:antialiased;">
+
+    <div style="display:none; max-height:0; overflow:hidden; opacity:0; visibility:hidden; mso-hide:all;">
+      Choose a new password for your Jamo account.
+    </div>
+
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f6f5fb; margin:0; padding:24px 12px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:100%; max-width:600px; background-color:#ffffff; border:1px solid #ececf3; border-radius:12px;">
+
+            <tr>
+              <td style="padding:32px 40px 0 40px;">
+                <img src="https://app.usejamo.com/email-logo-wordmark.png" width="112" alt="Jamo"
+                     style="width:112px; max-width:112px; height:auto; display:block; border:0; color:#6c29df; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:22px; font-weight:700;" />
+              </td>
+            </tr>
+
+            <tr>
+              <td style="padding:28px 40px 0 40px; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+                <h1 style="margin:0; font-size:24px; line-height:1.3; font-weight:700; color:#18181b;">
+                  Reset your password
+                </h1>
+              </td>
+            </tr>
+
+            <tr>
+              <td style="padding:16px 40px 0 40px; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.6; color:#4b4b55;">
+                <p style="margin:0;">
+                  We received a request to reset the password for your Jamo account. Choose a new one using the button below.
+                </p>
+              </td>
+            </tr>
+
+            <tr>
+              <td style="padding:28px 40px 0 40px;">
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                  <tr>
+                    <td align="center" bgcolor="#6c29df" style="border-radius:8px;">
+                      <a href="{{ .ConfirmationURL }}" target="_blank"
+                         style="display:inline-block; padding:14px 30px; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:15px; font-weight:600; line-height:1; color:#ffffff; text-decoration:none; border-radius:8px;">
+                        Reset password
+                      </a>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr>
+              <td style="padding:24px 40px 0 40px; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:13px; line-height:1.6; color:#6b6b76;">
+                <p style="margin:0;">
+                  If you didn't request this, you can ignore this email — your password will stay as it is.
+                </p>
+              </td>
+            </tr>
+
+            <tr>
+              <td style="padding:20px 40px 0 40px; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:13px; line-height:1.6; color:#6b6b76;">
+                <p style="margin:0 0 6px 0;">If the button doesn't work, paste this link into your browser:</p>
+                <p style="margin:0; word-break:break-all;">
+                  <a href="{{ .ConfirmationURL }}" style="color:#6c29df; text-decoration:underline;">{{ .ConfirmationURL }}</a>
+                </p>
+              </td>
+            </tr>
+
+            <tr>
+              <td style="padding:28px 40px 32px 40px;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                  <tr><td style="border-top:1px solid #ececf3; font-size:0; line-height:0; height:1px;">&nbsp;</td></tr>
+                </table>
+                <p style="margin:18px 0 0 0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:12px; line-height:1.6; color:#8a8a95;">
+                  Jamo &middot; <a href="{{ .SiteURL }}" style="color:#8a8a95; text-decoration:underline;">{{ .SiteURL }}</a>
+                </p>
+              </td>
+            </tr>
+
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
