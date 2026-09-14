@@ -184,6 +184,34 @@ systematic-debugging for bugs) when we pick it up.
   NOT done, and worth a decision before anyone assumes it: an archived proposal
   now opens the FULL detail page — editable, generate button live. See #27.
 
+- [ ] **28. Personalize the invite email with org + inviter name**
+  Deferred from the email work on 2026-09-14 (63c0d4a) to avoid an edge-function
+  deploy an hour before a client onboarding. The invite email currently reads
+  "You're invited to Jamo" with no mention of who invited them or which
+  organisation they're joining, because `_shared/invites.ts:77` calls
+  `inviteUserByEmail(lowerEmail, { redirectTo })` with no `data` payload — so
+  the template genuinely has no variable to reference.
+
+  Fix: pass `data: { org_name, inviter_name }` from that shared helper, then use
+  `{{ .Data.org_name }}` / `{{ .Data.inviter_name }}` in invite.html with a
+  sensible fallback for invites sent before the change. Note the helper backs
+  all three invite paths (team-invite, admin-invite-first-admin,
+  admin-invites-lifecycle), so it is one change and one deploy covering all of
+  them — and it needs a real edge-function deploy, which this repo has a history
+  of forgetting.
+  _Type: enhancement - edge function + email template_
+
+- [ ] **29. Send a smaller logo to inboxes / retire public/jamo_logo.png**
+  Found while building the email templates. `public/jamo_logo.png` is a 1.4MB
+  coral mark the app no longer uses (the sidebar renders
+  `src/assets/svg/logo-wordmark.png`), yet it is still served publicly and was
+  the obvious thing to reach for. The email templates now point at
+  `public/email-logo-wordmark.png` (85KB) instead.
+  Two follow-ups: ship a properly sized email logo (~10-20KB at 2x of the 112px
+  display width) since 85KB is still heavy for an inbox, and decide whether the
+  stale 1.4MB jamo_logo.png should be deleted so nobody reaches for it again.
+  _Type: chore - assets_
+
 - [ ] **27. Decide what an archived proposal is allowed to do**
   Product decision, deferred from #26. Since #26, opening an archived proposal
   renders the normal detail page with nothing gated: you can edit sections, run
