@@ -227,10 +227,29 @@ detects a spent token; the new flow simply does not spend one.
 
 All probe users, invite rows and profiles were deleted afterwards; residue verified zero.
 
-What this does NOT yet cover: the email templates had not been applied to the live project
-when this ran, so the URL was constructed by hand from the `hashed_token`. That exercises
-the page, which is where the vulnerability lived, but the end-to-end "Supabase renders the
-template and sends it" path still needs one live invite after rollout.
+### Re-run against production after rollout — 2026-09-21
+
+The draft run above was repeated against `https://app.usejamo.com` itself, once the
+Netlify block was cleared and the rollout completed. Same three levels, same result:
+plain GET, redirect-following GET and a headless browser that rendered the production page
+and ran its JavaScript all left the token intact. Submitting the form then spent it —
+`confirmed_at` set, 1 session, `confirmation_token` cleared, `invites` row `accepted`,
+profile created with the right org, role and name, and the URL stripped to bare
+`/accept-invite`. Probe deleted; residue verified zero.
+
+Rollout state at that point, all verified by reading the live config back:
+- Frontend: prod serving commit `88e7e7c`, bundle contains the new copy, old copy absent.
+- Templates: all four applied. Invite and recovery contain `/accept-invite?token_hash=`
+  and `/reset-password?token_hash=`; neither contains `{{ .ConfirmationURL }}`.
+- `uri_allow_list`: byte-identical to its pre-rollout value, all six entries, across both
+  PATCHes.
+- `mailer_otp_exp`: 86400.
+
+What this still does NOT cover: the URL was constructed by hand from the `hashed_token`
+rather than read out of a delivered email, because `generate_link` does not send mail. The
+page is proven and the applied template is proven to contain the right link shape, but the
+final "Supabase renders the template, the mail leaves, the link in the inbox is the new
+shape" hop is only closed by watching the first real invite after this ships.
 
 ## Risks and open questions
 
