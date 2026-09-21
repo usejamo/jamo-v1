@@ -14,6 +14,7 @@ export default function ResetPassword() {
   const [loading, setLoading] = useState(false)
   const [checkingSession, setCheckingSession] = useState(true)
   const [hasSession, setHasSession] = useState(false)
+  const [tokenVerified, setTokenVerified] = useState(false)
   const navigate = useNavigate()
   const { search } = useLocation()
   const { tokenHash, type } = readEmailLinkParams(search)
@@ -46,20 +47,26 @@ export default function ResetPassword() {
     setLoading(true)
 
     try {
-      if (!hasSession && tokenHash) {
+      // A token_hash in the URL is authoritative and must ALWAYS be verified when
+      // present, even if the browser already has an ambient session (e.g. an admin
+      // signed in as themselves opening someone else's recovery link). Falling
+      // through to updateUser on an unverified token acts on whoever is currently
+      // authenticated, not the intended recipient — that overwrote a real account in
+      // production. Only skip verification when there is no token at all (an
+      // old-style session-only link).
+      if (tokenHash && !tokenVerified) {
         const verified = await verifyEmailLink(tokenHash, 'recovery')
         if (!verified.ok) {
           setError(verified.message)
           setLoading(false)
           return
         }
-        // Verify succeeded and the token is now spent — the client holds a real
-        // session. Flip this immediately so a retry after a failed updateUser below
-        // (e.g. a too-short password) skips straight to updateUser instead of
-        // re-entering this branch with an already-spent token. hasSession/tokenHash
-        // from render won't reflect this on their own: history.replaceState in
-        // verifyEmailLink isn't observed by useLocation.
-        setHasSession(true)
+        // Verify succeeded and the token is now spent — verifyOtp replaced any
+        // ambient session with the correct user's real session. Flip this
+        // immediately so a retry after a failed updateUser below (e.g. a
+        // too-short password) skips straight to updateUser instead of
+        // re-verifying an already-spent token.
+        setTokenVerified(true)
       }
 
       const { error: updateError } = await supabase.auth.updateUser({ password })

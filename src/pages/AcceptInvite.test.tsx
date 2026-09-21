@@ -172,6 +172,42 @@ describe('AcceptInvite — token_hash link (scanner-safe path)', () => {
     expect(screen.getByRole('link', { name: /sign in/i })).toHaveAttribute('href', '/login')
   })
 
+  it('verifies the token even when a session already exists (the token wins)', async () => {
+    getSession.mockResolvedValue({ data: { session: { user: { id: 'someone-else' } } } })
+    renderWithToken()
+
+    const name = await screen.findByLabelText(/full name/i)
+    fireEvent.change(name, { target: { value: 'Ada Lovelace' } })
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'secret123' } })
+    fireEvent.change(screen.getByLabelText(/confirm password/i), { target: { value: 'secret123' } })
+    fireEvent.click(screen.getByRole('button', { name: /set password/i }))
+
+    await waitFor(() =>
+      expect(verifyOtp).toHaveBeenCalledWith({ token_hash: 'tok123', type: 'invite' })
+    )
+    await waitFor(() => expect(updateUser).toHaveBeenCalledWith({ password: 'secret123' }))
+    expect(verifyOtp.mock.invocationCallOrder[0]).toBeLessThan(
+      updateUser.mock.invocationCallOrder[0]
+    )
+  })
+
+  it('does not overwrite the signed-in user when the token fails to verify with a session present', async () => {
+    getSession.mockResolvedValue({ data: { session: { user: { id: 'someone-else' } } } })
+    verifyOtp.mockResolvedValue({ error: { message: 'Token has expired or is invalid' } })
+    renderWithToken()
+
+    const name = await screen.findByLabelText(/full name/i)
+    fireEvent.change(name, { target: { value: 'Ada Lovelace' } })
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'secret123' } })
+    fireEvent.change(screen.getByLabelText(/confirm password/i), { target: { value: 'secret123' } })
+    fireEvent.click(screen.getByRole('button', { name: /set password/i }))
+
+    await screen.findByText(/no longer valid/i)
+    expect(verifyOtp).toHaveBeenCalledWith({ token_hash: 'tok123', type: 'invite' })
+    expect(updateUser).not.toHaveBeenCalled()
+    expect(invoke).not.toHaveBeenCalled()
+  })
+
   it('lets a retry after a failed updateUser proceed without re-spending the token', async () => {
     getSession.mockResolvedValue({ data: { session: null } })
     updateUser

@@ -108,6 +108,41 @@ describe('ResetPassword', () => {
     )
   })
 
+  it('verifies the token even when a session already exists (the token wins)', async () => {
+    getSession.mockResolvedValue({ data: { session: { user: { id: 'someone-else' } } } })
+    render(
+      <MemoryRouter initialEntries={['/reset-password?token_hash=rec123&type=recovery']}>
+        <ResetPassword />
+      </MemoryRouter>
+    )
+    await screen.findByLabelText('Password')
+    fillAndSubmit()
+
+    await waitFor(() =>
+      expect(verifyOtp).toHaveBeenCalledWith({ token_hash: 'rec123', type: 'recovery' })
+    )
+    await waitFor(() => expect(updateUser).toHaveBeenCalledWith({ password: 'newsecret1' }))
+    expect(verifyOtp.mock.invocationCallOrder[0]).toBeLessThan(
+      updateUser.mock.invocationCallOrder[0]
+    )
+  })
+
+  it('does not overwrite the signed-in user when the token fails to verify with a session present', async () => {
+    getSession.mockResolvedValue({ data: { session: { user: { id: 'someone-else' } } } })
+    verifyOtp.mockResolvedValue({ error: { message: 'Token has expired or is invalid' } })
+    render(
+      <MemoryRouter initialEntries={['/reset-password?token_hash=rec123&type=recovery']}>
+        <ResetPassword />
+      </MemoryRouter>
+    )
+    await screen.findByLabelText('Password')
+    fillAndSubmit()
+
+    await screen.findByText(/no longer valid/i)
+    expect(verifyOtp).toHaveBeenCalledWith({ token_hash: 'rec123', type: 'recovery' })
+    expect(updateUser).not.toHaveBeenCalled()
+  })
+
   it('lets a retry after a failed updateUser proceed without re-spending the token', async () => {
     getSession.mockResolvedValue({ data: { session: null } })
     updateUser
