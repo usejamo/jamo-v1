@@ -21,7 +21,8 @@ describe('blockReasonForOrgDeletion', () => {
       confirmName: 'Acme Corpp',
       members: [],
     })
-    expect(reason).toBe('Name does not match')
+    expect(reason?.code).toBe('name_mismatch')
+    expect(reason?.message).toBe('Name does not match')
   })
 
   it('accepts a whitespace-padded confirm_name (trimmed before comparison)', () => {
@@ -42,7 +43,8 @@ describe('blockReasonForOrgDeletion', () => {
         { email: 'user@acme.com', role: 'user' },
       ],
     })
-    expect(reason).toBe(
+    expect(reason?.code).toBe('super_admin_member')
+    expect(reason?.message).toBe(
       'Cannot delete: aaron@example.com is a super_admin in this organization. Move them to another organization first.'
     )
   })
@@ -57,7 +59,8 @@ describe('blockReasonForOrgDeletion', () => {
         { email: 'user@acme.com', role: 'user' },
       ],
     })
-    expect(reason).toBe(
+    expect(reason?.code).toBe('super_admin_member')
+    expect(reason?.message).toBe(
       'Cannot delete: aaron@example.com, bea@example.com are super_admins in this organization. Move them to another organization first.'
     )
   })
@@ -92,6 +95,7 @@ describe('blockReasonForOrgDeletion', () => {
       confirmName: 'Wrong Name',
       members: [{ email: 'aaron@example.com', role: 'super_admin' }],
     })
-    expect(reason).toBe('Name does not match')
+    expect(reason?.code).toBe('name_mismatch')
+    expect(reason?.message).toBe('Name does not match')
   })
 })

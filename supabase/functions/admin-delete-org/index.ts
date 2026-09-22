@@ -19,6 +19,17 @@ interface OrgDeletionMember {
   role: string
 }
 
+/** Callers branch on `code`, never on `message` — the message is user-facing
+ *  prose, and this module is hand-duplicated, so wording WILL drift between
+ *  the two copies. A status code that depended on wording would break
+ *  silently the first time one copy was reworded. */
+type OrgDeletionBlockCode = 'name_mismatch' | 'super_admin_member'
+
+interface OrgDeletionBlock {
+  code: OrgDeletionBlockCode
+  message: string
+}
+
 function blockReasonForOrgDeletion({
   orgName,
   confirmName,
@@ -27,16 +38,19 @@ function blockReasonForOrgDeletion({
   orgName: string
   confirmName: string
   members: OrgDeletionMember[]
-}): string | null {
+}): OrgDeletionBlock | null {
   if (confirmName.trim() !== orgName) {
-    return 'Name does not match'
+    return { code: 'name_mismatch', message: 'Name does not match' }
   }
 
   const superAdmins = members.filter((m) => m.role === 'super_admin')
   if (superAdmins.length > 0) {
     const names = superAdmins.map((m) => m.email || 'unknown').join(', ')
     const verb = superAdmins.length === 1 ? 'is a super_admin' : 'are super_admins'
-    return `Cannot delete: ${names} ${verb} in this organization. Move them to another organization first.`
+    return {
+      code: 'super_admin_member',
+      message: `Cannot delete: ${names} ${verb} in this organization. Move them to another organization first.`,
+    }
   }
 
   return null
@@ -136,7 +150,7 @@ Deno.serve(async (req) => {
             invites: invitesCount ?? 0,
             chat_sessions: chatSessionsCount ?? 0,
           },
-          blocked: blockReason,
+          blocked: blockReason ? blockReason.message : null,
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
@@ -146,8 +160,8 @@ Deno.serve(async (req) => {
       // Name mismatch is a client bug (or a stale/tampered confirmation) —
       // 400. A real super_admin block is a legitimate, expected refusal —
       // 409 (conflict with current state, not malformed input).
-      const status = blockReason === 'Name does not match' ? 400 : 409
-      return jsonError(status, blockReason, corsHeaders)
+      const status = blockReason.code === 'name_mismatch' ? 400 : 409
+      return jsonError(status, blockReason.message, corsHeaders)
     }
 
     // Capture counts BEFORE deleting anything — needed for the response.

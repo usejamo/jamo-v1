@@ -8,9 +8,21 @@ export interface OrgDeletionMember {
   role: string
 }
 
+/** Why deletion was refused. The `code` is what callers branch on — never the
+ *  message. The message is user-facing prose and is expected to be reworded;
+ *  since this module is hand-duplicated into the edge function, branching on
+ *  wording would silently break the moment one copy is edited and the other
+ *  is not. */
+export type OrgDeletionBlockCode = 'name_mismatch' | 'super_admin_member'
+
+export interface OrgDeletionBlock {
+  code: OrgDeletionBlockCode
+  message: string
+}
+
 /**
- * Returns the exact user-facing reason deletion must NOT proceed, or null
- * when it may proceed. Checked in this order:
+ * Returns the reason deletion must NOT proceed, or null when it may proceed.
+ * Checked in this order:
  *
  *  1. Name confirmation (server-side, UX-independent) — confirmName is
  *     trimmed before comparison; orgName is compared as-is.
@@ -30,16 +42,19 @@ export function blockReasonForOrgDeletion({
   orgName: string
   confirmName: string
   members: OrgDeletionMember[]
-}): string | null {
+}): OrgDeletionBlock | null {
   if (confirmName.trim() !== orgName) {
-    return 'Name does not match'
+    return { code: 'name_mismatch', message: 'Name does not match' }
   }
 
   const superAdmins = members.filter((m) => m.role === 'super_admin')
   if (superAdmins.length > 0) {
     const names = superAdmins.map((m) => m.email || 'unknown').join(', ')
     const verb = superAdmins.length === 1 ? 'is a super_admin' : 'are super_admins'
-    return `Cannot delete: ${names} ${verb} in this organization. Move them to another organization first.`
+    return {
+      code: 'super_admin_member',
+      message: `Cannot delete: ${names} ${verb} in this organization. Move them to another organization first.`,
+    }
   }
 
   return null
