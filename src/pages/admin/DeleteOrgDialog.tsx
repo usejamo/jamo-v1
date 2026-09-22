@@ -79,7 +79,12 @@ export default function DeleteOrgDialog({
       setLoadingPreview(true)
       setPreviewError(null)
       const { data, error } = await supabase.functions.invoke('admin-delete-org', {
-        body: { org_id: org.id, confirm_name: typed, preview: true },
+        // No confirm_name: preview reports the standing state of the org
+        // (counts, and whether a super_admin member blocks it). The name is a
+        // submit-time gate — sending the empty box here made the server answer
+        // "Name does not match" on open, which hid the real reason and left
+        // the confirm button permanently unrendered.
+        body: { org_id: org.id, preview: true },
       })
       if (cancelled) return
       if (error) {

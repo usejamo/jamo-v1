@@ -42,7 +42,14 @@ function blockReasonForOrgDeletion({
   if (confirmName.trim() !== orgName) {
     return { code: 'name_mismatch', message: 'Name does not match' }
   }
+  return superAdminBlockReason(members)
+}
 
+/** The standing, typing-independent refusal. PREVIEW uses this one: preview
+ *  runs when the dialog opens, before anything has been typed, so applying
+ *  the name check there would report 'Name does not match' every time and
+ *  hide the real reason behind it. */
+function superAdminBlockReason(members: OrgDeletionMember[]): OrgDeletionBlock | null {
   const superAdmins = members.filter((m) => m.role === 'super_admin')
   if (superAdmins.length > 0) {
     const names = superAdmins.map((m) => m.email || 'unknown').join(', ')
@@ -92,7 +99,9 @@ Deno.serve(async (req) => {
     if (!org_id || typeof org_id !== 'string') {
       return jsonError(400, 'org_id is required', corsHeaders)
     }
-    if (typeof confirm_name !== 'string') {
+    // confirm_name is required only to actually delete. A preview reports the
+    // standing state of the org before the user has typed anything.
+    if (preview !== true && typeof confirm_name !== 'string') {
       return jsonError(400, 'confirm_name is required', corsHeaders)
     }
 
@@ -122,15 +131,9 @@ Deno.serve(async (req) => {
       })
     )
 
-    // Step 4 (name confirmation) and step 5 (THE GUARD) both live in
-    // blockReasonForOrgDeletion — never trust the client's own check.
-    const blockReason = blockReasonForOrgDeletion({
-      orgName: org.name,
-      confirmName: confirm_name,
-      members,
-    })
-
     if (preview === true) {
+      // Typing-independent only — see superAdminBlockReason.
+      const previewBlock = superAdminBlockReason(members)
       const [{ count: proposalsCount }, { count: invitesCount }, { count: chatSessionsCount }] =
         await Promise.all([
           admin.from('proposals').select('*', { count: 'exact', head: true }).eq('org_id', org_id),
@@ -150,11 +153,19 @@ Deno.serve(async (req) => {
             invites: invitesCount ?? 0,
             chat_sessions: chatSessionsCount ?? 0,
           },
-          blocked: blockReason ? blockReason.message : null,
+          blocked: previewBlock ? previewBlock.message : null,
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
+
+    // Step 4 (name confirmation) and step 5 (THE GUARD) both live in
+    // blockReasonForOrgDeletion — never trust the client's own check.
+    const blockReason = blockReasonForOrgDeletion({
+      orgName: org.name,
+      confirmName: confirm_name as string,
+      members,
+    })
 
     if (blockReason) {
       // Name mismatch is a client bug (or a stale/tampered confirmation) —

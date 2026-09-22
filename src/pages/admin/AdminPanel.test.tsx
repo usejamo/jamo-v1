@@ -72,9 +72,16 @@ describe('AdminPanel — delete organization', () => {
     await renderPanel()
     await openDeleteDialog()
 
+    // Preview must NOT carry confirm_name. It runs on open, before anything is
+    // typed, so sending the empty box made the server answer "Name does not
+    // match" — which masked the real (super_admin) reason and left the confirm
+    // button unrendered, making deletion impossible.
     await waitFor(() => expect(invoke).toHaveBeenCalledWith('admin-delete-org', {
-      body: { org_id: ORG.id, confirm_name: '', preview: true },
+      body: { org_id: ORG.id, preview: true },
     }))
+    expect(invoke).not.toHaveBeenCalledWith('admin-delete-org', {
+      body: expect.objectContaining({ preview: true, confirm_name: expect.anything() }),
+    })
 
     const confirmButton = screen.getByRole('button', { name: /^delete organization$/i })
     expect(confirmButton).toBeDisabled()

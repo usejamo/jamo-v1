@@ -46,7 +46,19 @@ export function blockReasonForOrgDeletion({
   if (confirmName.trim() !== orgName) {
     return { code: 'name_mismatch', message: 'Name does not match' }
   }
+  return superAdminBlockReason(members)
+}
 
+/**
+ * The standing, typing-independent reason an org cannot be deleted.
+ *
+ * Split out from blockReasonForOrgDeletion because a PREVIEW must not apply
+ * the name check: preview runs when the dialog opens, before the user has
+ * typed anything, so folding the name check in would report "Name does not
+ * match" every time and mask the real (super_admin) reason behind it.
+ * Name confirmation is a submit-time gate; this is a state-of-the-world gate.
+ */
+export function superAdminBlockReason(members: OrgDeletionMember[]): OrgDeletionBlock | null {
   const superAdmins = members.filter((m) => m.role === 'super_admin')
   if (superAdmins.length > 0) {
     const names = superAdmins.map((m) => m.email || 'unknown').join(', ')
