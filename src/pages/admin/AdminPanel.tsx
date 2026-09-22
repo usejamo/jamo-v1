@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { supabase } from '../../lib/supabase'
 import { baseSlug } from '../../lib/slug'
+import DeleteOrgDialog from './DeleteOrgDialog'
 
 // ── Icons (inline-SVG-function convention, matches TemplatesTab.tsx:4-38 — no icon library) ──
 
@@ -238,6 +239,9 @@ export default function AdminPanel() {
   const [revokeTarget, setRevokeTarget] = useState<InviteListRow | null>(null)
   const [revokingId, setRevokingId] = useState<string | null>(null)
   const [lifecycleError, setLifecycleError] = useState<string | null>(null)
+
+  // Delete-org dialog
+  const [deleteTarget, setDeleteTarget] = useState<Org | null>(null)
 
   async function fetchOrgs() {
     setOrgsLoading(true)
@@ -482,6 +486,15 @@ export default function AdminPanel() {
                     >
                       Invite Admin
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => setDeleteTarget(org)}
+                      aria-label={`Delete ${org.name}`}
+                      className="flex items-center justify-center text-gray-400 hover:text-red-600 transition-colors"
+                      style={{ width: 44, height: 44 }}
+                    >
+                      <IconBan className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
               </div>
@@ -574,6 +587,17 @@ export default function AdminPanel() {
           onConfirm={handleRevokeConfirm}
           onCancel={() => setRevokeTarget(null)}
           revoking={revokingId === revokeTarget.id}
+        />
+      )}
+
+      {deleteTarget && (
+        <DeleteOrgDialog
+          org={deleteTarget}
+          onCancel={() => setDeleteTarget(null)}
+          onDeleted={async () => {
+            setDeleteTarget(null)
+            await fetchOrgs()
+          }}
         />
       )}
     </div>
