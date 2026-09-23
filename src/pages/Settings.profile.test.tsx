@@ -131,6 +131,18 @@ describe('Settings → Profile tab → change password', () => {
     expect(updateUser).not.toHaveBeenCalled()
   })
 
+  it('blocks submit when the new password equals the current one', async () => {
+    // Without this, signInWithPassword would succeed and updateUser would be
+    // called to set the password to the value it already has — a no-op the
+    // user would see reported as a successful change.
+    render(<Settings />)
+    fillPasswordForm('oldpassword', 'oldpassword', 'oldpassword')
+
+    await screen.findByText(/must be different/i)
+    expect(signInWithPassword).not.toHaveBeenCalled()
+    expect(updateUser).not.toHaveBeenCalled()
+  })
+
   it('blocks submit when the new password is shorter than 6 characters', async () => {
     render(<Settings />)
     fillPasswordForm('oldpassword', 'abc', 'abc')
