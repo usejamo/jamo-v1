@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase'
 import { TemplatesTab } from '../components/settings/TemplatesTab'
 import { ReferenceLibraryTab } from '../components/settings/ReferenceLibraryTab'
 import { TeamTab } from '../components/settings/TeamTab'
+import { ChangePasswordSection } from '../components/settings/ChangePasswordSection'
 import { SalesforceConnection } from '../components/SalesforceConnection'
 
 // ── Shared constants ──────────────────────────────────────────────────────────
@@ -230,7 +231,54 @@ function IntegrationCard({ integration }: { integration: Integration }) {
 // ── Profile tab ──────────────────────────────────────────────────────────────
 
 function ProfileTab() {
-  const { user, profile } = useAuth()
+  const { user, profile, refreshProfile } = useAuth()
+  const [name, setName] = useState(profile?.full_name ?? '')
+  const [nameError, setNameError] = useState<string | null>(null)
+  const [nameSaved, setNameSaved] = useState(false)
+  const [nameSaving, setNameSaving] = useState(false)
+
+  // Keep the input in sync if the profile arrives/changes after mount (e.g. the
+  // initial async profile fetch resolving after this component is already up).
+  useEffect(() => {
+    setName(profile?.full_name ?? '')
+  }, [profile?.full_name])
+
+  function handleNameChange(value: string) {
+    setName(value)
+    setNameError(null)
+    setNameSaved(false)
+  }
+
+  async function handleSaveName() {
+    setNameError(null)
+    setNameSaved(false)
+
+    const trimmed = name.trim()
+    if (!trimmed) {
+      setNameError('Name cannot be empty')
+      return
+    }
+    if (!user) return
+
+    setNameSaving(true)
+    // Update ONLY full_name. The profiles_update RLS policy is
+    // USING (user_id = auth.uid()) with a WITH CHECK pinning role and org_id to
+    // their current values — sending either of those back would be refused.
+    const { error } = await supabase
+      .from('user_profiles')
+      .update({ full_name: trimmed })
+      .eq('user_id', user.id)
+    setNameSaving(false)
+
+    if (error) {
+      setNameError(error.message || 'Failed to save name')
+      return
+    }
+
+    setName(trimmed)
+    setNameSaved(true)
+    await refreshProfile()
+  }
 
   return (
     <div className="space-y-6">
@@ -238,8 +286,28 @@ function ProfileTab() {
         <h3 className="text-lg font-semibold text-gray-900 mb-4">User Profile</h3>
         <div className="bg-gray-50 rounded-lg p-6 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
-            <div className="text-gray-900">{profile?.full_name || 'Not set'}</div>
+            <label htmlFor="profileFullName" className="block text-sm font-medium text-gray-700 mb-1">
+              Name
+            </label>
+            <div className="flex items-center gap-2 max-w-sm">
+              <input
+                id="profileFullName"
+                type="text"
+                value={name}
+                onChange={(e) => handleNameChange(e.target.value)}
+                className={INPUT_CLASS}
+                disabled={nameSaving}
+              />
+              <button
+                onClick={handleSaveName}
+                disabled={nameSaving}
+                className="shrink-0 inline-flex items-center text-sm font-medium text-white bg-jamo-500 px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
+              >
+                {nameSaving ? 'Saving...' : 'Save Name'}
+              </button>
+            </div>
+            {nameError && <p className="text-sm text-red-600 mt-1">{nameError}</p>}
+            {nameSaved && !nameError && <p className="text-sm text-green-600 mt-1">Name updated</p>}
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
@@ -259,6 +327,8 @@ function ProfileTab() {
           </div>
         </div>
       </div>
+
+      <ChangePasswordSection />
 
       <div className="border-t border-gray-200 pt-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-2">About Roles</h3>
