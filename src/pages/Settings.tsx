@@ -233,6 +233,7 @@ function IntegrationCard({ integration }: { integration: Integration }) {
 function ProfileTab() {
   const { user, profile, refreshProfile } = useAuth()
   const [name, setName] = useState(profile?.full_name ?? '')
+  const [isEditingName, setIsEditingName] = useState(false)
   const [nameError, setNameError] = useState<string | null>(null)
   const [nameSaved, setNameSaved] = useState(false)
   const [nameSaving, setNameSaving] = useState(false)
@@ -247,6 +248,20 @@ function ProfileTab() {
     setName(value)
     setNameError(null)
     setNameSaved(false)
+  }
+
+  function handleEditNameOpen() {
+    setName(profile?.full_name ?? '')
+    setNameError(null)
+    setNameSaved(false)
+    setIsEditingName(true)
+  }
+
+  function handleCancelName() {
+    setName(profile?.full_name ?? '')
+    setNameError(null)
+    setNameSaved(false)
+    setIsEditingName(false)
   }
 
   async function handleSaveName() {
@@ -277,6 +292,7 @@ function ProfileTab() {
 
     setName(trimmed)
     setNameSaved(true)
+    setIsEditingName(false)
     await refreshProfile()
   }
 
@@ -289,25 +305,55 @@ function ProfileTab() {
             <label htmlFor="profileFullName" className="block text-sm font-medium text-gray-700 mb-1">
               Name
             </label>
-            <div className="flex items-center gap-2 max-w-sm">
-              <input
-                id="profileFullName"
-                type="text"
-                value={name}
-                onChange={(e) => handleNameChange(e.target.value)}
-                className={INPUT_CLASS}
-                disabled={nameSaving}
-              />
-              <button
-                onClick={handleSaveName}
-                disabled={nameSaving}
-                className="shrink-0 inline-flex items-center text-sm font-medium text-white bg-jamo-500 px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
-              >
-                {nameSaving ? 'Saving...' : 'Save Name'}
-              </button>
+            <div className="max-w-sm">
+              {isEditingName ? (
+                <>
+                  <input
+                    id="profileFullName"
+                    type="text"
+                    value={name}
+                    onChange={(e) => handleNameChange(e.target.value)}
+                    className={INPUT_CLASS}
+                    disabled={nameSaving}
+                  />
+                  {nameError && <p className="text-sm text-red-600 mt-1">{nameError}</p>}
+                  <div className="flex gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={handleSaveName}
+                      disabled={nameSaving}
+                      className="px-3 py-1.5 text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white rounded-md disabled:opacity-50"
+                    >
+                      {nameSaving ? 'Saving...' : 'Save'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCancelName}
+                      disabled={nameSaving}
+                      className="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-800"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div className="flex items-center justify-between py-1.5">
+                  <span className={name ? 'text-gray-900' : 'text-gray-500'}>
+                    {name || 'Not set'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleEditNameOpen}
+                    className="text-xs text-indigo-600 hover:text-indigo-700 font-medium"
+                  >
+                    Edit
+                  </button>
+                </div>
+              )}
             </div>
-            {nameError && <p className="text-sm text-red-600 mt-1">{nameError}</p>}
-            {nameSaved && !nameError && <p className="text-sm text-green-600 mt-1">Name updated</p>}
+            {!isEditingName && nameSaved && !nameError && (
+              <p className="text-sm text-green-600 mt-1">Name updated</p>
+            )}
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
